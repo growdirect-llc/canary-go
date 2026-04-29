@@ -2,7 +2,6 @@
 package main
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -83,7 +82,7 @@ func (h *handlers) sessionsValidate(w http.ResponseWriter, r *http.Request) {
 
 	// Revocation check — token must exist in Valkey
 	key := fmt.Sprintf("session:%x", sha256.Sum256([]byte(req.Token)))
-	if exists, err := h.rdb.Exists(context.Background(), key).Result(); err != nil || exists == 0 {
+	if exists, err := h.rdb.Exists(r.Context(), key).Result(); err != nil || exists == 0 {
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(validateResponse{Valid: false})
 		return
