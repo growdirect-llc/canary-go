@@ -22,8 +22,8 @@ sqlc-gen:
 
 test:
 	DATABASE_URL="$(TEST_DATABASE_URL)" \
-	VALKEY_URL=redis://localhost:6379/2 \
-	SESSION_SECRET=test-session-secret \
+	VALKEY_URL=redis://:valkey_dev@localhost:6379/2 \
+	SESSION_SECRET="test-session-secret-at-least-32-bytes!" \
 	INTERNAL_SERVICE_SECRET=test-internal-secret \
 	go test ./... -v -count=1
 
