@@ -6,8 +6,12 @@
 // delete this binary once the real services are deploying cleanly.
 //
 // Endpoints:
-//   GET /         → 200 "hello from canary-rapidpos drop zone"
-//   GET /healthz  → 200 "ok"
+//   GET /        → 200 "hello from canary-rapidpos drop zone"
+//   GET /health  → 200 "ok"
+//
+// Note: /healthz is reserved by Google's Cloud Run frontend (Knative
+// activator readiness probe) — using /health instead, matching the
+// existing cmd/gateway convention.
 //
 // Reads PORT from env (Cloud Run sets this); defaults to 8080 for local.
 package main
@@ -26,7 +30,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "ok")
 	})
