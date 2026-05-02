@@ -24,6 +24,7 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/config"
 	"github.com/growdirect-llc/rapidpos/internal/db"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/audit"
+	"github.com/growdirect-llc/rapidpos/internal/protocol/evidence"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/secrets"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/webhook"
@@ -79,6 +80,7 @@ func main() {
 	nonceStore := publisher.NewValkeyNonceStore(rdb, noncePrefix)
 
 	handler := webhook.New(resolver, pub, nonceStore, logger)
+	evidenceHandler := evidence.New(pool, logger)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP, middleware.Recoverer)
@@ -86,9 +88,14 @@ func main() {
 
 	r.Get("/health", healthHandler(cfg))
 
-	// Audit middleware records every protocol invocation into
-	// app.audit_log. Scoped to protocol routes so /health stays
-	// noise-free. GRO-694.
+	// Bilateral verification API — read-only, mounted outside the
+	// audit group. Reads don't need state-mutation audit semantics.
+	// GRO-748.
+	evidenceHandler.Mount(r)
+
+	// Audit middleware records every state-mutating protocol invocation
+	// into app.audit_log. Scoped to webhook routes so /health and
+	// read-only /v1/protocol/evidence/* stay noise-free. GRO-694.
 	auditMW := audit.Middleware(audit.Config{
 		Inserter:    audit.NewPgxInserter(pool),
 		Logger:      logger,
