@@ -1,9 +1,50 @@
 .PHONY: migrate-up migrate-down migrate-test-up sqlc-gen test \
-        build-identity build-all build-edge-windows lint
+        build-identity build-all build-edge-windows lint \
+        db-reset db-reset-test db-seed db-seed-test
 
 # Default DATABASE_URL — override on command line
 DATABASE_URL ?= postgres://growdirect:growdirect_dev@localhost:5432/canary_go?sslmode=disable
 TEST_DATABASE_URL ?= postgres://growdirect:growdirect_dev@localhost:5432/canary_go_test?sslmode=disable
+
+# Local Docker Postgres connection params (used by db-reset / db-seed)
+PG_CONTAINER ?= growdirect_postgres
+PG_USER      ?= growdirect
+
+# ─────────────────────────────────────────────────────────────────────
+# db-reset — drop + recreate canary_go from declarative schema files.
+# Greenfield discipline: the schema is the source of truth, not a
+# numbered migration history. Edit deploy/schema/*.sql, run db-reset.
+# ─────────────────────────────────────────────────────────────────────
+db-reset:
+	@echo "==> dropping + recreating canary_go (LOCAL ONLY)"
+	docker exec $(PG_CONTAINER) psql -U $(PG_USER) -d postgres -c "DROP DATABASE IF EXISTS canary_go" >/dev/null
+	docker exec $(PG_CONTAINER) psql -U $(PG_USER) -d postgres -c "CREATE DATABASE canary_go" >/dev/null
+	@echo "==> applying deploy/schema/*.sql in order"
+	@for f in deploy/schema/*.sql; do \
+	    echo "  -- $$f"; \
+	    docker exec -i $(PG_CONTAINER) psql -U $(PG_USER) -d canary_go -v ON_ERROR_STOP=1 < $$f >/dev/null \
+	      || { echo "FAILED: $$f"; exit 1; }; \
+	done
+	@echo "==> done. tables:"
+	@docker exec $(PG_CONTAINER) psql -U $(PG_USER) -d canary_go -t -c \
+	    "SELECT table_schema || '.' || table_name FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema') ORDER BY 1" \
+	  | sed 's/^/    /' | grep -v '^    $$' | head -80
+
+db-reset-test:
+	@echo "==> dropping + recreating canary_go_test (LOCAL ONLY)"
+	docker exec $(PG_CONTAINER) psql -U $(PG_USER) -d postgres -c "DROP DATABASE IF EXISTS canary_go_test" >/dev/null
+	docker exec $(PG_CONTAINER) psql -U $(PG_USER) -d postgres -c "CREATE DATABASE canary_go_test" >/dev/null
+	@for f in deploy/schema/*.sql; do \
+	    docker exec -i $(PG_CONTAINER) psql -U $(PG_USER) -d canary_go_test -v ON_ERROR_STOP=1 < $$f >/dev/null \
+	      || { echo "FAILED: $$f"; exit 1; }; \
+	done
+	@echo "==> canary_go_test ready"
+
+db-seed:
+	@docker exec -i $(PG_CONTAINER) psql -U $(PG_USER) -d canary_go -v ON_ERROR_STOP=1 < deploy/schema/99_seed.sql
+
+db-seed-test:
+	@docker exec -i $(PG_CONTAINER) psql -U $(PG_USER) -d canary_go_test -v ON_ERROR_STOP=1 < deploy/schema/99_seed.sql
 
 migrate-up:
 	migrate -path=deploy/migrations \
