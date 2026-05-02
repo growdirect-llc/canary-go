@@ -21,6 +21,7 @@ import (
 
 	"github.com/growdirect-llc/rapidpos/internal/config"
 	"github.com/growdirect-llc/rapidpos/internal/db"
+	"github.com/growdirect-llc/rapidpos/internal/protocol/evidence"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/secrets"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/webhook"
@@ -66,6 +67,7 @@ func main() {
 	nonceStore := publisher.NewValkeyNonceStore(rdb, noncePrefix)
 
 	handler := webhook.New(resolver, pub, nonceStore, logger)
+	evidenceHandler := evidence.New(pool, logger)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP, middleware.Recoverer)
@@ -73,6 +75,7 @@ func main() {
 
 	r.Get("/health", healthHandler(cfg))
 	handler.Mount(r)
+	evidenceHandler.Mount(r)
 
 	addr := ":" + cfg.Port
 	logger.Info("starting",
