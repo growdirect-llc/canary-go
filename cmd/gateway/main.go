@@ -13,9 +13,11 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
@@ -62,7 +64,17 @@ func main() {
 	defer func() { _ = rdb.Close() }()
 
 	// Build the protocol-gateway dependency tree.
-	resolver := secrets.NewPgxResolver(pool)
+	//
+	// Secret backend is selected by the SECRET_BACKEND env var.
+	//   - "pgx" (default): plaintext column lookup. Dev only.
+	//   - "sm" : GCP Secret Manager-backed. Required for production.
+	//
+	// In "sm" mode we also need GCP_PROJECT_ID. If SmResolver fails
+	// to construct (e.g., ADC not configured locally), we log a warn
+	// and fall back to PgxResolver so a developer without GCP creds
+	// can still boot the gateway. Production deployments fail fast
+	// by setting SECRET_BACKEND_REQUIRE_SM=1.
+	resolver := buildResolver(ctx, pool, logger)
 	pub := publisher.NewValkey(rdb, streamName)
 	nonceStore := publisher.NewValkeyNonceStore(rdb, noncePrefix)
 
@@ -111,6 +123,50 @@ func healthHandler(cfg *config.Config) http.HandlerFunc {
 			"checks":  map[string]string{},
 		})
 	}
+}
+
+// buildResolver picks a secrets backend based on env vars and returns
+// a Resolver. Default is PgxResolver for dev; production sets
+// SECRET_BACKEND=sm + GCP_PROJECT_ID. If SECRET_BACKEND_REQUIRE_SM=1
+// is set, a failure to construct SmResolver is fatal — used in
+// production deployments to prevent silent fallback to plaintext.
+func buildResolver(ctx context.Context, pool *pgxpool.Pool, logger *zap.Logger) secrets.Resolver {
+	backend := os.Getenv("SECRET_BACKEND")
+	if backend == "" {
+		backend = "pgx"
+	}
+	if backend != "sm" {
+		logger.Info("secrets backend",
+			zap.String("backend", "pgx"),
+			zap.String("note", "plaintext column lookup; dev only"),
+		)
+		return secrets.NewPgxResolver(pool)
+	}
+
+	projectID := os.Getenv("GCP_PROJECT_ID")
+	if projectID == "" {
+		if os.Getenv("SECRET_BACKEND_REQUIRE_SM") == "1" {
+			logger.Fatal("SECRET_BACKEND=sm requires GCP_PROJECT_ID")
+		}
+		logger.Warn("SECRET_BACKEND=sm but GCP_PROJECT_ID is empty; falling back to pgx")
+		return secrets.NewPgxResolver(pool)
+	}
+
+	smResolver, err := secrets.NewSmResolver(ctx, pool, projectID, secrets.WithLogger(logger))
+	if err != nil {
+		if os.Getenv("SECRET_BACKEND_REQUIRE_SM") == "1" {
+			logger.Fatal("SmResolver construct failed", zap.Error(err))
+		}
+		logger.Warn("SmResolver construct failed; falling back to pgx",
+			zap.Error(err),
+		)
+		return secrets.NewPgxResolver(pool)
+	}
+	logger.Info("secrets backend",
+		zap.String("backend", "sm"),
+		zap.String("project_id", projectID),
+	)
+	return smResolver
 }
 
 // requestLogger is a small middleware that emits a structured zap line
