@@ -68,8 +68,8 @@ LIMIT 1
 // per (merchant, source).
 func (r *PgxResolver) Lookup(ctx context.Context, merchantID uuid.UUID, sourceCode string) (Secret, error) {
 	var (
-		s              Secret
-		replaySeconds  int
+		s             Secret
+		replaySeconds int
 	)
 	row := r.pool.QueryRow(ctx, lookupSQL, merchantID, sourceCode)
 	if err := row.Scan(&s.ID, &s.MerchantID, &s.SourceCode, &s.Secret, &s.SignatureAlgo, &replaySeconds); err != nil {
