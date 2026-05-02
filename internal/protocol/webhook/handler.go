@@ -31,6 +31,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/growdirect-llc/rapidpos/internal/protocol/audit"
 	canaryhmac "github.com/growdirect-llc/rapidpos/internal/protocol/hmac"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/secrets"
@@ -172,6 +173,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Mint event_id and build the canonical envelope.
 	eventID := uuid.New()
+
+	// Bridge minted event_id + resolved source code onto the request
+	// context so the audit middleware (GRO-694) can record them. This
+	// is a no-op when the middleware isn't installed.
+	ctx = audit.WithEventID(ctx, eventID)
+	ctx = audit.WithSource(ctx, source)
+	*r = *r.WithContext(ctx)
+
 	evt := publisher.Event{
 		EventID:    eventID,
 		EventHash:  eventHash,

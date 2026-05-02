@@ -21,6 +21,7 @@ import (
 
 	"github.com/growdirect-llc/rapidpos/internal/config"
 	"github.com/growdirect-llc/rapidpos/internal/db"
+	"github.com/growdirect-llc/rapidpos/internal/protocol/audit"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/secrets"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/webhook"
@@ -72,7 +73,21 @@ func main() {
 	r.Use(requestLogger(logger))
 
 	r.Get("/health", healthHandler(cfg))
-	handler.Mount(r)
+
+	// Audit middleware records every protocol invocation into
+	// app.audit_log. Scoped to protocol routes so /health stays
+	// noise-free. GRO-694.
+	auditMW := audit.Middleware(audit.Config{
+		Inserter:    audit.NewPgxInserter(pool),
+		Logger:      logger,
+		ServiceName: serviceName,
+		ActorType:   "agent",
+		Resource:    "protocol.event",
+	})
+	r.Group(func(r chi.Router) {
+		r.Use(auditMW)
+		handler.Mount(r)
+	})
 
 	addr := ":" + cfg.Port
 	logger.Info("starting",
