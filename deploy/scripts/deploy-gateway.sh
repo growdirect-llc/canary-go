@@ -195,6 +195,24 @@ step_vpc() {
       --region=$REGION --network=$VPC_NAME --range=$CONNECTOR_RANGE \
       --min-instances=2 --max-instances=3 --machine-type=e2-micro"
   fi
+
+  # Service Networking VPC peering — required for private-IP Cloud SQL.
+  # Without this, sql instances create with --no-assign-ip fails with
+  # SERVICE_NETWORKING_NOT_ENABLED.
+  log "ensuring Service Networking peering for private Cloud SQL"
+  if ! gcloud compute addresses describe google-managed-services-default --global >/dev/null 2>&1; then
+    run "gcloud compute addresses create google-managed-services-default \
+      --global --purpose=VPC_PEERING --prefix-length=16 --network=$VPC_NAME \
+      --description='Reserved range for Cloud SQL private services'"
+  fi
+  if ! gcloud services vpc-peerings list --network="$VPC_NAME" \
+    --service=servicenetworking.googleapis.com \
+    --format="value(reservedPeeringRanges)" 2>/dev/null | grep -q google-managed-services-default; then
+    run "gcloud services vpc-peerings connect \
+      --service=servicenetworking.googleapis.com \
+      --ranges=google-managed-services-default --network=$VPC_NAME --async"
+    log "  peering operation issued (async); Cloud SQL create will block until ready"
+  fi
 }
 
 # ---- Step: Cloud SQL ------------------------------------------------------
@@ -206,6 +224,7 @@ step_sql() {
   else
     run "gcloud sql instances create $SQL_INSTANCE \
       --database-version=POSTGRES_17 \
+      --edition=ENTERPRISE \
       --tier=$SQL_TIER \
       --region=$REGION \
       --storage-type=SSD --storage-size=10GB --storage-auto-increase \
@@ -230,10 +249,16 @@ step_sql() {
   if gcloud sql users list --instance="$SQL_INSTANCE" --format="value(name)" | grep -qx "$SQL_USER"; then
     log "  $SQL_USER exists"
   else
-    # Generate password, store in Secret Manager via step_secrets afterwards.
+    # Generate password, store in Secret Manager. We must ensure the
+    # secret exists FIRST — step_secrets runs after step_sql, so create
+    # the database-url secret on demand here. Idempotent.
     local pwd
     pwd=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
     run "gcloud sql users create $SQL_USER --instance=$SQL_INSTANCE --password='$pwd'"
+    if ! gcloud secrets describe canary-gateway-database-url >/dev/null 2>&1; then
+      run "gcloud secrets create canary-gateway-database-url \
+        --replication-policy=automatic --labels=service=gateway"
+    fi
     # DATABASE_URL takes the form:
     # postgres://user:pwd@/canary_go?host=/cloudsql/<connection_name>
     local conn="$PROJECT_ID:$REGION:$SQL_INSTANCE"
@@ -256,11 +281,16 @@ step_redis() {
   fi
 
   # Capture host/port and seed VALKEY_URL secret if not yet versioned.
+  # As with database-url, ensure the secret exists first (step_secrets runs after).
   local host port
   host=$(gcloud redis instances describe "$REDIS_INSTANCE" --region="$REGION" --format="value(host)" 2>/dev/null || true)
   port=$(gcloud redis instances describe "$REDIS_INSTANCE" --region="$REGION" --format="value(port)" 2>/dev/null || true)
   if [[ -n "$host" && -n "$port" ]]; then
     local url="redis://$host:$port/0"
+    if ! gcloud secrets describe canary-gateway-valkey-url >/dev/null 2>&1; then
+      run "gcloud secrets create canary-gateway-valkey-url \
+        --replication-policy=automatic --labels=service=gateway"
+    fi
     if ! gcloud secrets versions list canary-gateway-valkey-url --limit=1 --format="value(name)" 2>/dev/null | grep -q .; then
       log "  seeding canary-gateway-valkey-url with $url"
       run "printf '%s' '$url' | gcloud secrets versions add canary-gateway-valkey-url --data-file=-"
@@ -360,12 +390,18 @@ step_lb() {
 
   log "ensuring backend service $BACKEND_NAME"
   if ! gcloud compute backend-services describe "$BACKEND_NAME" --global >/dev/null 2>&1; then
+    # NOTE: Serverless NEGs require NO --protocol flag (HTTPS sets portName=https
+    # which is rejected by add-backend). Cloud LB → serverless NEG uses Google's
+    # internal protocol; portName must remain unset.
     run "gcloud compute backend-services create $BACKEND_NAME \
-      --global --load-balancing-scheme=EXTERNAL_MANAGED \
-      --protocol=HTTPS --security-policy=$ARMOR_POLICY"
+      --global --load-balancing-scheme=EXTERNAL_MANAGED"
     run "gcloud compute backend-services add-backend $BACKEND_NAME \
       --global --network-endpoint-group=$NEG_NAME \
       --network-endpoint-group-region=$REGION"
+    # Attach Cloud Armor policy AFTER create — current gcloud rejects
+    # --security-policy on backend-services create.
+    run "gcloud compute backend-services update $BACKEND_NAME \
+      --global --security-policy=$ARMOR_POLICY"
   fi
 
   log "ensuring URL map $URLMAP_NAME"
@@ -394,8 +430,9 @@ step_lb() {
   # HTTP -> HTTPS redirect (separate URL map of type 'redirect').
   log "ensuring HTTP redirect URL map + forwarding rule"
   if ! gcloud compute url-maps describe "$HTTP_REDIRECT_URLMAP" --global >/dev/null 2>&1; then
+    # NOTE: gcloud import schema rejects the `kind` field. Provide only
+    # name + defaultUrlRedirect.
     cat > /tmp/http-redirect.yaml <<EOF
-kind: compute#urlMap
 name: $HTTP_REDIRECT_URLMAP
 defaultUrlRedirect:
   redirectResponseCode: MOVED_PERMANENTLY_DEFAULT
