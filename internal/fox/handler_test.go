@@ -1,0 +1,437 @@
+// internal/fox/handler_test.go
+package fox
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+
+	"github.com/growdirect-llc/rapidpos/internal/db/types"
+)
+
+// stubService is a fully in-memory implementation of fox.Service for
+// handler tests. It tracks the most recent inputs so tests can assert
+// the handler called the right method with the right shape.
+type stubService struct {
+	// Plumbing
+	detections map[uuid.UUID]*types.Detection
+	cases      map[uuid.UUID]*types.Case
+	evidence   []types.CaseEvidence
+	actions    []types.CaseAction
+	openCases  map[uuid.UUID]*types.Case // keyed by primary_subject_id
+
+	// Hooks
+	openCaseErr error
+}
+
+func newStubService() *stubService {
+	return &stubService{
+		detections: map[uuid.UUID]*types.Detection{},
+		cases:      map[uuid.UUID]*types.Case{},
+		openCases:  map[uuid.UUID]*types.Case{},
+	}
+}
+
+func (s *stubService) FindOpenCaseBySubject(_ context.Context, tenantID, subjectID uuid.UUID) (*types.Case, error) {
+	c := s.openCases[subjectID]
+	if c == nil || c.TenantID != tenantID {
+		return nil, nil
+	}
+	return c, nil
+}
+
+func (s *stubService) LoadDetection(_ context.Context, id uuid.UUID) (*types.Detection, error) {
+	d, ok := s.detections[id]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return d, nil
+}
+
+func (s *stubService) LoadCase(_ context.Context, id uuid.UUID) (*types.Case, error) {
+	c, ok := s.cases[id]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return c, nil
+}
+
+func (s *stubService) OpenCase(_ context.Context, c *types.Case, link *uuid.UUID) (uuid.UUID, error) {
+	if s.openCaseErr != nil {
+		return uuid.Nil, s.openCaseErr
+	}
+	if c.ID == uuid.Nil {
+		c.ID = uuid.New()
+	}
+	s.cases[c.ID] = c
+	if c.PrimarySubjectID != nil {
+		s.openCases[*c.PrimarySubjectID] = c
+	}
+	if link != nil {
+		if d := s.detections[*link]; d != nil {
+			id := c.ID
+			d.CaseID = &id
+			d.Status = "escalated_to_case"
+		}
+	}
+	return c.ID, nil
+}
+
+func (s *stubService) AppendEvidence(_ context.Context, e *types.CaseEvidence) error {
+	if e.ID == uuid.Nil {
+		e.ID = uuid.New()
+	}
+	s.evidence = append(s.evidence, *e)
+	return nil
+}
+
+func (s *stubService) AppendAction(_ context.Context, a *types.CaseAction) error {
+	if a.ID == uuid.Nil {
+		a.ID = uuid.New()
+	}
+	s.actions = append(s.actions, *a)
+	return nil
+}
+
+func (s *stubService) CloseCase(_ context.Context, tenantID, caseID uuid.UUID, resolution string, by *uuid.UUID, notes string) error {
+	c, ok := s.cases[caseID]
+	if !ok || c.TenantID != tenantID {
+		return ErrNotFound
+	}
+	c.Status = string(CaseStatusClosed)
+	c.ResolutionType = &resolution
+	return nil
+}
+
+func (s *stubService) ListEvidence(_ context.Context, caseID uuid.UUID) ([]types.CaseEvidence, error) {
+	out := make([]types.CaseEvidence, 0)
+	for _, e := range s.evidence {
+		if e.CaseID == caseID {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
+
+func (s *stubService) ListActions(_ context.Context, caseID uuid.UUID) ([]types.CaseAction, error) {
+	out := make([]types.CaseAction, 0)
+	for _, a := range s.actions {
+		if a.CaseID == caseID {
+			out = append(out, a)
+		}
+	}
+	return out, nil
+}
+
+func (s *stubService) ListCases(_ context.Context, tenantID uuid.UUID, filter CaseFilter, limit, offset int) ([]types.Case, error) {
+	out := make([]types.Case, 0)
+	for _, c := range s.cases {
+		if c.TenantID != tenantID {
+			continue
+		}
+		if filter.Status != "" && c.Status != filter.Status {
+			continue
+		}
+		out = append(out, *c)
+	}
+	return out, nil
+}
+
+// ───────────────────────── helpers ──────────────────────────────
+
+func newTestRouter(svc Service) chi.Router {
+	h := New(svc, DefaultEscalationConfig(), nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+	return r
+}
+
+func doJSON(t *testing.T, r chi.Router, method, path string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	var buf bytes.Buffer
+	if body != nil {
+		_ = json.NewEncoder(&buf).Encode(body)
+	}
+	req := httptest.NewRequest(method, path, &buf)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	return rec
+}
+
+// ───────────────────────── tests ────────────────────────────────
+
+func TestHandler_FromDetection_OpensNew(t *testing.T) {
+	svc := newStubService()
+	tenantID := uuid.New()
+	cashier := uuid.New()
+	det := &types.Detection{
+		ID:                uuid.New(),
+		TenantID:          tenantID,
+		Severity:          "high",
+		Status:            "new",
+		CashierEmployeeID: &cashier,
+		Evidence:          json.RawMessage(`{"k":"v"}`),
+	}
+	svc.detections[det.ID] = det
+	r := newTestRouter(svc)
+
+	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases/from-detection",
+		map[string]string{"detection_id": det.ID.String()})
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp fromDetectionResp
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
+	if !resp.Opened {
+		t.Errorf("expected opened=true, got %+v", resp)
+	}
+	if resp.CaseID == "" {
+		t.Errorf("case_id should be set")
+	}
+	if len(svc.evidence) != 1 {
+		t.Errorf("expected 1 seed evidence row, got %d", len(svc.evidence))
+	}
+}
+
+func TestHandler_FromDetection_AttachesToOpen(t *testing.T) {
+	svc := newStubService()
+	tenantID := uuid.New()
+	cashier := uuid.New()
+	existing := &types.Case{
+		ID:               uuid.New(),
+		TenantID:         tenantID,
+		Status:           "open",
+		PrimarySubjectID: &cashier,
+	}
+	svc.cases[existing.ID] = existing
+	svc.openCases[cashier] = existing
+	det := &types.Detection{
+		ID:                uuid.New(),
+		TenantID:          tenantID,
+		Severity:          "high",
+		Status:            "new",
+		CashierEmployeeID: &cashier,
+		Evidence:          json.RawMessage(`{}`),
+	}
+	svc.detections[det.ID] = det
+	r := newTestRouter(svc)
+
+	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases/from-detection",
+		map[string]string{"detection_id": det.ID.String()})
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp fromDetectionResp
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
+	if !resp.AttachedToExisting {
+		t.Errorf("expected attached=true, got %+v", resp)
+	}
+	if resp.CaseID != existing.ID.String() {
+		t.Errorf("case id mismatch: got %s want %s", resp.CaseID, existing.ID)
+	}
+	if len(svc.evidence) != 1 {
+		t.Errorf("expected 1 attached evidence row, got %d", len(svc.evidence))
+	}
+}
+
+func TestHandler_FromDetection_NoActionLow(t *testing.T) {
+	svc := newStubService()
+	det := &types.Detection{
+		ID:       uuid.New(),
+		TenantID: uuid.New(),
+		Severity: "low",
+		Status:   "new",
+		Evidence: json.RawMessage(`{}`),
+	}
+	svc.detections[det.ID] = det
+	r := newTestRouter(svc)
+
+	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases/from-detection",
+		map[string]string{"detection_id": det.ID.String()})
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d", rec.Code)
+	}
+	var resp fromDetectionResp
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
+	if resp.Opened || resp.AttachedToExisting {
+		t.Errorf("expected no action, got %+v", resp)
+	}
+	if len(svc.cases) != 0 {
+		t.Errorf("no case should have been opened")
+	}
+}
+
+func TestHandler_FromDetection_NotFound(t *testing.T) {
+	svc := newStubService()
+	r := newTestRouter(svc)
+	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases/from-detection",
+		map[string]string{"detection_id": uuid.New().String()})
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status: got %d want 404", rec.Code)
+	}
+}
+
+func TestHandler_FromDetection_MalformedID(t *testing.T) {
+	svc := newStubService()
+	r := newTestRouter(svc)
+	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases/from-detection",
+		map[string]string{"detection_id": "not-a-uuid"})
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d want 400", rec.Code)
+	}
+}
+
+func TestHandler_CreateCase_Manual(t *testing.T) {
+	svc := newStubService()
+	tenantID := uuid.New()
+	r := newTestRouter(svc)
+
+	body := map[string]any{
+		"merchant_id": tenantID.String(),
+		"severity":    "high",
+		"title":       "Investigator-opened",
+		"notes":       "Patterned drawer variance",
+	}
+	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases", body)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if len(svc.cases) != 1 {
+		t.Errorf("expected 1 case, got %d", len(svc.cases))
+	}
+}
+
+func TestHandler_CreateCase_InvalidSeverity(t *testing.T) {
+	svc := newStubService()
+	r := newTestRouter(svc)
+	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases",
+		map[string]any{"merchant_id": uuid.New().String(), "severity": "extreme"})
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d", rec.Code)
+	}
+}
+
+func TestHandler_GetCase(t *testing.T) {
+	svc := newStubService()
+	c := &types.Case{ID: uuid.New(), TenantID: uuid.New(), CaseNumber: "FOX-1", Severity: "high", Status: "open"}
+	svc.cases[c.ID] = c
+	r := newTestRouter(svc)
+
+	rec := doJSON(t, r, http.MethodGet, "/v1/fox/cases/"+c.ID.String(), nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d", rec.Code)
+	}
+	var resp caseDetailResp
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
+	if resp.Case.ID != c.ID {
+		t.Errorf("id mismatch")
+	}
+}
+
+func TestHandler_GetCase_NotFound(t *testing.T) {
+	svc := newStubService()
+	r := newTestRouter(svc)
+	rec := doJSON(t, r, http.MethodGet, "/v1/fox/cases/"+uuid.New().String(), nil)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status: got %d", rec.Code)
+	}
+}
+
+func TestHandler_ListCases_RequiresMerchantID(t *testing.T) {
+	svc := newStubService()
+	r := newTestRouter(svc)
+	rec := doJSON(t, r, http.MethodGet, "/v1/fox/cases", nil)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d", rec.Code)
+	}
+}
+
+func TestHandler_ListCases_Filtered(t *testing.T) {
+	svc := newStubService()
+	tenantID := uuid.New()
+	c1 := &types.Case{ID: uuid.New(), TenantID: tenantID, Status: "open"}
+	c2 := &types.Case{ID: uuid.New(), TenantID: tenantID, Status: "closed"}
+	svc.cases[c1.ID] = c1
+	svc.cases[c2.ID] = c2
+	r := newTestRouter(svc)
+
+	rec := doJSON(t, r, http.MethodGet, "/v1/fox/cases?merchant_id="+tenantID.String()+"&status=open", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Cases []types.Case `json:"cases"`
+	}
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
+	if len(resp.Cases) != 1 {
+		t.Errorf("expected 1 case, got %d", len(resp.Cases))
+	}
+}
+
+func TestHandler_AppendAction(t *testing.T) {
+	svc := newStubService()
+	c := &types.Case{ID: uuid.New(), TenantID: uuid.New(), Status: "open"}
+	svc.cases[c.ID] = c
+	r := newTestRouter(svc)
+
+	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases/"+c.ID.String()+"/actions",
+		map[string]any{"action_type": "note", "notes": "follow-up tomorrow"})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if len(svc.actions) != 1 {
+		t.Errorf("expected 1 action, got %d", len(svc.actions))
+	}
+}
+
+func TestHandler_AppendAction_RequiresActionType(t *testing.T) {
+	svc := newStubService()
+	c := &types.Case{ID: uuid.New(), TenantID: uuid.New(), Status: "open"}
+	svc.cases[c.ID] = c
+	r := newTestRouter(svc)
+
+	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases/"+c.ID.String()+"/actions",
+		map[string]any{"notes": "missing type"})
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d", rec.Code)
+	}
+}
+
+func TestHandler_CloseCase(t *testing.T) {
+	svc := newStubService()
+	c := &types.Case{ID: uuid.New(), TenantID: uuid.New(), Status: "open"}
+	svc.cases[c.ID] = c
+	r := newTestRouter(svc)
+
+	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases/"+c.ID.String()+"/close",
+		map[string]any{"resolution": "substantiated", "notes": "termination filed"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if c.Status != string(CaseStatusClosed) {
+		t.Errorf("case status: got %s want closed", c.Status)
+	}
+}
+
+func TestHandler_CloseCase_RequiresResolution(t *testing.T) {
+	svc := newStubService()
+	c := &types.Case{ID: uuid.New(), TenantID: uuid.New(), Status: "open"}
+	svc.cases[c.ID] = c
+	r := newTestRouter(svc)
+
+	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases/"+c.ID.String()+"/close",
+		map[string]any{})
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d", rec.Code)
+	}
+}
