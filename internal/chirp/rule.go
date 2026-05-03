@@ -57,6 +57,12 @@ type EvalContext struct {
 	DrawerEvents []CashDrawerEvent
 	// LocationOperatingHours is the JSONB blob from l.locations.operating_hours.
 	LocationOperatingHours json.RawMessage
+	// LocationTimezone is the IANA timezone identifier from
+	// l.locations.timezone (RFC 6557 / tzdata). Drives UTC → local
+	// conversion in time-of-day rules. Empty string means the store
+	// timezone could not be loaded — rules that depend on it should
+	// skip the transaction silently rather than emit false positives.
+	LocationTimezone string
 }
 
 // MatchedDetection is what an evaluator returns: a partially-populated

@@ -23,7 +23,8 @@ CREATE TABLE l.locations (
   format              text,                                        -- supermarket | convenience | specialty | warehouse | etc.
   currency            text NOT NULL DEFAULT 'USD',
   language            text NOT NULL DEFAULT 'en-US',               -- BCP 47
-  timezone            text NOT NULL DEFAULT 'America/Los_Angeles', -- IANA
+  timezone            text NOT NULL DEFAULT 'America/Los_Angeles'  -- IANA tz identifier (RFC 6557)
+                      CHECK (timezone ~ '^[A-Z][a-zA-Z_]+/[A-Z][a-zA-Z_]+(/[A-Z][a-zA-Z_]+)?$'),
   address             jsonb DEFAULT '{}',                          -- {line1, line2, city, region, postal_code, country, latitude, longitude, county}
   contact             jsonb DEFAULT '{}',                          -- {name, phone, email, manager_name}
   operating_hours     jsonb DEFAULT '{}',                          -- {monday: [{open: "07:00", close: "22:00"}], ...}

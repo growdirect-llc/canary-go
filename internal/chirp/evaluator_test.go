@@ -349,16 +349,25 @@ func TestAfterHoursTransaction(t *testing.T) {
 		name  string
 		hours string
 		hour  int
+		tz    string
 		want  int
 	}{
-		{"open", `{"saturday":[{"open":"07:00","close":"22:00"}]}`, 14, 0},
-		{"closed all day", `{"sunday":[{"open":"07:00","close":"22:00"}]}`, 14, 1},
-		{"before open", `{"saturday":[{"open":"07:00","close":"22:00"}]}`, 4, 1},
-		{"after close", `{"saturday":[{"open":"07:00","close":"22:00"}]}`, 23, 1},
-		{"empty operating_hours", `{}`, 14, 1},
-		{"missing operating_hours", "", 14, 0}, // no config = skip silently
-		{"split shift, lunch closed", `{"saturday":[{"open":"07:00","close":"11:00"},{"open":"17:00","close":"22:00"}]}`, 13, 1},
-		{"split shift, dinner open", `{"saturday":[{"open":"07:00","close":"11:00"},{"open":"17:00","close":"22:00"}]}`, 19, 0},
+		{"open", `{"saturday":[{"open":"07:00","close":"22:00"}]}`, 14, "", 0},
+		{"closed all day", `{"sunday":[{"open":"07:00","close":"22:00"}]}`, 14, "", 1},
+		{"before open", `{"saturday":[{"open":"07:00","close":"22:00"}]}`, 4, "", 1},
+		{"after close", `{"saturday":[{"open":"07:00","close":"22:00"}]}`, 23, "", 1},
+		{"empty operating_hours", `{}`, 14, "", 1},
+		{"missing operating_hours", "", 14, "", 0}, // no config = skip silently
+		{"split shift, lunch closed", `{"saturday":[{"open":"07:00","close":"11:00"},{"open":"17:00","close":"22:00"}]}`, 13, "", 1},
+		{"split shift, dinner open", `{"saturday":[{"open":"07:00","close":"11:00"},{"open":"17:00","close":"22:00"}]}`, 19, "", 0},
+		// TZ cases: 2026-05-02 14:00 UTC = 10:00 EDT (within 07:00-22:00 NY local) — should NOT fire
+		{"NY tz, mid-day local, open", `{"saturday":[{"open":"07:00","close":"22:00"}]}`, 14, "America/New_York", 0},
+		// 2026-05-02 02:00 UTC Saturday = 22:00 EDT Friday (after close on Friday) — should fire (was previously falsely-passing as 02:00 Saturday "closed all day" by hitting Saturday key with no entry)
+		{"NY tz, late evening local Friday after close", `{"friday":[{"open":"07:00","close":"21:00"}]}`, 2, "America/New_York", 1},
+		// 2026-05-02 14:00 UTC = 23:00 JST (Saturday, after Tokyo close at 22:00) — should fire
+		{"Tokyo tz, after close local", `{"saturday":[{"open":"07:00","close":"22:00"}]}`, 14, "Asia/Tokyo", 1},
+		// Bogus tz string falls back to UTC — keeps existing UTC behavior (open at UTC 14:00)
+		{"invalid tz falls back to UTC", `{"saturday":[{"open":"07:00","close":"22:00"}]}`, 14, "Not/AReal/Zone", 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -371,6 +380,7 @@ func TestAfterHoursTransaction(t *testing.T) {
 				TenantID:               tx.TenantID,
 				Transaction:            tx,
 				LocationOperatingHours: rawHours,
+				LocationTimezone:       tc.tz,
 			}
 			got, err := (rules.AfterHoursTransaction{}).Evaluate(context.Background(), &rule, ec)
 			if err != nil {

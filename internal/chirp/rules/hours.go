@@ -36,11 +36,14 @@ type AfterHoursParams struct {
 // array is also closed all day. Multiple intervals per day are
 // supported (e.g., split breakfast/dinner shifts).
 //
-// SDD-vague: chirp.md doesn't specify timezone handling. We compare
-// against the transaction's started_at in UTC against operating_hours
-// values literally — locations that publish hours in local time will
-// see false positives until a tz field lands on l.locations. Filed
-// for next wave.
+// Timezone handling (Loop 3 Wave 1): the transaction's started_at is
+// converted from UTC to the location's IANA timezone (per RFC 6557 /
+// tzdata, sourced from l.locations.timezone) before comparing against
+// the operating_hours values. operating_hours are interpreted in the
+// store's local time — that's how merchants think about "we open at
+// 7am." Locations with a missing or invalid timezone fall back to UTC
+// comparison and emit a detection — false positives are preferred to
+// silent skips when the store config is broken.
 type AfterHoursTransaction struct{}
 
 func (AfterHoursTransaction) RuleType() string { return "after_hours_transaction" }
@@ -67,7 +70,17 @@ func (AfterHoursTransaction) Evaluate(_ context.Context, rule *chirp.Rule, ec *c
 		return nil, nil
 	}
 
-	t := ec.Transaction.StartedAt.UTC()
+	// Convert UTC → location-local using IANA tz id. Fallback to UTC if
+	// timezone is missing/invalid; the after-hours rule is conservative
+	// (would rather flag a false positive on a misconfigured store than
+	// silently swallow a real after-hours signal).
+	loc := time.UTC
+	if ec.LocationTimezone != "" {
+		if z, err := time.LoadLocation(ec.LocationTimezone); err == nil {
+			loc = z
+		}
+	}
+	t := ec.Transaction.StartedAt.In(loc)
 	dayKey := strings.ToLower(t.Weekday().String())
 	intervals, ok := hoursByDay[dayKey]
 	if !ok || len(intervals) == 0 {
@@ -77,8 +90,8 @@ func (AfterHoursTransaction) Evaluate(_ context.Context, rule *chirp.Rule, ec *c
 
 	tolerance := time.Duration(p.ToleranceMinutes) * time.Minute
 	for _, iv := range intervals {
-		open, ok1 := parseClock(iv.Open, t)
-		close, ok2 := parseClock(iv.Close, t)
+		open, ok1 := parseClock(iv.Open, t, loc)
+		close, ok2 := parseClock(iv.Close, t, loc)
 		if !ok1 || !ok2 {
 			continue
 		}
@@ -91,13 +104,14 @@ func (AfterHoursTransaction) Evaluate(_ context.Context, rule *chirp.Rule, ec *c
 }
 
 // parseClock turns "HH:MM" into a time.Time on the same calendar day
-// as ref (UTC).
-func parseClock(s string, ref time.Time) (time.Time, bool) {
+// as ref, in the supplied location. ref's calendar day is used (which
+// is the location-local calendar day after ref = startedAt.In(loc)).
+func parseClock(s string, ref time.Time, loc *time.Location) (time.Time, bool) {
 	parsed, err := time.Parse("15:04", s)
 	if err != nil {
 		return time.Time{}, false
 	}
-	return time.Date(ref.Year(), ref.Month(), ref.Day(), parsed.Hour(), parsed.Minute(), 0, 0, time.UTC), true
+	return time.Date(ref.Year(), ref.Month(), ref.Day(), parsed.Hour(), parsed.Minute(), 0, 0, loc), true
 }
 
 func matchedAfterHours(rule *chirp.Rule, ec *chirp.EvalContext, reason, dayKey string, tol int) []chirp.MatchedDetection {

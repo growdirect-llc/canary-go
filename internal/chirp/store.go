@@ -309,18 +309,23 @@ func (s *PgxStore) loadDrawerEvents(
 	return out, rows.Err()
 }
 
-const sqlLoadOperatingHours = `SELECT operating_hours FROM l.locations WHERE id = $1`
+const sqlLoadLocationConfig = `SELECT operating_hours, timezone FROM l.locations WHERE id = $1`
 
-func (s *PgxStore) loadOperatingHours(ctx context.Context, locationID uuid.UUID) (json.RawMessage, error) {
+// loadLocationConfig fetches the operating_hours JSONB blob and the
+// IANA timezone identifier (l.locations.timezone, RFC 6557) for a
+// location in one round-trip. Both are evaluator inputs; loading
+// together saves a query per transaction.
+func (s *PgxStore) loadLocationConfig(ctx context.Context, locationID uuid.UUID) (json.RawMessage, string, error) {
 	var hours json.RawMessage
-	err := s.pool.QueryRow(ctx, sqlLoadOperatingHours, locationID).Scan(&hours)
+	var tz string
+	err := s.pool.QueryRow(ctx, sqlLoadLocationConfig, locationID).Scan(&hours, &tz)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
+		return nil, "", nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("query operating_hours: %w", err)
+		return nil, "", fmt.Errorf("query location config: %w", err)
 	}
-	return hours, nil
+	return hours, tz, nil
 }
 
 // LoadEvalContext gathers everything an evaluator might need for a
@@ -363,11 +368,12 @@ func (s *PgxStore) LoadEvalContext(ctx context.Context, tx *Transaction) (*EvalC
 		ec.DrawerEvents = drawer
 	}
 
-	hours, err := s.loadOperatingHours(ctx, tx.LocationID)
+	hours, tz, err := s.loadLocationConfig(ctx, tx.LocationID)
 	if err != nil {
 		return nil, err
 	}
 	ec.LocationOperatingHours = hours
+	ec.LocationTimezone = tz
 
 	return ec, nil
 }
