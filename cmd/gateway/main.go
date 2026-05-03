@@ -33,6 +33,7 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/db"
 	"github.com/growdirect-llc/rapidpos/internal/identity"
 	"github.com/growdirect-llc/rapidpos/internal/mcp"
+	"github.com/growdirect-llc/rapidpos/internal/protocol/anchor"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/audit"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/evidence"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
@@ -92,6 +93,7 @@ func main() {
 
 	handler := webhook.New(resolver, pub, nonceStore, logger)
 	evidenceHandler := evidence.New(pool, logger)
+	anchorHandler := anchor.New(pool, logger)
 
 	// /v1/webhooks/* — admin endpoints under API-key auth.
 	// GRO-764 Phase A.3 (folds part of GRO-642).
@@ -115,10 +117,11 @@ func main() {
 
 	r.Get("/health", healthHandler(cfg))
 
-	// Bilateral verification API — read-only, mounted outside the
+	// Bilateral verification APIs — read-only, mounted outside the
 	// audit group. Reads don't need state-mutation audit semantics.
-	// GRO-748.
+	// GRO-748 (evidence) · GRO-750 (anchor / Merkle proof).
 	evidenceHandler.Mount(r)
+	anchorHandler.Mount(r)
 
 	// Audit middleware records every state-mutating protocol invocation
 	// into app.audit_log. Scoped to webhook routes so /health and
