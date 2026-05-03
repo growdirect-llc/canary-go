@@ -36,8 +36,10 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/protocol/anchor"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/audit"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/evidence"
+	"github.com/growdirect-llc/rapidpos/internal/protocol/namespace"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/secrets"
+	"github.com/growdirect-llc/rapidpos/internal/protocol/sub3"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/webhook"
 	domainwebhook "github.com/growdirect-llc/rapidpos/internal/webhook"
 )
@@ -95,6 +97,12 @@ func main() {
 	evidenceHandler := evidence.New(pool, logger)
 	anchorHandler := anchor.New(pool, logger)
 
+	// .jeffe namespace registration — Node identity layer.
+	// ORDINALSBOT_API_KEY env var selects real vs stub inscriber.
+	// GRO-751.
+	inscriber := sub3.NewOrdinalsBot(os.Getenv("ORDINALSBOT_API_KEY"), "signet")
+	nsHandler := namespace.New(pool, inscriber, logger)
+
 	// /v1/webhooks/* — admin endpoints under API-key auth.
 	// GRO-764 Phase A.3 (folds part of GRO-642).
 	dlq := domainwebhook.NewDLQ(pool)
@@ -122,6 +130,12 @@ func main() {
 	// GRO-748 (evidence) · GRO-750 (anchor / Merkle proof).
 	evidenceHandler.Mount(r)
 	anchorHandler.Mount(r)
+
+	// .jeffe namespace — POST (register) + GET (lookup).
+	// Mounted outside the audit group; the POST writes one row but
+	// carries its own payload_hash + inscription_id as the audit
+	// trail. GRO-751.
+	nsHandler.Mount(r)
 
 	// Audit middleware records every state-mutating protocol invocation
 	// into app.audit_log. Scoped to webhook routes so /health and
