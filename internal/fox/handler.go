@@ -512,13 +512,20 @@ func (h *Handler) closeCase(w http.ResponseWriter, r *http.Request) {
 // subjectFromDetection lifts the same heuristic used in
 // detectionSubject() into a *uuid.UUID for the case insert. When the
 // detection has no subject we leave the case's primary_subject_id NULL.
-func subjectFromDetection(d *types.Detection) *uuid.UUID {
-	if d.CashierEmployeeID != nil {
-		return d.CashierEmployeeID
-	}
-	if d.CustomerID != nil {
-		return d.CustomerID
-	}
+// subjectFromDetection — Loop 2: returns nil. The schema's
+// q.cases.primary_subject_id has REFERENCES q.subjects(id), but
+// q.detections only carries cashier_employee_id (FK to e.employees)
+// and customer_id (FK to c.customers) — neither is a q.subjects PK.
+// SDD-bug: original implementation returned the employee/customer id
+// directly into primary_subject_id, violating the FK on insert.
+//
+// Loop 3 work: introduce a Subjects.Resolve(tenantID, kind, refID)
+// upsert that lookup-or-creates the q.subjects row keyed on
+// related_employee_id / related_customer_id, then return that subject's
+// id. Until then primary_subject_id stays NULL on auto-escalated cases.
+// EscalationStore.FindOpenCaseBySubject still keys on cashier id, so
+// subject clustering never matches — clustering is a Loop 3 deferral.
+func subjectFromDetection(_ *types.Detection) *uuid.UUID {
 	return nil
 }
 

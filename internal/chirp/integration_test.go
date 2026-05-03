@@ -77,9 +77,9 @@ func seedChirpFixtures(t *testing.T, ctx context.Context, pool *pgxpool.Pool) *c
 		orgID, "Chirp IT Org")
 
 	mustExec("tenant",
-		`INSERT INTO app.tenants (id, organization_id, tenant_code, display_name)
-		 VALUES ($1, $2, $3, $4)`,
-		tenantID, orgID, tenantCode, "Chirp IT Tenant")
+		`INSERT INTO app.tenants (id, organization_id, tenant_code, name, schema_name)
+		 VALUES ($1, $2, $3, $4, $5)`,
+		tenantID, orgID, tenantCode, "Chirp IT Tenant", "chirp_it_"+tenantCode)
 
 	mustExec("merchant",
 		`INSERT INTO app.merchants (id, organization_id, tenant_id, source_merchant_id, merchant_name)
@@ -87,15 +87,15 @@ func seedChirpFixtures(t *testing.T, ctx context.Context, pool *pgxpool.Pool) *c
 		merchantID, orgID, tenantID, "chirp-src-"+tenantCode, "Chirp IT Merchant")
 
 	mustExec("location",
-		`INSERT INTO l.locations (id, tenant_id, location_code, location_name, location_type, operating_hours)
+		`INSERT INTO l.locations (id, tenant_id, location_code, name, location_type, operating_hours)
 		 VALUES ($1, $2, $3, $4, $5, $6)`,
 		locationID, tenantID, "STORE-1", "Chirp IT Store", "store",
 		`{"saturday":[{"open":"07:00","close":"22:00"}]}`)
 
 	mustExec("employee",
-		`INSERT INTO e.employees (id, tenant_id, employee_code, display_name)
-		 VALUES ($1, $2, $3, $4)`,
-		employeeID, tenantID, "EMP-1", "Test Cashier")
+		`INSERT INTO e.employees (id, tenant_id, employee_code, first_name, last_name, display_name, hire_date)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		employeeID, tenantID, "EMP-1", "Test", "Cashier", "Test Cashier", "2025-01-01")
 
 	// detection rule — void_threshold @ $10
 	ruleDef := `{"rule_type":"void_threshold","parameters":{"threshold_cents":1000}}`

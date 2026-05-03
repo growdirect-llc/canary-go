@@ -76,10 +76,11 @@ func seedFixtures(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (uuid.U
 		t.Fatalf("seed merchant: %v", err)
 	}
 
-	// Source secret (uses existing 'square' source_code seeded by migration 014)
+	// Source secret. signature_algo + status NOT NULL added by Loop 1
+	// declarative schema (deploy/schema/11_protocol.sql).
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO protocol.source_secrets (id, merchant_id, source_code, secret)
-		 VALUES ($1, $2, $3, $4)`,
+		`INSERT INTO protocol.source_secrets (id, merchant_id, source_code, secret, signature_algo, status)
+		 VALUES ($1, $2, $3, $4, 'HMAC-SHA256', 'active')`,
 		secretID, merchantID, testSourceCode, testSecretValue); err != nil {
 		t.Fatalf("seed secret: %v", err)
 	}

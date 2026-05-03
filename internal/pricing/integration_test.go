@@ -70,13 +70,14 @@ func seedPricingFixtures(t *testing.T, ctx context.Context, pool *pgxpool.Pool) 
 		t.Fatalf("seed org: %v", err)
 	}
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO app.tenants (id, organization_id, tenant_name) VALUES ($1, $2, $3)`,
-		tenantID, orgID, "pricing-itest-"+suffix); err != nil {
+		`INSERT INTO app.tenants (id, organization_id, tenant_code, name, schema_name)
+		 VALUES ($1, $2, $3, $4, $5)`,
+		tenantID, orgID, "pricing-itest-"+suffix, "pricing-itest-"+suffix, "pricing_itest_"+suffix); err != nil {
 		t.Fatalf("seed tenant: %v", err)
 	}
 	// Location — depends on l.locations schema (03_l_s_locations.sql)
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO l.locations (id, tenant_id, code, name, location_type, status)
+		`INSERT INTO l.locations (id, tenant_id, location_code, name, location_type, status)
 		 VALUES ($1, $2, $3, $4, 'store', 'active')`,
 		locationID, tenantID, "STORE-"+suffix, "Test Store"); err != nil {
 		t.Fatalf("seed location: %v", err)
