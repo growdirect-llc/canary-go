@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.31.1
 
-package dbtsp
+package dbtransaction
 
 import (
 	"github.com/jackc/pgx/v5/pgtype"

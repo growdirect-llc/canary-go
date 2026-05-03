@@ -25,14 +25,25 @@ type CreateMerchantParams struct {
 	Currency         string      `json:"currency"`
 }
 
-func (q *Queries) CreateMerchant(ctx context.Context, arg *CreateMerchantParams) (*AppMerchant, error) {
+type CreateMerchantRow struct {
+	ID               pgtype.UUID        `json:"id"`
+	OrganizationID   pgtype.UUID        `json:"organization_id"`
+	SourceMerchantID string             `json:"source_merchant_id"`
+	MerchantName     string             `json:"merchant_name"`
+	Currency         string             `json:"currency"`
+	IsActive         bool               `json:"is_active"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) CreateMerchant(ctx context.Context, arg *CreateMerchantParams) (*CreateMerchantRow, error) {
 	row := q.db.QueryRow(ctx, createMerchant,
 		arg.OrganizationID,
 		arg.SourceMerchantID,
 		arg.MerchantName,
 		arg.Currency,
 	)
-	var i AppMerchant
+	var i CreateMerchantRow
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
@@ -133,10 +144,21 @@ FROM app.merchants
 WHERE id = $1
 `
 
+type GetMerchantByIDRow struct {
+	ID               pgtype.UUID        `json:"id"`
+	OrganizationID   pgtype.UUID        `json:"organization_id"`
+	SourceMerchantID string             `json:"source_merchant_id"`
+	MerchantName     string             `json:"merchant_name"`
+	Currency         string             `json:"currency"`
+	IsActive         bool               `json:"is_active"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
 // internal/db/sqlc/identity.sql
-func (q *Queries) GetMerchantByID(ctx context.Context, id pgtype.UUID) (*AppMerchant, error) {
+func (q *Queries) GetMerchantByID(ctx context.Context, id pgtype.UUID) (*GetMerchantByIDRow, error) {
 	row := q.db.QueryRow(ctx, getMerchantByID, id)
-	var i AppMerchant
+	var i GetMerchantByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
@@ -157,9 +179,20 @@ FROM app.merchants
 WHERE source_merchant_id = $1
 `
 
-func (q *Queries) GetMerchantBySourceID(ctx context.Context, sourceMerchantID string) (*AppMerchant, error) {
+type GetMerchantBySourceIDRow struct {
+	ID               pgtype.UUID        `json:"id"`
+	OrganizationID   pgtype.UUID        `json:"organization_id"`
+	SourceMerchantID string             `json:"source_merchant_id"`
+	MerchantName     string             `json:"merchant_name"`
+	Currency         string             `json:"currency"`
+	IsActive         bool               `json:"is_active"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetMerchantBySourceID(ctx context.Context, sourceMerchantID string) (*GetMerchantBySourceIDRow, error) {
 	row := q.db.QueryRow(ctx, getMerchantBySourceID, sourceMerchantID)
-	var i AppMerchant
+	var i GetMerchantBySourceIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,

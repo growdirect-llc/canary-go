@@ -8,40 +8,40 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type AppAlert struct {
-	ID          pgtype.UUID        `json:"id"`
-	MerchantID  pgtype.UUID        `json:"merchant_id"`
-	RuleID      pgtype.UUID        `json:"rule_id"`
-	Severity    string             `json:"severity"`
-	Status      string             `json:"status"`
-	SourceTable string             `json:"source_table"`
-	SourceID    pgtype.UUID        `json:"source_id"`
-	EmployeeID  pgtype.UUID        `json:"employee_id"`
-	LocationID  pgtype.UUID        `json:"location_id"`
-	ImpactCents int64              `json:"impact_cents"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-}
-
-type AppAlertHistory struct {
-	ID         pgtype.UUID        `json:"id"`
-	AlertID    pgtype.UUID        `json:"alert_id"`
-	ActorID    pgtype.UUID        `json:"actor_id"`
-	FromStatus pgtype.Text        `json:"from_status"`
-	ToStatus   string             `json:"to_status"`
-	Note       pgtype.Text        `json:"note"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+type AppApiKey struct {
+	ID           pgtype.UUID        `json:"id"`
+	TenantID     pgtype.UUID        `json:"tenant_id"`
+	AgentName    string             `json:"agent_name"`
+	KeyHash      string             `json:"key_hash"`
+	Scopes       []string           `json:"scopes"`
+	RateLimitRpm int32              `json:"rate_limit_rpm"`
+	Status       string             `json:"status"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+	LastUsedAt   pgtype.Timestamptz `json:"last_used_at"`
+	Attributes   []byte             `json:"attributes"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
 type AppAuditLog struct {
-	ID         pgtype.UUID        `json:"id"`
-	MerchantID pgtype.UUID        `json:"merchant_id"`
-	UserID     pgtype.UUID        `json:"user_id"`
-	Action     string             `json:"action"`
-	Resource   pgtype.Text        `json:"resource"`
-	ResourceID pgtype.UUID        `json:"resource_id"`
-	IpAddress  pgtype.Text        `json:"ip_address"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	ID            pgtype.UUID        `json:"id"`
+	MerchantID    pgtype.UUID        `json:"merchant_id"`
+	UserID        pgtype.UUID        `json:"user_id"`
+	Action        string             `json:"action"`
+	Resource      pgtype.Text        `json:"resource"`
+	ResourceID    pgtype.UUID        `json:"resource_id"`
+	IpAddress     pgtype.Text        `json:"ip_address"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	EventID       pgtype.UUID        `json:"event_id"`
+	PayloadDigest pgtype.Text        `json:"payload_digest"`
+	SourceCode    pgtype.Text        `json:"source_code"`
+	RequestID     pgtype.Text        `json:"request_id"`
+	UserAgent     pgtype.Text        `json:"user_agent"`
+	StatusCode    pgtype.Int4        `json:"status_code"`
+	LatencyMs     pgtype.Int4        `json:"latency_ms"`
+	ActorType     pgtype.Text        `json:"actor_type"`
+	McpServer     pgtype.Text        `json:"mcp_server"`
+	ToolName      pgtype.Text        `json:"tool_name"`
 }
 
 type AppBullApiCredential struct {
@@ -81,29 +81,6 @@ type AppBullPollWatermark struct {
 	LastRunAt    pgtype.Timestamptz `json:"last_run_at"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
-}
-
-type AppCustomer struct {
-	ID               pgtype.UUID        `json:"id"`
-	MerchantID       pgtype.UUID        `json:"merchant_id"`
-	SquareCustomerID string             `json:"square_customer_id"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
-	CreatedBy        pgtype.UUID        `json:"created_by"`
-	ModifiedBy       pgtype.UUID        `json:"modified_by"`
-	DbStatus         string             `json:"db_status"`
-	DbEffectiveFrom  pgtype.Timestamptz `json:"db_effective_from"`
-	DbEffectiveTo    pgtype.Timestamptz `json:"db_effective_to"`
-}
-
-type AppDetectionRule struct {
-	ID               pgtype.UUID        `json:"id"`
-	RuleID           string             `json:"rule_id"`
-	Category         string             `json:"category"`
-	Severity         string             `json:"severity"`
-	DefaultThreshold pgtype.Numeric     `json:"default_threshold"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
 type AppEmployee struct {
@@ -148,62 +125,6 @@ type AppExternalIdentity struct {
 	ModifiedBy pgtype.UUID        `json:"modified_by"`
 }
 
-type AppFoxCase struct {
-	ID          pgtype.UUID        `json:"id"`
-	MerchantID  pgtype.UUID        `json:"merchant_id"`
-	AlertID     pgtype.UUID        `json:"alert_id"`
-	Status      string             `json:"status"`
-	CaseType    string             `json:"case_type"`
-	Title       string             `json:"title"`
-	Description pgtype.Text        `json:"description"`
-	AssignedTo  pgtype.UUID        `json:"assigned_to"`
-	OpenedBy    pgtype.UUID        `json:"opened_by"`
-	ClosedAt    pgtype.Timestamptz `json:"closed_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-}
-
-type AppFoxEvidence struct {
-	ID            pgtype.UUID        `json:"id"`
-	MerchantID    pgtype.UUID        `json:"merchant_id"`
-	CaseID        pgtype.UUID        `json:"case_id"`
-	RecordType    string             `json:"record_type"`
-	RecordPayload []byte             `json:"record_payload"`
-	ChainHash     string             `json:"chain_hash"`
-	UploadedBy    pgtype.Text        `json:"uploaded_by"`
-	FilePath      pgtype.Text        `json:"file_path"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-}
-
-type AppFoxEvidenceAccessLog struct {
-	ID         pgtype.UUID        `json:"id"`
-	EvidenceID pgtype.UUID        `json:"evidence_id"`
-	AccessedBy string             `json:"accessed_by"`
-	IpAddress  pgtype.Text        `json:"ip_address"`
-	AccessedAt pgtype.Timestamptz `json:"accessed_at"`
-}
-
-type AppFoxSubject struct {
-	ID         pgtype.UUID        `json:"id"`
-	MerchantID pgtype.UUID        `json:"merchant_id"`
-	CaseID     pgtype.UUID        `json:"case_id"`
-	Name       string             `json:"name"`
-	EntityID   pgtype.UUID        `json:"entity_id"`
-	EntityType pgtype.Text        `json:"entity_type"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
-}
-
-type AppFoxTimeline struct {
-	ID          pgtype.UUID        `json:"id"`
-	MerchantID  pgtype.UUID        `json:"merchant_id"`
-	CaseID      pgtype.UUID        `json:"case_id"`
-	ActorID     pgtype.UUID        `json:"actor_id"`
-	EventType   string             `json:"event_type"`
-	Description pgtype.Text        `json:"description"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-}
-
 type AppHawkOauthToken struct {
 	ID                    pgtype.UUID        `json:"id"`
 	MerchantID            pgtype.UUID        `json:"merchant_id"`
@@ -216,17 +137,6 @@ type AppHawkOauthToken struct {
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
 	CreatedBy             pgtype.UUID        `json:"created_by"`
 	ModifiedBy            pgtype.UUID        `json:"modified_by"`
-}
-
-type AppIngestionLog struct {
-	ID          pgtype.UUID        `json:"id"`
-	MerchantID  pgtype.UUID        `json:"merchant_id"`
-	EventID     string             `json:"event_id"`
-	SourceCode  pgtype.Text        `json:"source_code"`
-	ChainHash   string             `json:"chain_hash"`
-	ReceivedAt  pgtype.Timestamptz `json:"received_at"`
-	ProcessedAt pgtype.Timestamptz `json:"processed_at"`
-	Stage       string             `json:"stage"`
 }
 
 type AppInterestSignup struct {
@@ -271,9 +181,11 @@ type AppLocationHierarchy struct {
 	DbEffectiveTo   pgtype.Timestamptz `json:"db_effective_to"`
 }
 
+// Multi-POS merchants. Dev seed: id=33333333-0000-0000-0000-000000000001 (Acme Main Street, Square)
 type AppMerchant struct {
 	ID               pgtype.UUID        `json:"id"`
 	OrganizationID   pgtype.UUID        `json:"organization_id"`
+	TenantID         pgtype.UUID        `json:"tenant_id"`
 	SourceMerchantID string             `json:"source_merchant_id"`
 	MerchantName     string             `json:"merchant_name"`
 	Currency         string             `json:"currency"`
@@ -282,41 +194,30 @@ type AppMerchant struct {
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
-type AppMerchantRuleConfig struct {
-	ID              pgtype.UUID        `json:"id"`
-	MerchantID      pgtype.UUID        `json:"merchant_id"`
-	RuleID          pgtype.UUID        `json:"rule_id"`
-	IsEnabled       bool               `json:"is_enabled"`
-	CustomThreshold pgtype.Numeric     `json:"custom_threshold"`
-	NotifyEnabled   bool               `json:"notify_enabled"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
-	CreatedBy       pgtype.UUID        `json:"created_by"`
-	ModifiedBy      pgtype.UUID        `json:"modified_by"`
-}
-
 type AppMerchantSetting struct {
-	ID                     pgtype.UUID        `json:"id"`
-	MerchantID             pgtype.UUID        `json:"merchant_id"`
-	Timezone               string             `json:"timezone"`
-	Language               string             `json:"language"`
-	DateFormat             pgtype.Text        `json:"date_format"`
-	CalendarType           string             `json:"calendar_type"`
-	FiscalYearStartMonth   pgtype.Int2        `json:"fiscal_year_start_month"`
-	FiscalWeekStartDay     pgtype.Int2        `json:"fiscal_week_start_day"`
-	FiscalPattern          pgtype.Text        `json:"fiscal_pattern"`
-	NotifEmailEnabled      bool               `json:"notif_email_enabled"`
-	NotifSmsEnabled        bool               `json:"notif_sms_enabled"`
-	NotifInAppEnabled      bool               `json:"notif_in_app_enabled"`
-	NotifQuietHoursStart   pgtype.Int2        `json:"notif_quiet_hours_start"`
-	NotifQuietHoursEnd     pgtype.Int2        `json:"notif_quiet_hours_end"`
-	NotifSeverityThreshold pgtype.Text        `json:"notif_severity_threshold"`
-	NotifDailyLimit        pgtype.Int4        `json:"notif_daily_limit"`
-	NotifPhone             pgtype.Text        `json:"notif_phone"`
-	Theme                  pgtype.Text        `json:"theme"`
-	ShowEmployeeNames      bool               `json:"show_employee_names"`
-	CreatedAt              pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+	ID                       pgtype.UUID        `json:"id"`
+	MerchantID               pgtype.UUID        `json:"merchant_id"`
+	Timezone                 string             `json:"timezone"`
+	Language                 string             `json:"language"`
+	DateFormat               pgtype.Text        `json:"date_format"`
+	CalendarType             string             `json:"calendar_type"`
+	FiscalYearStartMonth     pgtype.Int2        `json:"fiscal_year_start_month"`
+	FiscalWeekStartDay       pgtype.Int2        `json:"fiscal_week_start_day"`
+	FiscalPattern            pgtype.Text        `json:"fiscal_pattern"`
+	NotifEmailEnabled        bool               `json:"notif_email_enabled"`
+	NotifSmsEnabled          bool               `json:"notif_sms_enabled"`
+	NotifInAppEnabled        bool               `json:"notif_in_app_enabled"`
+	NotifQuietHoursStart     pgtype.Int2        `json:"notif_quiet_hours_start"`
+	NotifQuietHoursEnd       pgtype.Int2        `json:"notif_quiet_hours_end"`
+	NotifSeverityThreshold   pgtype.Text        `json:"notif_severity_threshold"`
+	NotifDailyLimit          pgtype.Int4        `json:"notif_daily_limit"`
+	NotifPhone               pgtype.Text        `json:"notif_phone"`
+	Theme                    pgtype.Text        `json:"theme"`
+	ShowEmployeeNames        bool               `json:"show_employee_names"`
+	DeMergeAuditVisibility   string             `json:"de_merge_audit_visibility"`
+	ThreeWayMatchVariancePct pgtype.Numeric     `json:"three_way_match_variance_pct"`
+	CreatedAt                pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
 }
 
 type AppMerchantSource struct {
@@ -331,15 +232,6 @@ type AppMerchantSource struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 	CreatedBy      pgtype.UUID        `json:"created_by"`
 	ModifiedBy     pgtype.UUID        `json:"modified_by"`
-}
-
-type AppMerkleBatch struct {
-	ID         pgtype.UUID        `json:"id"`
-	MerchantID pgtype.UUID        `json:"merchant_id"`
-	BatchID    string             `json:"batch_id"`
-	RootHash   string             `json:"root_hash"`
-	EventCount int32              `json:"event_count"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
 type AppOrganization struct {
@@ -360,22 +252,6 @@ type AppOrganization struct {
 	DbEffectiveTo     pgtype.Timestamptz `json:"db_effective_to"`
 }
 
-type AppProduct struct {
-	ID              pgtype.UUID        `json:"id"`
-	MerchantID      pgtype.UUID        `json:"merchant_id"`
-	SquareItemID    string             `json:"square_item_id"`
-	ProductName     string             `json:"product_name"`
-	Sku             pgtype.Text        `json:"sku"`
-	Upc             pgtype.Text        `json:"upc"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
-	CreatedBy       pgtype.UUID        `json:"created_by"`
-	ModifiedBy      pgtype.UUID        `json:"modified_by"`
-	DbStatus        string             `json:"db_status"`
-	DbEffectiveFrom pgtype.Timestamptz `json:"db_effective_from"`
-	DbEffectiveTo   pgtype.Timestamptz `json:"db_effective_to"`
-}
-
 type AppRole struct {
 	ID          pgtype.UUID        `json:"id"`
 	RoleName    string             `json:"role_name"`
@@ -390,6 +266,19 @@ type AppSourceSystem struct {
 	Category    string             `json:"category"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type AppTenant struct {
+	ID             pgtype.UUID        `json:"id"`
+	OrganizationID pgtype.UUID        `json:"organization_id"`
+	TenantCode     string             `json:"tenant_code"`
+	Name           string             `json:"name"`
+	Status         string             `json:"status"`
+	SchemaName     string             `json:"schema_name"`
+	Region         string             `json:"region"`
+	Attributes     []byte             `json:"attributes"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
 type AppUser struct {
@@ -431,86 +320,1369 @@ type AppUserRole struct {
 	ModifiedBy pgtype.UUID        `json:"modified_by"`
 }
 
-type SalesCashDrawerEvent struct {
-	ID          pgtype.UUID        `json:"id"`
-	MerchantID  pgtype.UUID        `json:"merchant_id"`
-	ShiftID     pgtype.UUID        `json:"shift_id"`
-	EmployeeID  pgtype.UUID        `json:"employee_id"`
-	EventType   string             `json:"event_type"`
-	AmountCents pgtype.Int8        `json:"amount_cents"`
-	OccurredAt  pgtype.Timestamptz `json:"occurred_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+type AppWebhookBackpressureConfig struct {
+	ID            pgtype.UUID        `json:"id"`
+	MerchantID    pgtype.UUID        `json:"merchant_id"`
+	SourceCode    string             `json:"source_code"`
+	MaxRps        int32              `json:"max_rps"`
+	BurstCapacity int32              `json:"burst_capacity"`
+	Enabled       bool               `json:"enabled"`
+	Attributes    []byte             `json:"attributes"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
-type SalesCashDrawerShift struct {
+type AppWorkflowDefinition struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkflowCode string             `json:"workflow_code"`
+	DisplayName  string             `json:"display_name"`
+	Version      int32              `json:"version"`
+	Status       string             `json:"status"`
+	Attributes   []byte             `json:"attributes"`
+	RegisteredAt pgtype.Timestamptz `json:"registered_at"`
+}
+
+type AppWorkflowExecution struct {
+	ID           pgtype.UUID        `json:"id"`
+	TenantID     pgtype.UUID        `json:"tenant_id"`
+	WorkflowID   pgtype.UUID        `json:"workflow_id"`
+	ExternalRef  pgtype.Text        `json:"external_ref"`
+	Status       string             `json:"status"`
+	CurrentStep  pgtype.Text        `json:"current_step"`
+	Context      []byte             `json:"context"`
+	StartedAt    pgtype.Timestamptz `json:"started_at"`
+	FinishedAt   pgtype.Timestamptz `json:"finished_at"`
+	ErrorMessage pgtype.Text        `json:"error_message"`
+	Attributes   []byte             `json:"attributes"`
+}
+
+type CCustomer struct {
+	ID                pgtype.UUID        `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	CustomerCode      pgtype.Text        `json:"customer_code"`
+	CustomerType      string             `json:"customer_type"`
+	FirstName         pgtype.Text        `json:"first_name"`
+	LastName          pgtype.Text        `json:"last_name"`
+	DisplayName       pgtype.Text        `json:"display_name"`
+	Email             pgtype.Text        `json:"email"`
+	Phone             pgtype.Text        `json:"phone"`
+	BirthDate         pgtype.Date        `json:"birth_date"`
+	PreferredLanguage pgtype.Text        `json:"preferred_language"`
+	MarketingOptIn    bool               `json:"marketing_opt_in"`
+	PrimaryAddress    []byte             `json:"primary_address"`
+	Attributes        []byte             `json:"attributes"`
+	Status            string             `json:"status"`
+	MergedInto        pgtype.UUID        `json:"merged_into"`
+	ExternalIds       []byte             `json:"external_ids"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	PartyID           pgtype.UUID        `json:"party_id"`
+}
+
+type CCustomerAddress struct {
+	ID            pgtype.UUID        `json:"id"`
+	TenantID      pgtype.UUID        `json:"tenant_id"`
+	CustomerID    pgtype.UUID        `json:"customer_id"`
+	AddressType   string             `json:"address_type"`
+	RecipientName pgtype.Text        `json:"recipient_name"`
+	Line1         string             `json:"line_1"`
+	Line2         pgtype.Text        `json:"line_2"`
+	City          string             `json:"city"`
+	Region        pgtype.Text        `json:"region"`
+	PostalCode    pgtype.Text        `json:"postal_code"`
+	Country       string             `json:"country"`
+	Latitude      pgtype.Numeric     `json:"latitude"`
+	Longitude     pgtype.Numeric     `json:"longitude"`
+	IsDefault     bool               `json:"is_default"`
+	Attributes    []byte             `json:"attributes"`
+	Status        string             `json:"status"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type CLoyaltyMembership struct {
 	ID               pgtype.UUID        `json:"id"`
-	MerchantID       pgtype.UUID        `json:"merchant_id"`
-	LocationID       pgtype.UUID        `json:"location_id"`
-	EmployeeID       pgtype.UUID        `json:"employee_id"`
-	ExternalID       string             `json:"external_id"`
-	OpenedAt         pgtype.Timestamptz `json:"opened_at"`
-	ClosedAt         pgtype.Timestamptz `json:"closed_at"`
-	ExpectedCents    pgtype.Int8        `json:"expected_cents"`
-	ActualCents      pgtype.Int8        `json:"actual_cents"`
-	DiscrepancyCents pgtype.Int8        `json:"discrepancy_cents"`
+	TenantID         pgtype.UUID        `json:"tenant_id"`
+	CustomerID       pgtype.UUID        `json:"customer_id"`
+	ProgramCode      string             `json:"program_code"`
+	MembershipNumber string             `json:"membership_number"`
+	EnrollmentDate   pgtype.Date        `json:"enrollment_date"`
+	Tier             pgtype.Text        `json:"tier"`
+	PointsBalance    int64              `json:"points_balance"`
+	PointsLifetime   int64              `json:"points_lifetime"`
+	BirthDate        pgtype.Date        `json:"birth_date"`
+	Preferences      []byte             `json:"preferences"`
+	Attributes       []byte             `json:"attributes"`
+	Status           string             `json:"status"`
+	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
-type SalesLineItem struct {
+type EEmployee struct {
+	ID               pgtype.UUID        `json:"id"`
+	TenantID         pgtype.UUID        `json:"tenant_id"`
+	UserID           pgtype.UUID        `json:"user_id"`
+	EmployeeCode     string             `json:"employee_code"`
+	FirstName        string             `json:"first_name"`
+	LastName         string             `json:"last_name"`
+	DisplayName      pgtype.Text        `json:"display_name"`
+	Email            pgtype.Text        `json:"email"`
+	Phone            pgtype.Text        `json:"phone"`
+	HireDate         pgtype.Date        `json:"hire_date"`
+	TerminationDate  pgtype.Date        `json:"termination_date"`
+	EmploymentStatus string             `json:"employment_status"`
+	PayType          pgtype.Text        `json:"pay_type"`
+	Attributes       []byte             `json:"attributes"`
+	ExternalIds      []byte             `json:"external_ids"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+type EEmployeeLocationAssignment struct {
 	ID             pgtype.UUID        `json:"id"`
-	MerchantID     pgtype.UUID        `json:"merchant_id"`
-	TransactionID  pgtype.UUID        `json:"transaction_id"`
-	ProductID      pgtype.UUID        `json:"product_id"`
-	ExternalID     pgtype.Text        `json:"external_id"`
-	Quantity       pgtype.Numeric     `json:"quantity"`
-	UnitPriceCents int64              `json:"unit_price_cents"`
-	TotalCents     int64              `json:"total_cents"`
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	EmployeeID     pgtype.UUID        `json:"employee_id"`
+	LocationID     pgtype.UUID        `json:"location_id"`
+	AssignmentType string             `json:"assignment_type"`
+	EffectiveStart pgtype.Date        `json:"effective_start"`
+	EffectiveEnd   pgtype.Date        `json:"effective_end"`
+	IsPrimary      bool               `json:"is_primary"`
+	Attributes     []byte             `json:"attributes"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
-type SalesLineItemDiscount struct {
+type EEmployeeRoleAssignment struct {
+	ID             pgtype.UUID        `json:"id"`
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	EmployeeID     pgtype.UUID        `json:"employee_id"`
+	RoleCode       string             `json:"role_code"`
+	EffectiveStart pgtype.Date        `json:"effective_start"`
+	EffectiveEnd   pgtype.Date        `json:"effective_end"`
+	Attributes     []byte             `json:"attributes"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type FGlAccount struct {
+	ID             pgtype.UUID        `json:"id"`
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	ParentID       pgtype.UUID        `json:"parent_id"`
+	Code           string             `json:"code"`
+	Name           string             `json:"name"`
+	AccountType    string             `json:"account_type"`
+	AccountSubtype pgtype.Text        `json:"account_subtype"`
+	IsPostable     bool               `json:"is_postable"`
+	Currency       string             `json:"currency"`
+	Attributes     []byte             `json:"attributes"`
+	Status         string             `json:"status"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type FMarkupEnvelopeTier struct {
+	ID          pgtype.UUID        `json:"id"`
+	Archetype   string             `json:"archetype"`
+	MarkupPct   pgtype.Numeric     `json:"markup_pct"`
+	EffectiveAt pgtype.Timestamptz `json:"effective_at"`
+	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
+	Attributes  []byte             `json:"attributes"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type FPayment struct {
+	ID              pgtype.UUID        `json:"id"`
+	TenantID        pgtype.UUID        `json:"tenant_id"`
+	PaymentNumber   string             `json:"payment_number"`
+	VendorID        pgtype.UUID        `json:"vendor_id"`
+	PaymentMethod   string             `json:"payment_method"`
+	PaymentDate     pgtype.Date        `json:"payment_date"`
+	Amount          pgtype.Numeric     `json:"amount"`
+	Currency        string             `json:"currency"`
+	BankAccountID   pgtype.UUID        `json:"bank_account_id"`
+	ReferenceNumber pgtype.Text        `json:"reference_number"`
+	Status          string             `json:"status"`
+	ClearedAt       pgtype.Timestamptz `json:"cleared_at"`
+	Attributes      []byte             `json:"attributes"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+type FPaymentInvoiceApplication struct {
 	ID            pgtype.UUID        `json:"id"`
-	MerchantID    pgtype.UUID        `json:"merchant_id"`
-	LineItemID    pgtype.UUID        `json:"line_item_id"`
-	DiscountName  pgtype.Text        `json:"discount_name"`
-	DiscountCents int64              `json:"discount_cents"`
+	TenantID      pgtype.UUID        `json:"tenant_id"`
+	PaymentID     pgtype.UUID        `json:"payment_id"`
+	InvoiceID     pgtype.UUID        `json:"invoice_id"`
+	AmountApplied pgtype.Numeric     `json:"amount_applied"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }
 
-type SalesRefundLink struct {
+type FSupplierInvoice struct {
+	ID                       pgtype.UUID        `json:"id"`
+	TenantID                 pgtype.UUID        `json:"tenant_id"`
+	InvoiceNumber            string             `json:"invoice_number"`
+	VendorID                 pgtype.UUID        `json:"vendor_id"`
+	InvoiceDate              pgtype.Date        `json:"invoice_date"`
+	DueDate                  pgtype.Date        `json:"due_date"`
+	RelatedPoID              pgtype.UUID        `json:"related_po_id"`
+	RelatedReceiptDocumentID pgtype.UUID        `json:"related_receipt_document_id"`
+	Status                   string             `json:"status"`
+	Subtotal                 pgtype.Numeric     `json:"subtotal"`
+	TaxTotal                 pgtype.Numeric     `json:"tax_total"`
+	ShippingTotal            pgtype.Numeric     `json:"shipping_total"`
+	DiscountTotal            pgtype.Numeric     `json:"discount_total"`
+	GrandTotal               pgtype.Numeric     `json:"grand_total"`
+	Currency                 string             `json:"currency"`
+	MatchStatus              string             `json:"match_status"`
+	MatchVariance            pgtype.Numeric     `json:"match_variance"`
+	ApprovalUserID           pgtype.UUID        `json:"approval_user_id"`
+	ApprovedAt               pgtype.Timestamptz `json:"approved_at"`
+	Attributes               []byte             `json:"attributes"`
+	CreatedAt                pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
+}
+
+type FSupplierInvoiceLine struct {
+	ID                   pgtype.UUID        `json:"id"`
+	TenantID             pgtype.UUID        `json:"tenant_id"`
+	InvoiceID            pgtype.UUID        `json:"invoice_id"`
+	LineNumber           int32              `json:"line_number"`
+	RelatedPoLineID      pgtype.UUID        `json:"related_po_line_id"`
+	RelatedReceiptLineID pgtype.UUID        `json:"related_receipt_line_id"`
+	ItemID               pgtype.UUID        `json:"item_id"`
+	Description          string             `json:"description"`
+	Quantity             pgtype.Numeric     `json:"quantity"`
+	UnitCost             pgtype.Numeric     `json:"unit_cost"`
+	LineTotal            pgtype.Numeric     `json:"line_total"`
+	TaxAmount            pgtype.Numeric     `json:"tax_amount"`
+	GlAccountID          pgtype.UUID        `json:"gl_account_id"`
+	MatchVariance        pgtype.Numeric     `json:"match_variance"`
+	Attributes           []byte             `json:"attributes"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+}
+
+type FTenderType struct {
+	ID             pgtype.UUID        `json:"id"`
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	SourceCode     pgtype.Text        `json:"source_code"`
+	Code           string             `json:"code"`
+	Name           string             `json:"name"`
+	TenderClass    string             `json:"tender_class"`
+	IsActive       bool               `json:"is_active"`
+	IsChangeGiving bool               `json:"is_change_giving"`
+	IsRefundable   bool               `json:"is_refundable"`
+	OpenDrawer     bool               `json:"open_drawer"`
+	GlAccountID    pgtype.UUID        `json:"gl_account_id"`
+	RoundingRule   pgtype.Text        `json:"rounding_rule"`
+	Attributes     []byte             `json:"attributes"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type IInventoryDocument struct {
 	ID                    pgtype.UUID        `json:"id"`
-	MerchantID            pgtype.UUID        `json:"merchant_id"`
-	RefundTransactionID   pgtype.UUID        `json:"refund_transaction_id"`
-	OriginalTransactionID pgtype.UUID        `json:"original_transaction_id"`
+	TenantID              pgtype.UUID        `json:"tenant_id"`
+	DocumentType          string             `json:"document_type"`
+	DocumentNumber        string             `json:"document_number"`
+	SourceLocationID      pgtype.UUID        `json:"source_location_id"`
+	DestinationLocationID pgtype.UUID        `json:"destination_location_id"`
+	VendorID              pgtype.UUID        `json:"vendor_id"`
+	RelatedOrderID        pgtype.UUID        `json:"related_order_id"`
+	Status                string             `json:"status"`
+	ExpectedAt            pgtype.Timestamptz `json:"expected_at"`
+	CompletedAt           pgtype.Timestamptz `json:"completed_at"`
+	TotalQuantity         pgtype.Numeric     `json:"total_quantity"`
+	TotalCost             pgtype.Numeric     `json:"total_cost"`
+	PerformedByUserID     pgtype.UUID        `json:"performed_by_user_id"`
+	Attributes            []byte             `json:"attributes"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+}
+
+type IInventoryDocumentLine struct {
+	ID               pgtype.UUID        `json:"id"`
+	TenantID         pgtype.UUID        `json:"tenant_id"`
+	DocumentID       pgtype.UUID        `json:"document_id"`
+	LineNumber       int32              `json:"line_number"`
+	ItemID           pgtype.UUID        `json:"item_id"`
+	ExpectedQuantity pgtype.Numeric     `json:"expected_quantity"`
+	ActualQuantity   pgtype.Numeric     `json:"actual_quantity"`
+	VarianceQuantity pgtype.Numeric     `json:"variance_quantity"`
+	VarianceReason   pgtype.Text        `json:"variance_reason"`
+	UnitCost         pgtype.Numeric     `json:"unit_cost"`
+	LotID            pgtype.UUID        `json:"lot_id"`
+	Attributes       []byte             `json:"attributes"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+type IInventoryLot struct {
+	ID               pgtype.UUID        `json:"id"`
+	TenantID         pgtype.UUID        `json:"tenant_id"`
+	ItemID           pgtype.UUID        `json:"item_id"`
+	LotNumber        string             `json:"lot_number"`
+	LotType          string             `json:"lot_type"`
+	ExpiryDate       pgtype.Date        `json:"expiry_date"`
+	ManufactureDate  pgtype.Date        `json:"manufacture_date"`
+	ReceivedAt       pgtype.Timestamptz `json:"received_at"`
+	VendorID         pgtype.UUID        `json:"vendor_id"`
+	SourceDocumentID pgtype.UUID        `json:"source_document_id"`
+	Status           string             `json:"status"`
+	Attributes       []byte             `json:"attributes"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+type IInventoryMovement struct {
+	ID                    pgtype.UUID        `json:"id"`
+	TenantID              pgtype.UUID        `json:"tenant_id"`
+	ItemID                pgtype.UUID        `json:"item_id"`
+	LocationID            pgtype.UUID        `json:"location_id"`
+	ZoneID                pgtype.UUID        `json:"zone_id"`
+	LotID                 pgtype.UUID        `json:"lot_id"`
+	MovementType          string             `json:"movement_type"`
+	QuantityDelta         pgtype.Numeric     `json:"quantity_delta"`
+	MovementAt            pgtype.Timestamptz `json:"movement_at"`
+	SourceDocumentID      pgtype.UUID        `json:"source_document_id"`
+	SourceDocumentLineID  pgtype.UUID        `json:"source_document_line_id"`
+	SourceTransactionID   pgtype.UUID        `json:"source_transaction_id"`
+	ReasonCode            pgtype.Text        `json:"reason_code"`
+	Reference             pgtype.Text        `json:"reference"`
+	PerformedByUserID     pgtype.UUID        `json:"performed_by_user_id"`
+	PerformedByEmployeeID pgtype.UUID        `json:"performed_by_employee_id"`
+	CostBasis             pgtype.Numeric     `json:"cost_basis"`
+	Attributes            []byte             `json:"attributes"`
 	CreatedAt             pgtype.Timestamptz `json:"created_at"`
 }
 
-type SalesTransaction struct {
+type IInventoryPosition struct {
+	ID                pgtype.UUID        `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	ItemID            pgtype.UUID        `json:"item_id"`
+	LocationID        pgtype.UUID        `json:"location_id"`
+	ZoneID            pgtype.UUID        `json:"zone_id"`
+	OnHandQuantity    pgtype.Numeric     `json:"on_hand_quantity"`
+	ReservedQuantity  pgtype.Numeric     `json:"reserved_quantity"`
+	OnOrderQuantity   pgtype.Numeric     `json:"on_order_quantity"`
+	InTransitQuantity pgtype.Numeric     `json:"in_transit_quantity"`
+	LastMovementAt    pgtype.Timestamptz `json:"last_movement_at"`
+	LastCountAt       pgtype.Timestamptz `json:"last_count_at"`
+	CostBasis         pgtype.Numeric     `json:"cost_basis"`
+	Attributes        []byte             `json:"attributes"`
+	Status            string             `json:"status"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type LLocation struct {
+	ID               pgtype.UUID        `json:"id"`
+	TenantID         pgtype.UUID        `json:"tenant_id"`
+	LocationCode     string             `json:"location_code"`
+	Name             string             `json:"name"`
+	LocationType     string             `json:"location_type"`
+	ParentLocationID pgtype.UUID        `json:"parent_location_id"`
+	Banner           pgtype.Text        `json:"banner"`
+	Status           string             `json:"status"`
+	OpenDate         pgtype.Date        `json:"open_date"`
+	CloseDate        pgtype.Date        `json:"close_date"`
+	RemodelDate      pgtype.Date        `json:"remodel_date"`
+	SquareFootage    pgtype.Int4        `json:"square_footage"`
+	SellingAreaSqft  pgtype.Int4        `json:"selling_area_sqft"`
+	StorageAreaSqft  pgtype.Int4        `json:"storage_area_sqft"`
+	Channel          pgtype.Text        `json:"channel"`
+	Format           pgtype.Text        `json:"format"`
+	Currency         string             `json:"currency"`
+	Language         string             `json:"language"`
+	Timezone         string             `json:"timezone"`
+	Address          []byte             `json:"address"`
+	Contact          []byte             `json:"contact"`
+	OperatingHours   []byte             `json:"operating_hours"`
+	Attributes       []byte             `json:"attributes"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+type LLocationAssortment struct {
+	ID                pgtype.UUID        `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	LocationID        pgtype.UUID        `json:"location_id"`
+	ItemID            pgtype.UUID        `json:"item_id"`
+	ZoneID            pgtype.UUID        `json:"zone_id"`
+	AssortmentTier    string             `json:"assortment_tier"`
+	EffectiveStart    pgtype.Date        `json:"effective_start"`
+	EffectiveEnd      pgtype.Date        `json:"effective_end"`
+	SourcePlanogramID pgtype.UUID        `json:"source_planogram_id"`
+	Attributes        []byte             `json:"attributes"`
+	Status            string             `json:"status"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type LLocationHierarchy struct {
+	ID            pgtype.UUID        `json:"id"`
+	TenantID      pgtype.UUID        `json:"tenant_id"`
+	ParentID      pgtype.UUID        `json:"parent_id"`
+	Code          string             `json:"code"`
+	Name          string             `json:"name"`
+	HierarchyType string             `json:"hierarchy_type"`
+	Level         int32              `json:"level"`
+	Path          pgtype.Text        `json:"path"`
+	Attributes    []byte             `json:"attributes"`
+	Status        string             `json:"status"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type LLocationHierarchyAssignment struct {
+	LocationID  pgtype.UUID `json:"location_id"`
+	HierarchyID pgtype.UUID `json:"hierarchy_id"`
+}
+
+type LLocationZone struct {
+	ID           pgtype.UUID        `json:"id"`
+	TenantID     pgtype.UUID        `json:"tenant_id"`
+	LocationID   pgtype.UUID        `json:"location_id"`
+	ParentZoneID pgtype.UUID        `json:"parent_zone_id"`
+	Code         string             `json:"code"`
+	Name         string             `json:"name"`
+	ZoneType     string             `json:"zone_type"`
+	Level        int32              `json:"level"`
+	Path         pgtype.Text        `json:"path"`
+	Geometry     []byte             `json:"geometry"`
+	Attributes   []byte             `json:"attributes"`
+	Status       string             `json:"status"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
+type LedgerBlockchainAnchor struct {
+	ID                 pgtype.UUID        `json:"id"`
+	TenantID           pgtype.UUID        `json:"tenant_id"`
+	AnchorType         string             `json:"anchor_type"`
+	PayloadHash        string             `json:"payload_hash"`
+	MerkleRoot         pgtype.Text        `json:"merkle_root"`
+	AnchoredAt         pgtype.Timestamptz `json:"anchored_at"`
+	L2Chain            string             `json:"l2_chain"`
+	L2TransactionID    pgtype.Text        `json:"l2_transaction_id"`
+	L2BlockHeight      pgtype.Int8        `json:"l2_block_height"`
+	L2Proof            []byte             `json:"l2_proof"`
+	RelatedEntityCount pgtype.Int4        `json:"related_entity_count"`
+	Status             string             `json:"status"`
+	Attributes         []byte             `json:"attributes"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+}
+
+type LedgerIldwacPosition struct {
+	ID                   pgtype.UUID                      `json:"id"`
+	TenantID             pgtype.UUID                      `json:"tenant_id"`
+	PositionPeriod       pgtype.Range[pgtype.Timestamptz] `json:"position_period"`
+	CadenceStep          string                           `json:"cadence_step"`
+	LStorageSatoshis     int64                            `json:"l_storage_satoshis"`
+	WWorkloadSatoshis    int64                            `json:"w_workload_satoshis"`
+	CCaptureSatoshis     int64                            `json:"c_capture_satoshis"`
+	TotalSatoshis        pgtype.Int8                      `json:"total_satoshis"`
+	BytesUnderManagement pgtype.Int8                      `json:"bytes_under_management"`
+	WorkloadUnits        pgtype.Int8                      `json:"workload_units"`
+	CaptureTier          pgtype.Text                      `json:"capture_tier"`
+	InvoicedAt           pgtype.Timestamptz               `json:"invoiced_at"`
+	PaymentProof         pgtype.Text                      `json:"payment_proof"`
+	Attributes           []byte                           `json:"attributes"`
+	CreatedAt            pgtype.Timestamptz               `json:"created_at"`
+}
+
+type LedgerL402OtbBudget struct {
+	ID                pgtype.UUID                      `json:"id"`
+	TenantID          pgtype.UUID                      `json:"tenant_id"`
+	BudgetPeriod      pgtype.Range[pgtype.Timestamptz] `json:"budget_period"`
+	ScopeType         string                           `json:"scope_type"`
+	ScopeID           pgtype.UUID                      `json:"scope_id"`
+	BudgetSatoshis    int64                            `json:"budget_satoshis"`
+	ConsumedSatoshis  int64                            `json:"consumed_satoshis"`
+	RemainingSatoshis pgtype.Int8                      `json:"remaining_satoshis"`
+	HardLimit         bool                             `json:"hard_limit"`
+	AlertThresholdPct pgtype.Numeric                   `json:"alert_threshold_pct"`
+	Status            string                           `json:"status"`
+	Attributes        []byte                           `json:"attributes"`
+	CreatedAt         pgtype.Timestamptz               `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz               `json:"updated_at"`
+}
+
+type LedgerRibBatch struct {
+	ID              pgtype.UUID                      `json:"id"`
+	TenantID        pgtype.UUID                      `json:"tenant_id"`
+	ItemID          pgtype.UUID                      `json:"item_id"`
+	LocationID      pgtype.UUID                      `json:"location_id"`
+	BatchPeriod     pgtype.Range[pgtype.Timestamptz] `json:"batch_period"`
+	TotalQuantity   pgtype.Numeric                   `json:"total_quantity"`
+	TotalCost       pgtype.Numeric                   `json:"total_cost"`
+	WeightedAvgCost pgtype.Numeric                   `json:"weighted_avg_cost"`
+	ReceiptCount    int32                            `json:"receipt_count"`
+	ClosedAt        pgtype.Timestamptz               `json:"closed_at"`
+	Attributes      []byte                           `json:"attributes"`
+	CreatedAt       pgtype.Timestamptz               `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz               `json:"updated_at"`
+}
+
+type LedgerStockLedgerEntry struct {
+	ID                  pgtype.UUID        `json:"id"`
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	InventoryMovementID pgtype.UUID        `json:"inventory_movement_id"`
+	PostedAt            pgtype.Timestamptz `json:"posted_at"`
+	ItemID              pgtype.UUID        `json:"item_id"`
+	LocationID          pgtype.UUID        `json:"location_id"`
+	QuantityDelta       pgtype.Numeric     `json:"quantity_delta"`
+	CostPerUnit         pgtype.Numeric     `json:"cost_per_unit"`
+	CostAmount          pgtype.Numeric     `json:"cost_amount"`
+	CostMethod          string             `json:"cost_method"`
+	GlAccountID         pgtype.UUID        `json:"gl_account_id"`
+	Attributes          []byte             `json:"attributes"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+}
+
+type MItem struct {
+	ID                pgtype.UUID        `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	Sku               string             `json:"sku"`
+	Description       string             `json:"description"`
+	ShortDescription  pgtype.Text        `json:"short_description"`
+	ItemType          string             `json:"item_type"`
+	CategoryID        pgtype.UUID        `json:"category_id"`
+	UnitOfMeasure     string             `json:"unit_of_measure"`
+	UomQuantity       pgtype.Numeric     `json:"uom_quantity"`
+	DefaultPrice      pgtype.Numeric     `json:"default_price"`
+	DefaultCost       pgtype.Numeric     `json:"default_cost"`
+	DefaultCurrency   string             `json:"default_currency"`
+	TaxClass          pgtype.Text        `json:"tax_class"`
+	FoodStampEligible bool               `json:"food_stamp_eligible"`
+	AgeRestriction    pgtype.Int4        `json:"age_restriction"`
+	Weighable         bool               `json:"weighable"`
+	Attributes        []byte             `json:"attributes"`
+	Status            string             `json:"status"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type MItemBarcode struct {
+	ID          pgtype.UUID        `json:"id"`
+	TenantID    pgtype.UUID        `json:"tenant_id"`
+	ItemID      pgtype.UUID        `json:"item_id"`
+	Barcode     string             `json:"barcode"`
+	BarcodeType string             `json:"barcode_type"`
+	UomQuantity pgtype.Numeric     `json:"uom_quantity"`
+	IsPrimary   bool               `json:"is_primary"`
+	Attributes  []byte             `json:"attributes"`
+	Status      string             `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type MItemPack struct {
+	ID              pgtype.UUID        `json:"id"`
+	TenantID        pgtype.UUID        `json:"tenant_id"`
+	PackItemID      pgtype.UUID        `json:"pack_item_id"`
+	ComponentItemID pgtype.UUID        `json:"component_item_id"`
+	Quantity        pgtype.Numeric     `json:"quantity"`
+	PackType        string             `json:"pack_type"`
+	Attributes      []byte             `json:"attributes"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+type MItemVendor struct {
+	ID                pgtype.UUID        `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	ItemID            pgtype.UUID        `json:"item_id"`
+	VendorID          pgtype.UUID        `json:"vendor_id"`
+	VendorSku         pgtype.Text        `json:"vendor_sku"`
+	VendorDescription pgtype.Text        `json:"vendor_description"`
+	UnitCost          pgtype.Numeric     `json:"unit_cost"`
+	CasePackQty       pgtype.Int4        `json:"case_pack_qty"`
+	MinOrderQty       pgtype.Int4        `json:"min_order_qty"`
+	LeadTimeDays      pgtype.Int4        `json:"lead_time_days"`
+	IsPrimary         bool               `json:"is_primary"`
+	CountryOfOrigin   pgtype.Text        `json:"country_of_origin"`
+	Attributes        []byte             `json:"attributes"`
+	Status            string             `json:"status"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type MProductCategory struct {
+	ID         pgtype.UUID        `json:"id"`
+	TenantID   pgtype.UUID        `json:"tenant_id"`
+	ParentID   pgtype.UUID        `json:"parent_id"`
+	Code       string             `json:"code"`
+	Name       string             `json:"name"`
+	Level      int32              `json:"level"`
+	Path       pgtype.Text        `json:"path"`
+	Attributes []byte             `json:"attributes"`
+	Status     string             `json:"status"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+type MVendor struct {
+	ID             pgtype.UUID        `json:"id"`
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	VendorCode     string             `json:"vendor_code"`
+	Name           string             `json:"name"`
+	ShortName      pgtype.Text        `json:"short_name"`
+	VendorType     string             `json:"vendor_type"`
+	PrimaryContact []byte             `json:"primary_contact"`
+	Address        []byte             `json:"address"`
+	PaymentTerms   pgtype.Text        `json:"payment_terms"`
+	Currency       pgtype.Text        `json:"currency"`
+	TaxID          pgtype.Text        `json:"tax_id"`
+	Attributes     []byte             `json:"attributes"`
+	Status         string             `json:"status"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type OAllocation struct {
 	ID                   pgtype.UUID        `json:"id"`
-	MerchantID           pgtype.UUID        `json:"merchant_id"`
-	ExternalID           string             `json:"external_id"`
-	LocationID           pgtype.UUID        `json:"location_id"`
-	EmployeeID           pgtype.UUID        `json:"employee_id"`
-	CustomerID           pgtype.UUID        `json:"customer_id"`
-	ArtsBusinessDate     pgtype.Date        `json:"arts_business_date"`
-	ArtsWorkstationID    pgtype.Text        `json:"arts_workstation_id"`
-	TransactionType      string             `json:"transaction_type"`
-	TotalCents           int64              `json:"total_cents"`
-	SubtotalCents        int64              `json:"subtotal_cents"`
-	TaxCents             int64              `json:"tax_cents"`
-	TipCents             int64              `json:"tip_cents"`
-	DiscountCents        int64              `json:"discount_cents"`
-	TenderType           pgtype.Text        `json:"tender_type"`
-	CardFingerprint      pgtype.Text        `json:"card_fingerprint"`
-	CardLast4            pgtype.Text        `json:"card_last4"`
-	CardBin              pgtype.Text        `json:"card_bin"`
-	CardExpMonth         pgtype.Int2        `json:"card_exp_month"`
-	CardExpYear          pgtype.Int2        `json:"card_exp_year"`
-	StatementDescription pgtype.Text        `json:"statement_description"`
-	Payload              []byte             `json:"payload"`
-	SourceCode           pgtype.Text        `json:"source_code"`
+	TenantID             pgtype.UUID        `json:"tenant_id"`
+	SalesOrderLineID     pgtype.UUID        `json:"sales_order_line_id"`
+	InventoryPositionID  pgtype.UUID        `json:"inventory_position_id"`
+	AllocationType       string             `json:"allocation_type"`
+	Quantity             pgtype.Numeric     `json:"quantity"`
+	AllocatedAt          pgtype.Timestamptz `json:"allocated_at"`
+	ExpiresAt            pgtype.Timestamptz `json:"expires_at"`
+	ConsumedByMovementID pgtype.UUID        `json:"consumed_by_movement_id"`
+	Status               string             `json:"status"`
+	Attributes           []byte             `json:"attributes"`
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+}
+
+type OFulfillment struct {
+	ID                pgtype.UUID        `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	FulfillmentNumber string             `json:"fulfillment_number"`
+	SourceLocationID  pgtype.UUID        `json:"source_location_id"`
+	FulfillmentMethod string             `json:"fulfillment_method"`
+	Status            string             `json:"status"`
+	AssignedTo        pgtype.UUID        `json:"assigned_to"`
+	PickedAt          pgtype.Timestamptz `json:"picked_at"`
+	PackedAt          pgtype.Timestamptz `json:"packed_at"`
+	ShippedAt         pgtype.Timestamptz `json:"shipped_at"`
+	DeliveredAt       pgtype.Timestamptz `json:"delivered_at"`
+	Carrier           pgtype.Text        `json:"carrier"`
+	TrackingNumber    pgtype.Text        `json:"tracking_number"`
+	TrackingUrl       pgtype.Text        `json:"tracking_url"`
+	Attributes        []byte             `json:"attributes"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type OFulfillmentLine struct {
+	ID                  pgtype.UUID        `json:"id"`
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	FulfillmentID       pgtype.UUID        `json:"fulfillment_id"`
+	SalesOrderLineID    pgtype.UUID        `json:"sales_order_line_id"`
+	ItemID              pgtype.UUID        `json:"item_id"`
+	Quantity            pgtype.Numeric     `json:"quantity"`
+	PickedQuantity      pgtype.Numeric     `json:"picked_quantity"`
+	PackedQuantity      pgtype.Numeric     `json:"packed_quantity"`
+	ShippedQuantity     pgtype.Numeric     `json:"shipped_quantity"`
+	LotID               pgtype.UUID        `json:"lot_id"`
+	InventoryMovementID pgtype.UUID        `json:"inventory_movement_id"`
+	Attributes          []byte             `json:"attributes"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+type OPurchaseOrder struct {
+	ID                    pgtype.UUID        `json:"id"`
+	TenantID              pgtype.UUID        `json:"tenant_id"`
+	PoNumber              string             `json:"po_number"`
+	VendorID              pgtype.UUID        `json:"vendor_id"`
+	DestinationLocationID pgtype.UUID        `json:"destination_location_id"`
+	OrderMethod           string             `json:"order_method"`
+	OrderType             string             `json:"order_type"`
+	Status                string             `json:"status"`
+	OrderedAt             pgtype.Timestamptz `json:"ordered_at"`
+	ExpectedDeliveryAt    pgtype.Timestamptz `json:"expected_delivery_at"`
+	AcknowledgedAt        pgtype.Timestamptz `json:"acknowledged_at"`
+	CancelledAt           pgtype.Timestamptz `json:"cancelled_at"`
+	TotalQuantity         pgtype.Numeric     `json:"total_quantity"`
+	TotalCost             pgtype.Numeric     `json:"total_cost"`
+	Currency              string             `json:"currency"`
+	PaymentTerms          pgtype.Text        `json:"payment_terms"`
+	ShippingTerms         pgtype.Text        `json:"shipping_terms"`
+	ApprovalUserID        pgtype.UUID        `json:"approval_user_id"`
+	ApprovedAt            pgtype.Timestamptz `json:"approved_at"`
+	Attributes            []byte             `json:"attributes"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+}
+
+type OPurchaseOrderLine struct {
+	ID                 pgtype.UUID        `json:"id"`
+	TenantID           pgtype.UUID        `json:"tenant_id"`
+	PoID               pgtype.UUID        `json:"po_id"`
+	LineNumber         int32              `json:"line_number"`
+	ItemID             pgtype.UUID        `json:"item_id"`
+	VendorSku          pgtype.Text        `json:"vendor_sku"`
+	OrderedQuantity    pgtype.Numeric     `json:"ordered_quantity"`
+	ReceivedQuantity   pgtype.Numeric     `json:"received_quantity"`
+	CancelledQuantity  pgtype.Numeric     `json:"cancelled_quantity"`
+	UnitCost           pgtype.Numeric     `json:"unit_cost"`
+	TotalCost          pgtype.Numeric     `json:"total_cost"`
+	ExpectedDeliveryAt pgtype.Timestamptz `json:"expected_delivery_at"`
+	Status             string             `json:"status"`
+	Attributes         []byte             `json:"attributes"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+type OSalesOrder struct {
+	ID                    pgtype.UUID        `json:"id"`
+	TenantID              pgtype.UUID        `json:"tenant_id"`
+	OrderNumber           string             `json:"order_number"`
+	CustomerID            pgtype.UUID        `json:"customer_id"`
+	Channel               string             `json:"channel"`
+	OriginLocationID      pgtype.UUID        `json:"origin_location_id"`
+	DestinationLocationID pgtype.UUID        `json:"destination_location_id"`
+	DestinationAddressID  pgtype.UUID        `json:"destination_address_id"`
+	Status                string             `json:"status"`
+	OrderedAt             pgtype.Timestamptz `json:"ordered_at"`
+	PromisedAt            pgtype.Timestamptz `json:"promised_at"`
+	FulfilledAt           pgtype.Timestamptz `json:"fulfilled_at"`
+	CancelledAt           pgtype.Timestamptz `json:"cancelled_at"`
+	Subtotal              pgtype.Numeric     `json:"subtotal"`
+	TaxTotal              pgtype.Numeric     `json:"tax_total"`
+	ShippingTotal         pgtype.Numeric     `json:"shipping_total"`
+	DiscountTotal         pgtype.Numeric     `json:"discount_total"`
+	GrandTotal            pgtype.Numeric     `json:"grand_total"`
+	Currency              string             `json:"currency"`
+	PaymentStatus         string             `json:"payment_status"`
+	Attributes            []byte             `json:"attributes"`
+	ExternalIds           []byte             `json:"external_ids"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	// soft-FK to party.parties(id) — see canonical-data-model-party-edits.md §E
+	PartyID pgtype.UUID `json:"party_id"`
+}
+
+type OSalesOrderLine struct {
+	ID                pgtype.UUID        `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	SalesOrderID      pgtype.UUID        `json:"sales_order_id"`
+	LineNumber        int32              `json:"line_number"`
+	ItemID            pgtype.UUID        `json:"item_id"`
+	OrderedQuantity   pgtype.Numeric     `json:"ordered_quantity"`
+	FulfilledQuantity pgtype.Numeric     `json:"fulfilled_quantity"`
+	CancelledQuantity pgtype.Numeric     `json:"cancelled_quantity"`
+	RefundedQuantity  pgtype.Numeric     `json:"refunded_quantity"`
+	UnitPrice         pgtype.Numeric     `json:"unit_price"`
+	UnitDiscount      pgtype.Numeric     `json:"unit_discount"`
+	UnitTax           pgtype.Numeric     `json:"unit_tax"`
+	LineTotal         pgtype.Numeric     `json:"line_total"`
+	Status            string             `json:"status"`
+	Attributes        []byte             `json:"attributes"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type OShippingDocument struct {
+	ID                   pgtype.UUID        `json:"id"`
+	TenantID             pgtype.UUID        `json:"tenant_id"`
+	DocumentType         string             `json:"document_type"`
+	DocumentNumber       string             `json:"document_number"`
+	RelatedPoID          pgtype.UUID        `json:"related_po_id"`
+	RelatedFulfillmentID pgtype.UUID        `json:"related_fulfillment_id"`
+	VendorID             pgtype.UUID        `json:"vendor_id"`
+	Carrier              pgtype.Text        `json:"carrier"`
+	TrackingNumber       pgtype.Text        `json:"tracking_number"`
+	ExpectedArrivalAt    pgtype.Timestamptz `json:"expected_arrival_at"`
+	ShippedAt            pgtype.Timestamptz `json:"shipped_at"`
+	TotalQuantity        pgtype.Numeric     `json:"total_quantity"`
+	TotalWeight          pgtype.Numeric     `json:"total_weight"`
+	TotalVolume          pgtype.Numeric     `json:"total_volume"`
+	Attributes           []byte             `json:"attributes"`
+	Status               string             `json:"status"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PItemPrice struct {
+	ID                pgtype.UUID        `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	ItemID            pgtype.UUID        `json:"item_id"`
+	LocationID        pgtype.UUID        `json:"location_id"`
+	ZoneID            pgtype.UUID        `json:"zone_id"`
+	Channel           pgtype.Text        `json:"channel"`
+	PriceType         string             `json:"price_type"`
+	Amount            pgtype.Numeric     `json:"amount"`
+	Currency          string             `json:"currency"`
+	Uom               string             `json:"uom"`
+	EffectiveStart    pgtype.Timestamptz `json:"effective_start"`
+	EffectiveEnd      pgtype.Timestamptz `json:"effective_end"`
+	SourcePromotionID pgtype.UUID        `json:"source_promotion_id"`
+	Attributes        []byte             `json:"attributes"`
+	Status            string             `json:"status"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PPromotion struct {
+	ID                 pgtype.UUID        `json:"id"`
+	TenantID           pgtype.UUID        `json:"tenant_id"`
+	PromotionCode      string             `json:"promotion_code"`
+	Name               string             `json:"name"`
+	Description        pgtype.Text        `json:"description"`
+	PromotionType      string             `json:"promotion_type"`
+	ScopeType          string             `json:"scope_type"`
+	EffectiveStart     pgtype.Timestamptz `json:"effective_start"`
+	EffectiveEnd       pgtype.Timestamptz `json:"effective_end"`
+	ActiveDays         []int32            `json:"active_days"`
+	ActiveHours        []byte             `json:"active_hours"`
+	ActiveLocations    []pgtype.UUID      `json:"active_locations"`
+	ActiveChannels     []string           `json:"active_channels"`
+	CustomerSegments   []string           `json:"customer_segments"`
+	Stackable          bool               `json:"stackable"`
+	ExclusiveWith      []pgtype.UUID      `json:"exclusive_with"`
+	MaxUsesTotal       pgtype.Int4        `json:"max_uses_total"`
+	MaxUsesPerCustomer pgtype.Int4        `json:"max_uses_per_customer"`
+	CurrentUses        int32              `json:"current_uses"`
+	Attributes         []byte             `json:"attributes"`
+	Status             string             `json:"status"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PPromotionRule struct {
+	ID               pgtype.UUID        `json:"id"`
+	TenantID         pgtype.UUID        `json:"tenant_id"`
+	PromotionID      pgtype.UUID        `json:"promotion_id"`
+	RuleOrder        int32              `json:"rule_order"`
+	TriggerType      string             `json:"trigger_type"`
+	TriggerQualifier []byte             `json:"trigger_qualifier"`
+	BenefitType      string             `json:"benefit_type"`
+	BenefitQualifier []byte             `json:"benefit_qualifier"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PTaxClass struct {
+	ID          pgtype.UUID        `json:"id"`
+	TenantID    pgtype.UUID        `json:"tenant_id"`
+	Code        string             `json:"code"`
+	Name        string             `json:"name"`
+	Description pgtype.Text        `json:"description"`
+	IsDefault   bool               `json:"is_default"`
+	Attributes  []byte             `json:"attributes"`
+	Status      string             `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PTaxRate struct {
+	ID             pgtype.UUID        `json:"id"`
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	TaxClassID     pgtype.UUID        `json:"tax_class_id"`
+	LocationID     pgtype.UUID        `json:"location_id"`
+	Jurisdiction   pgtype.Text        `json:"jurisdiction"`
+	RateType       string             `json:"rate_type"`
+	Rate           pgtype.Numeric     `json:"rate"`
+	EffectiveStart pgtype.Date        `json:"effective_start"`
+	EffectiveEnd   pgtype.Date        `json:"effective_end"`
+	Attributes     []byte             `json:"attributes"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PartyDecisioningFact struct {
+	PartyID          pgtype.UUID    `json:"party_id"`
+	TenantID         pgtype.UUID    `json:"tenant_id"`
+	Confidence       string         `json:"confidence"`
+	PartyValue       pgtype.Numeric `json:"party_value"`
+	PartyRecency     interface{}    `json:"party_recency"`
+	PartyFrequency   int64          `json:"party_frequency"`
+	PartyMonetary    pgtype.Numeric `json:"party_monetary"`
+	PartySegmentTags []string       `json:"party_segment_tags"`
+	PartyFraudRisk   pgtype.Numeric `json:"party_fraud_risk"`
+	PartyChurnRisk   pgtype.Numeric `json:"party_churn_risk"`
+	ComputedAt       interface{}    `json:"computed_at"`
+}
+
+type PartyHousehold struct {
+	ID            pgtype.UUID        `json:"id"`
+	TenantID      pgtype.UUID        `json:"tenant_id"`
+	HouseholdCode string             `json:"household_code"`
+	DisplayName   pgtype.Text        `json:"display_name"`
+	Status        string             `json:"status"`
+	FormedAt      pgtype.Timestamptz `json:"formed_at"`
+	DissolvedAt   pgtype.Timestamptz `json:"dissolved_at"`
+	Attributes    []byte             `json:"attributes"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PartyHouseholdEvidence struct {
+	ID              pgtype.UUID        `json:"id"`
+	TenantID        pgtype.UUID        `json:"tenant_id"`
+	MembershipID    pgtype.UUID        `json:"membership_id"`
+	EvidenceType    string             `json:"evidence_type"`
+	EvidencePayload []byte             `json:"evidence_payload"`
+	SourceEventID   pgtype.UUID        `json:"source_event_id"`
+	Confidence      pgtype.Numeric     `json:"confidence"`
+	CollectedAt     pgtype.Timestamptz `json:"collected_at"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+type PartyHouseholdMembership struct {
+	ID             pgtype.UUID        `json:"id"`
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	HouseholdID    pgtype.UUID        `json:"household_id"`
+	PartyID        pgtype.UUID        `json:"party_id"`
+	MemberRole     string             `json:"member_role"`
+	EffectiveStart pgtype.Date        `json:"effective_start"`
+	EffectiveEnd   pgtype.Date        `json:"effective_end"`
+	Attributes     []byte             `json:"attributes"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PartyIdentifier struct {
+	ID                  pgtype.UUID        `json:"id"`
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	PartyID             pgtype.UUID        `json:"party_id"`
+	IdentifierType      string             `json:"identifier_type"`
+	IdentifierValueHash string             `json:"identifier_value_hash"`
+	SourceSystem        string             `json:"source_system"`
+	QualityScore        pgtype.Numeric     `json:"quality_score"`
+	FirstSeenAt         pgtype.Timestamptz `json:"first_seen_at"`
+	LastSeenAt          pgtype.Timestamptz `json:"last_seen_at"`
+	OccurrenceCount     int64              `json:"occurrence_count"`
+	Attributes          []byte             `json:"attributes"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PartyParty struct {
+	ID          pgtype.UUID        `json:"id"`
+	TenantID    pgtype.UUID        `json:"tenant_id"`
+	PartyCode   string             `json:"party_code"`
+	PartyType   string             `json:"party_type"`
+	DisplayName string             `json:"display_name"`
+	Status      string             `json:"status"`
+	MergedInto  pgtype.UUID        `json:"merged_into"`
+	Confidence  string             `json:"confidence"`
+	FirstSeenAt pgtype.Timestamptz `json:"first_seen_at"`
+	LastSeenAt  pgtype.Timestamptz `json:"last_seen_at"`
+	Attributes  []byte             `json:"attributes"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PartyResolutionEvent struct {
+	ID               pgtype.UUID        `json:"id"`
+	TenantID         pgtype.UUID        `json:"tenant_id"`
+	PartyID          pgtype.UUID        `json:"party_id"`
+	EventType        string             `json:"event_type"`
+	SourceEventType  pgtype.Text        `json:"source_event_type"`
+	SourceEventID    pgtype.UUID        `json:"source_event_id"`
+	RuleID           pgtype.Text        `json:"rule_id"`
+	ConfidenceBefore pgtype.Text        `json:"confidence_before"`
+	ConfidenceAfter  pgtype.Text        `json:"confidence_after"`
+	Evidence         []byte             `json:"evidence"`
+	Actor            string             `json:"actor"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+}
+
+type ProtocolDlq struct {
+	ID                pgtype.UUID        `json:"id"`
+	MerchantID        pgtype.UUID        `json:"merchant_id"`
+	SourceCode        string             `json:"source_code"`
+	SourceEventID     pgtype.Text        `json:"source_event_id"`
+	EventID           pgtype.UUID        `json:"event_id"`
+	Payload           []byte             `json:"payload"`
+	Headers           []byte             `json:"headers"`
+	FailureReason     string             `json:"failure_reason"`
+	ErrorMessage      pgtype.Text        `json:"error_message"`
+	RetryCount        int32              `json:"retry_count"`
+	NextRetryAt       pgtype.Timestamptz `json:"next_retry_at"`
+	Status            string             `json:"status"`
+	LastReplayAt      pgtype.Timestamptz `json:"last_replay_at"`
+	LastReplayOutcome pgtype.Text        `json:"last_replay_outcome"`
+	Attributes        []byte             `json:"attributes"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ProtocolEvidence struct {
+	EventID       pgtype.UUID        `json:"event_id"`
+	EventHash     string             `json:"event_hash"`
+	ChainHash     string             `json:"chain_hash"`
+	PrevChainHash pgtype.Text        `json:"prev_chain_hash"`
+	SourceCode    string             `json:"source_code"`
+	MerchantID    pgtype.UUID        `json:"merchant_id"`
+	RawPayload    []byte             `json:"raw_payload"`
+	IngestedAt    pgtype.Timestamptz `json:"ingested_at"`
+}
+
+type ProtocolSourceSecret struct {
+	ID                  pgtype.UUID        `json:"id"`
+	MerchantID          pgtype.UUID        `json:"merchant_id"`
+	SourceCode          string             `json:"source_code"`
+	Secret              pgtype.Text        `json:"secret"`
+	SignatureAlgo       string             `json:"signature_algo"`
+	Status              string             `json:"status"`
+	ReplayWindowSeconds int32              `json:"replay_window_seconds"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	RotatedAt           pgtype.Timestamptz `json:"rotated_at"`
+	SecretSmRef         pgtype.Text        `json:"secret_sm_ref"`
+}
+
+type ProtocolTspSequenceLog struct {
+	ID              pgtype.UUID        `json:"id"`
+	MerchantID      pgtype.UUID        `json:"merchant_id"`
+	SourceCode      string             `json:"source_code"`
+	SequenceID      string             `json:"sequence_id"`
+	EventID         pgtype.UUID        `json:"event_id"`
+	ReceivedAt      pgtype.Timestamptz `json:"received_at"`
+	GapDetected     bool               `json:"gap_detected"`
+	ExpectedPrevSeq pgtype.Text        `json:"expected_prev_seq"`
+}
+
+type QCase struct {
+	ID                  pgtype.UUID        `json:"id"`
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	CaseNumber          string             `json:"case_number"`
+	CaseType            string             `json:"case_type"`
+	Title               string             `json:"title"`
+	Description         pgtype.Text        `json:"description"`
+	Severity            string             `json:"severity"`
+	Status              string             `json:"status"`
+	PrimarySubjectID    pgtype.UUID        `json:"primary_subject_id"`
+	PrimaryLocationID   pgtype.UUID        `json:"primary_location_id"`
+	AssignedTo          pgtype.UUID        `json:"assigned_to"`
+	OpenedAt            pgtype.Timestamptz `json:"opened_at"`
+	ResolvedAt          pgtype.Timestamptz `json:"resolved_at"`
+	ResolutionType      pgtype.Text        `json:"resolution_type"`
+	LossAmountEstimated pgtype.Numeric     `json:"loss_amount_estimated"`
+	LossAmountRecovered pgtype.Numeric     `json:"loss_amount_recovered"`
+	Attributes          []byte             `json:"attributes"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+type QCaseAction struct {
+	ID          pgtype.UUID        `json:"id"`
+	TenantID    pgtype.UUID        `json:"tenant_id"`
+	CaseID      pgtype.UUID        `json:"case_id"`
+	ActionType  string             `json:"action_type"`
+	PerformedBy pgtype.UUID        `json:"performed_by"`
+	PerformedAt pgtype.Timestamptz `json:"performed_at"`
+	Details     []byte             `json:"details"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type QCaseEvidence struct {
+	ID                 pgtype.UUID        `json:"id"`
+	TenantID           pgtype.UUID        `json:"tenant_id"`
+	CaseID             pgtype.UUID        `json:"case_id"`
+	EvidenceType       string             `json:"evidence_type"`
+	SourceEntityType   pgtype.Text        `json:"source_entity_type"`
+	SourceEntityID     pgtype.UUID        `json:"source_entity_id"`
+	Payload            []byte             `json:"payload"`
+	PayloadHash        string             `json:"payload_hash"`
+	PrevEvidenceHash   pgtype.Text        `json:"prev_evidence_hash"`
+	BlockchainAnchorID pgtype.UUID        `json:"blockchain_anchor_id"`
+	CollectedBy        pgtype.UUID        `json:"collected_by"`
+	CollectedAt        pgtype.Timestamptz `json:"collected_at"`
+	Attributes         []byte             `json:"attributes"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+}
+
+type QDetection struct {
+	ID                pgtype.UUID        `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	RuleID            pgtype.UUID        `json:"rule_id"`
+	DetectedAt        pgtype.Timestamptz `json:"detected_at"`
+	SourceEntityType  string             `json:"source_entity_type"`
+	SourceEntityID    pgtype.UUID        `json:"source_entity_id"`
+	LocationID        pgtype.UUID        `json:"location_id"`
+	CashierEmployeeID pgtype.UUID        `json:"cashier_employee_id"`
+	CustomerID        pgtype.UUID        `json:"customer_id"`
+	Severity          string             `json:"severity"`
+	SignalStrength    pgtype.Numeric     `json:"signal_strength"`
+	Evidence          []byte             `json:"evidence"`
+	CaseID            pgtype.UUID        `json:"case_id"`
+	Status            string             `json:"status"`
+	AcknowledgedAt    pgtype.Timestamptz `json:"acknowledged_at"`
+	AcknowledgedBy    pgtype.UUID        `json:"acknowledged_by"`
+	Attributes        []byte             `json:"attributes"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	// soft-FK to party.parties(id) — perf optimization for party_fraud_risk recompute — see canonical-data-model-party-edits.md §F
+	PartyID pgtype.UUID `json:"party_id"`
+}
+
+type QDetectionRule struct {
+	ID                  pgtype.UUID        `json:"id"`
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	RuleCode            string             `json:"rule_code"`
+	Name                string             `json:"name"`
+	Description         pgtype.Text        `json:"description"`
+	RuleCategory        string             `json:"rule_category"`
+	RuleDefinition      []byte             `json:"rule_definition"`
+	Severity            string             `json:"severity"`
+	Status              string             `json:"status"`
+	EvaluationFrequency string             `json:"evaluation_frequency"`
+	Attributes          []byte             `json:"attributes"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+type QSubject struct {
+	ID                pgtype.UUID        `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	SubjectCode       string             `json:"subject_code"`
+	SubjectType       string             `json:"subject_type"`
+	DisplayName       string             `json:"display_name"`
+	RelatedEmployeeID pgtype.UUID        `json:"related_employee_id"`
+	RelatedCustomerID pgtype.UUID        `json:"related_customer_id"`
+	RelatedVendorID   pgtype.UUID        `json:"related_vendor_id"`
+	Description       pgtype.Text        `json:"description"`
+	Identifiers       []byte             `json:"identifiers"`
+	Attributes        []byte             `json:"attributes"`
+	Status            string             `json:"status"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	// soft-FK to party.parties(id) — see canonical-data-model-party-edits.md §D
+	PartyID pgtype.UUID `json:"party_id"`
+}
+
+type SPlanogram struct {
+	ID               pgtype.UUID        `json:"id"`
+	TenantID         pgtype.UUID        `json:"tenant_id"`
+	PlanogramCode    string             `json:"planogram_code"`
+	Name             string             `json:"name"`
+	CategoryID       pgtype.UUID        `json:"category_id"`
+	EffectiveStart   pgtype.Date        `json:"effective_start"`
+	EffectiveEnd     pgtype.Date        `json:"effective_end"`
+	LayoutDimensions []byte             `json:"layout_dimensions"`
+	Status           string             `json:"status"`
+	ApprovedBy       pgtype.UUID        `json:"approved_by"`
+	ApprovedAt       pgtype.Timestamptz `json:"approved_at"`
+	Attributes       []byte             `json:"attributes"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+type SPlanogramAssignment struct {
+	ID          pgtype.UUID        `json:"id"`
+	PlanogramID pgtype.UUID        `json:"planogram_id"`
+	LocationID  pgtype.UUID        `json:"location_id"`
+	ZoneID      pgtype.UUID        `json:"zone_id"`
+	AssignedAt  pgtype.Timestamptz `json:"assigned_at"`
+}
+
+type SPlanogramPosition struct {
+	ID              pgtype.UUID        `json:"id"`
+	TenantID        pgtype.UUID        `json:"tenant_id"`
+	PlanogramID     pgtype.UUID        `json:"planogram_id"`
+	ItemID          pgtype.UUID        `json:"item_id"`
+	ShelfNumber     pgtype.Int4        `json:"shelf_number"`
+	PositionOnShelf pgtype.Int4        `json:"position_on_shelf"`
+	Facings         int32              `json:"facings"`
+	CapacityUnits   pgtype.Int4        `json:"capacity_units"`
+	Orientation     pgtype.Text        `json:"orientation"`
+	Geometry        []byte             `json:"geometry"`
+	Attributes      []byte             `json:"attributes"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+type TCashDrawerEvent struct {
+	ID                pgtype.UUID        `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	LocationID        pgtype.UUID        `json:"location_id"`
+	PosTerminalID     string             `json:"pos_terminal_id"`
+	CashierEmployeeID pgtype.UUID        `json:"cashier_employee_id"`
+	EventType         string             `json:"event_type"`
+	EventAt           pgtype.Timestamptz `json:"event_at"`
+	ExpectedAmount    pgtype.Numeric     `json:"expected_amount"`
+	CountedAmount     pgtype.Numeric     `json:"counted_amount"`
+	Variance          pgtype.Numeric     `json:"variance"`
+	Reason            pgtype.Text        `json:"reason"`
+	PaidInOutAmount   pgtype.Numeric     `json:"paid_in_out_amount"`
+	Reference         pgtype.Text        `json:"reference"`
+	Attributes        []byte             `json:"attributes"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+}
+
+type TCashierAction struct {
+	ID                     pgtype.UUID        `json:"id"`
+	TenantID               pgtype.UUID        `json:"tenant_id"`
+	TransactionID          pgtype.UUID        `json:"transaction_id"`
+	LocationID             pgtype.UUID        `json:"location_id"`
+	CashierEmployeeID      pgtype.UUID        `json:"cashier_employee_id"`
+	PosTerminalID          pgtype.Text        `json:"pos_terminal_id"`
+	ActionType             string             `json:"action_type"`
+	PerformedAt            pgtype.Timestamptz `json:"performed_at"`
+	AuthorizedByEmployeeID pgtype.UUID        `json:"authorized_by_employee_id"`
+	Details                []byte             `json:"details"`
+	Attributes             []byte             `json:"attributes"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+}
+
+type TGiftCardEvent struct {
+	ID                pgtype.UUID        `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	GiftCardID        pgtype.UUID        `json:"gift_card_id"`
+	TransactionID     pgtype.UUID        `json:"transaction_id"`
+	EventType         string             `json:"event_type"`
+	AmountDelta       pgtype.Numeric     `json:"amount_delta"`
+	BalanceAfter      pgtype.Numeric     `json:"balance_after"`
+	AuthorizationCode pgtype.Text        `json:"authorization_code"`
+	Attributes        []byte             `json:"attributes"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+}
+
+type TLoyaltyEvent struct {
+	ID                  pgtype.UUID        `json:"id"`
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	LoyaltyMembershipID pgtype.UUID        `json:"loyalty_membership_id"`
+	TransactionID       pgtype.UUID        `json:"transaction_id"`
+	EventType           string             `json:"event_type"`
+	PointsDelta         int64              `json:"points_delta"`
+	AmountBasis         pgtype.Numeric     `json:"amount_basis"`
+	Reason              pgtype.Text        `json:"reason"`
+	Attributes          []byte             `json:"attributes"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+}
+
+type TShiftEvent struct {
+	ID                   pgtype.UUID        `json:"id"`
+	TenantID             pgtype.UUID        `json:"tenant_id"`
+	LocationID           pgtype.UUID        `json:"location_id"`
+	PosTerminalID        string             `json:"pos_terminal_id"`
+	CashierEmployeeID    pgtype.UUID        `json:"cashier_employee_id"`
+	ShiftStart           pgtype.Timestamptz `json:"shift_start"`
+	ShiftEnd             pgtype.Timestamptz `json:"shift_end"`
+	TransactionCount     int32              `json:"transaction_count"`
+	TotalSales           pgtype.Numeric     `json:"total_sales"`
+	StartingDrawerAmount pgtype.Numeric     `json:"starting_drawer_amount"`
+	EndingDrawerAmount   pgtype.Numeric     `json:"ending_drawer_amount"`
+	Attributes           []byte             `json:"attributes"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+}
+
+type TTransaction struct {
+	ID                  pgtype.UUID        `json:"id"`
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	TransactionNumber   string             `json:"transaction_number"`
+	TransactionType     string             `json:"transaction_type"`
+	ParentTransactionID pgtype.UUID        `json:"parent_transaction_id"`
+	LocationID          pgtype.UUID        `json:"location_id"`
+	PosTerminalID       pgtype.Text        `json:"pos_terminal_id"`
+	CashierEmployeeID   pgtype.UUID        `json:"cashier_employee_id"`
+	CustomerID          pgtype.UUID        `json:"customer_id"`
+	LoyaltyMembershipID pgtype.UUID        `json:"loyalty_membership_id"`
+	BusinessDate        pgtype.Date        `json:"business_date"`
+	StartedAt           pgtype.Timestamptz `json:"started_at"`
+	EndedAt             pgtype.Timestamptz `json:"ended_at"`
+	Status              string             `json:"status"`
+	TicketNumber        pgtype.Int4        `json:"ticket_number"`
+	ItemCount           int32              `json:"item_count"`
+	Subtotal            pgtype.Numeric     `json:"subtotal"`
+	TaxTotal            pgtype.Numeric     `json:"tax_total"`
+	DiscountTotal       pgtype.Numeric     `json:"discount_total"`
+	GrandTotal          pgtype.Numeric     `json:"grand_total"`
+	Currency            string             `json:"currency"`
+	Channel             string             `json:"channel"`
+	PosSoftwareVersion  pgtype.Text        `json:"pos_software_version"`
+	IsTrainingMode      bool               `json:"is_training_mode"`
+	IsOffline           bool               `json:"is_offline"`
+	IsReentered         bool               `json:"is_reentered"`
+	IsSuspended         bool               `json:"is_suspended"`
+	VoidReason          pgtype.Text        `json:"void_reason"`
+	Attributes          []byte             `json:"attributes"`
+	ExternalIds         []byte             `json:"external_ids"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	// soft-FK to party.parties(id) — see canonical-data-model-party-edits.md §C
+	PartyID pgtype.UUID `json:"party_id"`
+}
+
+type TTransactionDiscount struct {
+	ID                     pgtype.UUID        `json:"id"`
+	TenantID               pgtype.UUID        `json:"tenant_id"`
+	TransactionID          pgtype.UUID        `json:"transaction_id"`
+	DiscountSequence       int32              `json:"discount_sequence"`
+	Scope                  string             `json:"scope"`
+	LineItemID             pgtype.UUID        `json:"line_item_id"`
+	DiscountType           string             `json:"discount_type"`
+	SourcePromotionID      pgtype.UUID        `json:"source_promotion_id"`
+	PromotionRuleID        pgtype.UUID        `json:"promotion_rule_id"`
+	Amount                 pgtype.Numeric     `json:"amount"`
+	Percentage             pgtype.Numeric     `json:"percentage"`
+	ReasonCode             pgtype.Text        `json:"reason_code"`
+	AuthorizedByEmployeeID pgtype.UUID        `json:"authorized_by_employee_id"`
+	Attributes             []byte             `json:"attributes"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+}
+
+type TTransactionLineItem struct {
+	ID                  pgtype.UUID        `json:"id"`
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	TransactionID       pgtype.UUID        `json:"transaction_id"`
+	LineNumber          int32              `json:"line_number"`
+	ItemID              pgtype.UUID        `json:"item_id"`
+	BarcodeScanned      pgtype.Text        `json:"barcode_scanned"`
+	Description         string             `json:"description"`
+	Quantity            pgtype.Numeric     `json:"quantity"`
+	UnitOfMeasure       string             `json:"unit_of_measure"`
+	UnitPrice           pgtype.Numeric     `json:"unit_price"`
+	ListPrice           pgtype.Numeric     `json:"list_price"`
+	UnitDiscount        pgtype.Numeric     `json:"unit_discount"`
+	UnitTax             pgtype.Numeric     `json:"unit_tax"`
+	ExtendedPrice       pgtype.Numeric     `json:"extended_price"`
+	ExtendedTax         pgtype.Numeric     `json:"extended_tax"`
+	LineTotal           pgtype.Numeric     `json:"line_total"`
+	CostBasis           pgtype.Numeric     `json:"cost_basis"`
+	Margin              pgtype.Numeric     `json:"margin"`
+	CategoryID          pgtype.UUID        `json:"category_id"`
+	ZoneID              pgtype.UUID        `json:"zone_id"`
+	LotID               pgtype.UUID        `json:"lot_id"`
+	InventoryMovementID pgtype.UUID        `json:"inventory_movement_id"`
+	IsVoid              bool               `json:"is_void"`
+	VoidReason          pgtype.Text        `json:"void_reason"`
+	IsReturn            bool               `json:"is_return"`
+	ReturnReason        pgtype.Text        `json:"return_reason"`
+	IsWeighable         bool               `json:"is_weighable"`
+	IsFoodStampEligible bool               `json:"is_food_stamp_eligible"`
+	Attributes          []byte             `json:"attributes"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+}
+
+type TTransactionTender struct {
+	ID                 pgtype.UUID        `json:"id"`
+	TenantID           pgtype.UUID        `json:"tenant_id"`
+	TransactionID      pgtype.UUID        `json:"transaction_id"`
+	TenderSequence     int32              `json:"tender_sequence"`
+	TenderTypeID       pgtype.UUID        `json:"tender_type_id"`
+	Amount             pgtype.Numeric     `json:"amount"`
+	Currency           string             `json:"currency"`
+	CashBackAmount     pgtype.Numeric     `json:"cash_back_amount"`
+	ChangeAmount       pgtype.Numeric     `json:"change_amount"`
+	CardToken          pgtype.Text        `json:"card_token"`
+	CardLast4          pgtype.Text        `json:"card_last_4"`
+	CardBrand          pgtype.Text        `json:"card_brand"`
+	AuthorizationCode  pgtype.Text        `json:"authorization_code"`
+	ProcessorReference pgtype.Text        `json:"processor_reference"`
+	IsVoided           bool               `json:"is_voided"`
+	IsRefund           bool               `json:"is_refund"`
+	Contactless        bool               `json:"contactless"`
+	Attributes         []byte             `json:"attributes"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 }

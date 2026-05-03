@@ -11,130 +11,126 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const getIngestionLogByEventID = `-- name: GetIngestionLogByEventID :one
-SELECT id, merchant_id, event_id, source_code, chain_hash, received_at, processed_at, stage
-FROM app.ingestion_log
-WHERE event_id = $1
+const getTSPLastSequence = `-- name: GetTSPLastSequence :one
+SELECT id, merchant_id, source_code, sequence_id, event_id,
+       received_at, gap_detected, expected_prev_seq
+  FROM protocol.tsp_sequence_log
+ WHERE merchant_id = $1 AND source_code = $2
+ ORDER BY received_at DESC
+ LIMIT 1
 `
 
-func (q *Queries) GetIngestionLogByEventID(ctx context.Context, eventID string) (*AppIngestionLog, error) {
-	row := q.db.QueryRow(ctx, getIngestionLogByEventID, eventID)
-	var i AppIngestionLog
+type GetTSPLastSequenceParams struct {
+	MerchantID pgtype.UUID `json:"merchant_id"`
+	SourceCode string      `json:"source_code"`
+}
+
+func (q *Queries) GetTSPLastSequence(ctx context.Context, arg *GetTSPLastSequenceParams) (*ProtocolTspSequenceLog, error) {
+	row := q.db.QueryRow(ctx, getTSPLastSequence, arg.MerchantID, arg.SourceCode)
+	var i ProtocolTspSequenceLog
 	err := row.Scan(
 		&i.ID,
 		&i.MerchantID,
-		&i.EventID,
 		&i.SourceCode,
-		&i.ChainHash,
+		&i.SequenceID,
+		&i.EventID,
 		&i.ReceivedAt,
-		&i.ProcessedAt,
-		&i.Stage,
+		&i.GapDetected,
+		&i.ExpectedPrevSeq,
 	)
 	return &i, err
 }
 
-const insertIngestionLog = `-- name: InsertIngestionLog :one
+const insertTSPSequenceLog = `-- name: InsertTSPSequenceLog :one
 
-INSERT INTO app.ingestion_log (merchant_id, event_id, source_code, chain_hash, stage)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, merchant_id, event_id, source_code, chain_hash, received_at, stage
+INSERT INTO protocol.tsp_sequence_log (
+    merchant_id, source_code, sequence_id, event_id,
+    gap_detected, expected_prev_seq
+)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, merchant_id, source_code, sequence_id, event_id,
+          received_at, gap_detected, expected_prev_seq
 `
 
-type InsertIngestionLogParams struct {
-	MerchantID pgtype.UUID `json:"merchant_id"`
-	EventID    string      `json:"event_id"`
-	SourceCode pgtype.Text `json:"source_code"`
-	ChainHash  string      `json:"chain_hash"`
-	Stage      string      `json:"stage"`
-}
-
-type InsertIngestionLogRow struct {
-	ID         pgtype.UUID        `json:"id"`
-	MerchantID pgtype.UUID        `json:"merchant_id"`
-	EventID    string             `json:"event_id"`
-	SourceCode pgtype.Text        `json:"source_code"`
-	ChainHash  string             `json:"chain_hash"`
-	ReceivedAt pgtype.Timestamptz `json:"received_at"`
-	Stage      string             `json:"stage"`
+type InsertTSPSequenceLogParams struct {
+	MerchantID      pgtype.UUID `json:"merchant_id"`
+	SourceCode      string      `json:"source_code"`
+	SequenceID      string      `json:"sequence_id"`
+	EventID         pgtype.UUID `json:"event_id"`
+	GapDetected     bool        `json:"gap_detected"`
+	ExpectedPrevSeq pgtype.Text `json:"expected_prev_seq"`
 }
 
 // internal/db/sqlc/tsp.sql
-func (q *Queries) InsertIngestionLog(ctx context.Context, arg *InsertIngestionLogParams) (*InsertIngestionLogRow, error) {
-	row := q.db.QueryRow(ctx, insertIngestionLog,
+//
+// TSP sequence-log queries. Table: protocol.tsp_sequence_log
+// (GRO-764 Phase A.2 + Wave C schema migration to canonical deploy/schema/).
+//
+// The old queries (app.ingestion_log, sales.transactions) are archived
+// alongside the pre-Wave-A migrations in deploy/migrations/_archived/.
+func (q *Queries) InsertTSPSequenceLog(ctx context.Context, arg *InsertTSPSequenceLogParams) (*ProtocolTspSequenceLog, error) {
+	row := q.db.QueryRow(ctx, insertTSPSequenceLog,
 		arg.MerchantID,
-		arg.EventID,
 		arg.SourceCode,
-		arg.ChainHash,
-		arg.Stage,
+		arg.SequenceID,
+		arg.EventID,
+		arg.GapDetected,
+		arg.ExpectedPrevSeq,
 	)
-	var i InsertIngestionLogRow
+	var i ProtocolTspSequenceLog
 	err := row.Scan(
 		&i.ID,
 		&i.MerchantID,
-		&i.EventID,
 		&i.SourceCode,
-		&i.ChainHash,
+		&i.SequenceID,
+		&i.EventID,
 		&i.ReceivedAt,
-		&i.Stage,
+		&i.GapDetected,
+		&i.ExpectedPrevSeq,
 	)
 	return &i, err
 }
 
-const insertTransaction = `-- name: InsertTransaction :one
-INSERT INTO sales.transactions (
-    merchant_id, external_id, location_id, employee_id,
-    arts_business_date, transaction_type, total_cents,
-    subtotal_cents, tax_cents, tender_type, source_code
-)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, merchant_id, external_id, arts_business_date, total_cents, created_at
+const listTSPGaps = `-- name: ListTSPGaps :many
+SELECT id, merchant_id, source_code, sequence_id, event_id,
+       received_at, gap_detected, expected_prev_seq
+  FROM protocol.tsp_sequence_log
+ WHERE merchant_id = $1 AND source_code = $2 AND gap_detected = true
+ ORDER BY received_at DESC
+ LIMIT $3
 `
 
-type InsertTransactionParams struct {
-	MerchantID       pgtype.UUID `json:"merchant_id"`
-	ExternalID       string      `json:"external_id"`
-	LocationID       pgtype.UUID `json:"location_id"`
-	EmployeeID       pgtype.UUID `json:"employee_id"`
-	ArtsBusinessDate pgtype.Date `json:"arts_business_date"`
-	TransactionType  string      `json:"transaction_type"`
-	TotalCents       int64       `json:"total_cents"`
-	SubtotalCents    int64       `json:"subtotal_cents"`
-	TaxCents         int64       `json:"tax_cents"`
-	TenderType       pgtype.Text `json:"tender_type"`
-	SourceCode       pgtype.Text `json:"source_code"`
+type ListTSPGapsParams struct {
+	MerchantID pgtype.UUID `json:"merchant_id"`
+	SourceCode string      `json:"source_code"`
+	Limit      int32       `json:"limit"`
 }
 
-type InsertTransactionRow struct {
-	ID               pgtype.UUID        `json:"id"`
-	MerchantID       pgtype.UUID        `json:"merchant_id"`
-	ExternalID       string             `json:"external_id"`
-	ArtsBusinessDate pgtype.Date        `json:"arts_business_date"`
-	TotalCents       int64              `json:"total_cents"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-}
-
-func (q *Queries) InsertTransaction(ctx context.Context, arg *InsertTransactionParams) (*InsertTransactionRow, error) {
-	row := q.db.QueryRow(ctx, insertTransaction,
-		arg.MerchantID,
-		arg.ExternalID,
-		arg.LocationID,
-		arg.EmployeeID,
-		arg.ArtsBusinessDate,
-		arg.TransactionType,
-		arg.TotalCents,
-		arg.SubtotalCents,
-		arg.TaxCents,
-		arg.TenderType,
-		arg.SourceCode,
-	)
-	var i InsertTransactionRow
-	err := row.Scan(
-		&i.ID,
-		&i.MerchantID,
-		&i.ExternalID,
-		&i.ArtsBusinessDate,
-		&i.TotalCents,
-		&i.CreatedAt,
-	)
-	return &i, err
+func (q *Queries) ListTSPGaps(ctx context.Context, arg *ListTSPGapsParams) ([]*ProtocolTspSequenceLog, error) {
+	rows, err := q.db.Query(ctx, listTSPGaps, arg.MerchantID, arg.SourceCode, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ProtocolTspSequenceLog
+	for rows.Next() {
+		var i ProtocolTspSequenceLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.MerchantID,
+			&i.SourceCode,
+			&i.SequenceID,
+			&i.EventID,
+			&i.ReceivedAt,
+			&i.GapDetected,
+			&i.ExpectedPrevSeq,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
