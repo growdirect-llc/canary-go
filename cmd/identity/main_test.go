@@ -1,4 +1,12 @@
+//go:build integration
+
 // cmd/identity/main_test.go
+//
+// Pre-Loop 2 Tier-3 dispatch (GRO-761) gated these tests under the
+// integration build tag because testServer() calls config.Load() which
+// require()s DATABASE_URL/VALKEY_URL/INTERNAL_SERVICE_SECRET/SESSION_SECRET
+// — those panic in the default test invocation. Opt-in only until
+// the proper test-setup refactor lands.
 package main
 
 import (
