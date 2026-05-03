@@ -79,6 +79,7 @@ func seedFixtures(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (tenant
 		_, _ = pool.Exec(ctx, `DELETE FROM q.case_evidence   WHERE tenant_id = $1`, tenantID)
 		_, _ = pool.Exec(ctx, `DELETE FROM q.detections      WHERE tenant_id = $1`, tenantID)
 		_, _ = pool.Exec(ctx, `DELETE FROM q.cases           WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx, `DELETE FROM q.subjects        WHERE tenant_id = $1`, tenantID)
 		_, _ = pool.Exec(ctx, `DELETE FROM q.detection_rules WHERE tenant_id = $1`, tenantID)
 		_, _ = pool.Exec(ctx, `DELETE FROM app.tenants       WHERE id = $1`, tenantID)
 		_, _ = pool.Exec(ctx, `DELETE FROM app.organizations WHERE id = $1`, orgID)
@@ -257,6 +258,79 @@ func TestIntegration_CloseCase_TerminalState(t *testing.T) {
 	}
 	if resolution == nil || *resolution != "substantiated" {
 		t.Errorf("resolution: got %v", resolution)
+	}
+}
+
+// TestIntegration_ResolveSubject — GRO-762 §B.3.
+// Verifies (a) Resolve creates a q.subjects row when none exists,
+// (b) the second call with the same (tenant, kind, refID) returns
+// the SAME subject id (idempotency via the existing
+// (tenant_id, subject_code) unique constraint), and
+// (c) the subject_code follows the deterministic kind:refID format.
+func TestIntegration_ResolveSubject(t *testing.T) {
+	dbURL := skipIfNoIntegration(t)
+	ctx := context.Background()
+
+	pool, err := pgxpool.New(ctx, dbURL)
+	if err != nil {
+		t.Fatalf("pool: %v", err)
+	}
+	defer pool.Close()
+
+	tenantID, _, cleanup := seedFixtures(t, ctx, pool)
+	defer cleanup()
+
+	store := NewStore(pool)
+	employeeRef := uuid.New()
+
+	first, err := store.ResolveSubject(ctx, tenantID, SubjectEmployee, employeeRef)
+	if err != nil {
+		t.Fatalf("first resolve: %v", err)
+	}
+	if first == uuid.Nil {
+		t.Fatal("first resolve returned uuid.Nil")
+	}
+
+	second, err := store.ResolveSubject(ctx, tenantID, SubjectEmployee, employeeRef)
+	if err != nil {
+		t.Fatalf("second resolve: %v", err)
+	}
+	if second != first {
+		t.Errorf("idempotency broken: first=%s second=%s", first, second)
+	}
+
+	// Verify the row's subject_code matches the deterministic format.
+	var subjectCode, subjectType string
+	var relatedEmpID *uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT subject_code, subject_type, related_employee_id FROM q.subjects WHERE id = $1`,
+		first).Scan(&subjectCode, &subjectType, &relatedEmpID); err != nil {
+		t.Fatalf("verify subject row: %v", err)
+	}
+	wantCode := "emp:" + employeeRef.String()
+	if subjectCode != wantCode {
+		t.Errorf("subject_code: got %q want %q", subjectCode, wantCode)
+	}
+	if subjectType != "known_employee" {
+		t.Errorf("subject_type: got %q want known_employee", subjectType)
+	}
+	if relatedEmpID == nil || *relatedEmpID != employeeRef {
+		t.Errorf("related_employee_id: got %v want %s", relatedEmpID, employeeRef)
+	}
+
+	// Verify customer kind also works (separate code prefix).
+	customerRef := uuid.New()
+	custSubID, err := store.ResolveSubject(ctx, tenantID, SubjectCustomer, customerRef)
+	if err != nil {
+		t.Fatalf("customer resolve: %v", err)
+	}
+	if custSubID == first {
+		t.Errorf("customer + employee subjects collided on id")
+	}
+
+	// Verify default mode is Lazy.
+	if got := DefaultSubjectsResolveMode(); got != ResolveModeLazy {
+		t.Errorf("default mode: got %s want %s", got, ResolveModeLazy)
 	}
 }
 

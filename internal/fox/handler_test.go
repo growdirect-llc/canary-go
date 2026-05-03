@@ -46,6 +46,13 @@ func (s *stubService) FindOpenCaseBySubject(_ context.Context, tenantID, subject
 	return c, nil
 }
 
+// ResolveSubject — stub: deterministic UUID derived from refID so the
+// stub's behavior matches the production resolver's idempotency
+// (same input → same output id).
+func (s *stubService) ResolveSubject(_ context.Context, _ uuid.UUID, _ SubjectKind, refID uuid.UUID) (uuid.UUID, error) {
+	return refID, nil
+}
+
 func (s *stubService) LoadDetection(_ context.Context, id uuid.UUID) (*types.Detection, error) {
 	d, ok := s.detections[id]
 	if !ok {
