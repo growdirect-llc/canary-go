@@ -14,6 +14,7 @@ import (
 
 	"github.com/growdirect-llc/rapidpos/internal/db/types"
 	"github.com/growdirect-llc/rapidpos/internal/pagination"
+	"github.com/growdirect-llc/rapidpos/internal/party"
 )
 
 // Service is the slim interface the Handler depends on. Store
@@ -35,6 +36,7 @@ type Service interface {
 // Handler wires HTTP endpoints onto a chi.Router.
 type Handler struct {
 	svc    Service
+	party  *party.Store // optional: party-based subject resolution (Wave B C.2)
 	cfg    EscalationConfig
 	logger *zap.Logger
 	now    func() time.Time
@@ -56,6 +58,21 @@ func New(svc Service, cfg EscalationConfig, logger *zap.Logger) *Handler {
 		logger: logger,
 		now:    func() time.Time { return time.Now().UTC() },
 	}
+}
+
+// WithPartyResolver attaches a party.Store so case-open routes
+// resolve subjects through party.parties instead of the legacy
+// employee_id / customer_id lookup. Per Wave A canonical-data-model-
+// party-edits §D and Wave B C.2.
+//
+// When set: subjectFromDetection uses
+// party.ResolveFromDetection → party.ResolveSubject and falls back
+// to the legacy SubjectResolver on party-side error.
+// When nil: legacy SubjectResolver path runs unchanged (Loop 2
+// behavior, preserved for tests + backward-compat).
+func (h *Handler) WithPartyResolver(p *party.Store) *Handler {
+	h.party = p
+	return h
 }
 
 // Mount registers all fox routes under their final URLs.
@@ -529,6 +546,28 @@ func (h *Handler) closeCase(w http.ResponseWriter, r *http.Request) {
 // detection-rule design). When neither is present, returns nil and
 // the case opens with primary_subject_id NULL.
 func (h *Handler) subjectFromDetection(ctx context.Context, det *types.Detection) *uuid.UUID {
+	// Wave B C.2: when a party.Store is wired, route through party.
+	// Per docs/sdds/go-handoff/canonical-data-model-party-edits.md §D.
+	if h.party != nil {
+		partyID, err := h.party.ResolveFromDetection(ctx, det)
+		if err != nil {
+			h.logger.Warn("party.ResolveFromDetection failed; falling back to legacy",
+				zap.String("tenant", det.TenantID.String()), zap.Error(err))
+		} else if partyID != nil {
+			subjectID, err := h.party.ResolveSubject(ctx, det.TenantID, *partyID)
+			if err != nil {
+				h.logger.Warn("party.ResolveSubject failed; falling back to legacy",
+					zap.String("tenant", det.TenantID.String()),
+					zap.String("party", partyID.String()),
+					zap.Error(err))
+			} else {
+				return &subjectID
+			}
+		}
+	}
+
+	// Legacy path — Loop 2 SubjectResolver behavior. cashier wins
+	// over customer (LP cases skew employee-driven).
 	switch {
 	case det.CashierEmployeeID != nil:
 		id, err := h.svc.ResolveSubject(ctx, det.TenantID, SubjectEmployee, *det.CashierEmployeeID)
