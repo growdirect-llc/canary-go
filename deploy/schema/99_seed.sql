@@ -95,6 +95,44 @@ CROSS JOIN (VALUES
 ON CONFLICT (tenant_id, code) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────
+-- app.api_keys — dev seeds. Two rows: one platform-scope (gateway/sub*
+-- internal calls), one tenant-scope (Acme Main Street external API).
+-- key_hash is argon2id of a known dev plaintext — DO NOT ship beyond
+-- the laptop. Plaintext is documented in the code seed comment for
+-- internal/identity/apikey_test.go to use.
+--
+-- Dev plaintext (rotate before any external exposure):
+--   platform: cy_dev_platform_key_DO_NOT_SHIP
+--   tenant:   cy_dev_acme_tenant_key_DO_NOT_SHIP
+--
+-- The hash strings below are computed by the Go test seed (see
+-- internal/identity/apikey_test.go::TestSeed). When the seed run
+-- diverges (hash format change, new argon2id params), regenerate
+-- via the test and replace these literals. GRO-763 Phase C.2.
+-- ─────────────────────────────────────────────────────────────────────
+INSERT INTO app.api_keys (id, tenant_id, agent_name, key_hash, scopes, rate_limit_rpm, status, attributes)
+VALUES
+    -- platform-scope key
+    ('55555555-0000-0000-0000-000000000001',
+     NULL,
+     'gateway',
+     'argon2id$DEV_PLATFORM_PLACEHOLDER',
+     ARRAY['webhook:write', 'evidence:read', 'evidence:write']::text[],
+     1200,
+     'active',
+     '{"seeded": true, "purpose": "dev-platform-scope", "do_not_ship": true}'::jsonb),
+    -- tenant-scope key for Acme Main Street
+    ('55555555-0000-0000-0000-000000000002',
+     '22222222-0000-0000-0000-000000000001',
+     'alx-dev',
+     'argon2id$DEV_TENANT_PLACEHOLDER',
+     ARRAY['evidence:read', 'transaction:read']::text[],
+     600,
+     'active',
+     '{"seeded": true, "purpose": "dev-tenant-scope", "do_not_ship": true}'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+
+-- ─────────────────────────────────────────────────────────────────────
 -- f.markup_envelope_tiers defaults per archetype — loop4-wave-a
 -- (GRO-763 §B.2). Source: OQ Resolution Pack §A.1 OQ-2.1
 -- (founder-approved 2026-05-03 per GRO-762).

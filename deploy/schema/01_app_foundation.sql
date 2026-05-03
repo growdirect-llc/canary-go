@@ -387,6 +387,35 @@ CREATE TABLE IF NOT EXISTS app.bull_event_log (
 );
 
 -- ─────────────────────────────────────────────────────────────────────
+-- API keys — per-agent scoped credentials replacing the static
+-- CANARY_MCP_API_KEY env var. Spec: docs/sdds/canary-go/identity-auth-tenant.md
+-- (GRO-763 Phase C.2). Folds GRO-688.
+--
+-- key_hash is argon2id with per-key salt (RFC 9106) — never plaintext.
+-- tenant_id NULL means platform-scope (gateway, sub1, sub2 internal
+-- calls). scopes[] is checked at the handler level via
+-- identity.RequireScope(ctx, "<scope>"). last_used_at is updated on
+-- every successful auth — single UPDATE, no read.
+-- ─────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS app.api_keys (
+    id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID        REFERENCES app.tenants(id),
+    agent_name      TEXT        NOT NULL,
+    key_hash        TEXT        NOT NULL UNIQUE,
+    scopes          TEXT[]      NOT NULL DEFAULT '{}',
+    rate_limit_rpm  INT         NOT NULL DEFAULT 600,
+    status          TEXT        NOT NULL DEFAULT 'active'
+                                CHECK (status IN ('active','revoked','expired')),
+    expires_at      TIMESTAMPTZ,
+    last_used_at    TIMESTAMPTZ,
+    attributes      JSONB       NOT NULL DEFAULT '{}',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_api_keys_tenant_status ON app.api_keys(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_api_keys_agent ON app.api_keys(agent_name);
+
+-- ─────────────────────────────────────────────────────────────────────
 -- Workflow substrate — per OQ Resolution Pack §A.1 OQ-3.2
 -- (founder-approved 2026-05-03 per GRO-762).
 --
