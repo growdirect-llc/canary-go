@@ -95,6 +95,19 @@ CROSS JOIN (VALUES
 ON CONFLICT (tenant_id, code) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────
+-- app.webhook_backpressure_config — platform-wide defaults per source.
+-- Per-tenant overrides land at runtime via admin API. (GRO-764 Phase A.1)
+-- ─────────────────────────────────────────────────────────────────────
+INSERT INTO app.webhook_backpressure_config (merchant_id, source_code, max_rps, burst_capacity, enabled, attributes)
+SELECT NULL, src.code, 100, 200, TRUE,
+       jsonb_build_object('seeded', true, 'source', 'loop4_wave_b_default')
+FROM (VALUES ('square'), ('counterpoint'), ('clover')) AS src(code)
+WHERE NOT EXISTS (
+    SELECT 1 FROM app.webhook_backpressure_config bp
+    WHERE bp.merchant_id IS NULL AND bp.source_code = src.code
+);
+
+-- ─────────────────────────────────────────────────────────────────────
 -- app.api_keys — dev seeds. Two rows: one platform-scope (gateway/sub*
 -- internal calls), one tenant-scope (Acme Main Street external API).
 -- key_hash is argon2id of a known dev plaintext — DO NOT ship beyond

@@ -387,6 +387,33 @@ CREATE TABLE IF NOT EXISTS app.bull_event_log (
 );
 
 -- ─────────────────────────────────────────────────────────────────────
+-- Webhook backpressure config — per-source rate limits enforced by
+-- the gateway middleware. Spec: GRO-764 Phase A.1. Loaded into a
+-- Memorystore counter per (merchant_id, source_code) with rolling
+-- 60s window; this row is the upper-bound config, evaluated at
+-- middleware load (with periodic reload via TTL).
+--
+-- A row keyed (merchant_id IS NULL, source_code) acts as the
+-- platform-wide default for that source. A row with explicit
+-- merchant_id overrides per-tenant.
+-- ─────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS app.webhook_backpressure_config (
+    id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    merchant_id     UUID        REFERENCES app.merchants(id),     -- NULL = platform-wide default for source
+    source_code     TEXT        NOT NULL REFERENCES app.source_systems(code),
+    max_rps         INT         NOT NULL DEFAULT 100
+                                CHECK (max_rps > 0 AND max_rps <= 100000),
+    burst_capacity  INT         NOT NULL DEFAULT 200
+                                CHECK (burst_capacity >= 0),
+    enabled         BOOLEAN     NOT NULL DEFAULT TRUE,
+    attributes      JSONB       NOT NULL DEFAULT '{}',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE NULLS NOT DISTINCT (merchant_id, source_code)
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_bp_source ON app.webhook_backpressure_config(source_code) WHERE enabled = TRUE;
+
+-- ─────────────────────────────────────────────────────────────────────
 -- API keys — per-agent scoped credentials replacing the static
 -- CANARY_MCP_API_KEY env var. Spec: docs/sdds/canary-go/identity-auth-tenant.md
 -- (GRO-763 Phase C.2). Folds GRO-688.

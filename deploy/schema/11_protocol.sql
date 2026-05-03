@@ -52,3 +52,65 @@ CREATE TRIGGER evidence_no_delete BEFORE DELETE ON protocol.evidence
   FOR EACH ROW EXECUTE FUNCTION protocol.evidence_block_mutation();
 CREATE TRIGGER evidence_no_truncate BEFORE TRUNCATE ON protocol.evidence
   FOR EACH STATEMENT EXECUTE FUNCTION protocol.evidence_block_mutation();
+
+-- ─────────────────────────────────────────────────────────────────────
+-- protocol.dlq — Dead-letter queue for inbound webhook payloads that
+-- failed to persist or publish downstream. Spec: GRO-764 Phase A.1
+-- (folds GRO-642).
+--
+-- Rows are written when the gateway accepts a webhook (HMAC verified)
+-- but the downstream pipeline rejects it — Valkey publish failure,
+-- sub1 seal failure, sub2 parse failure, or any other recoverable
+-- error. The replay endpoint (POST /v1/webhooks/replay/{id}) re-fires
+-- the payload through the same pipeline.
+--
+-- Backoff schedule (next_retry_at): 1m → 5m → 30m → 2h → manual.
+-- After 4 automatic retries, status flips to 'abandoned' and the row
+-- requires explicit operator action via the replay endpoint.
+-- ─────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS protocol.dlq (
+    id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    merchant_id         UUID        NOT NULL,                  -- soft FK; merchant deletion shouldn't cascade DLQ rows
+    source_code         TEXT        NOT NULL REFERENCES app.source_systems(code),
+    source_event_id     TEXT,                                  -- caller-supplied idempotency key when present
+    event_id            UUID,                                  -- canonical event id when minted before failure
+    payload             JSONB       NOT NULL,                  -- raw inbound body
+    headers             JSONB       NOT NULL DEFAULT '{}',     -- inbound headers (for HMAC replay)
+    failure_reason      TEXT        NOT NULL,                  -- short code: publish_failed | seal_failed | parse_failed | etc.
+    error_message       TEXT,                                  -- detail; may be redacted in non-debug mode
+    retry_count         INT         NOT NULL DEFAULT 0,
+    next_retry_at       TIMESTAMPTZ,                           -- NULL when status='abandoned' or 'replayed'
+    status              TEXT        NOT NULL DEFAULT 'pending'
+                                    CHECK (status IN ('pending', 'replayed', 'abandoned')),
+    last_replay_at      TIMESTAMPTZ,
+    last_replay_outcome TEXT,                                  -- success | failure
+    attributes          JSONB       NOT NULL DEFAULT '{}',
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_dlq_status_retry ON protocol.dlq(status, next_retry_at)
+  WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_dlq_merchant_source ON protocol.dlq(merchant_id, source_code, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_dlq_source_event ON protocol.dlq(source_code, source_event_id)
+  WHERE source_event_id IS NOT NULL;
+
+-- ─────────────────────────────────────────────────────────────────────
+-- protocol.tsp_sequence_log — TSP sequence-id tracking per source for
+-- replay-by-sequence + gap detection. Tier-1 feeds (real-time POS
+-- webhooks) record here when source provides a sequence id; the
+-- recording path checks the previous row and flags gap_detected when
+-- expected sequencing is broken.
+-- ─────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS protocol.tsp_sequence_log (
+    id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    merchant_id       UUID        NOT NULL,                    -- soft FK
+    source_code       TEXT        NOT NULL REFERENCES app.source_systems(code),
+    sequence_id       TEXT        NOT NULL,                    -- source-supplied sequence
+    event_id          UUID        NOT NULL,                    -- canonical event id
+    received_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    gap_detected      BOOLEAN     NOT NULL DEFAULT FALSE,
+    expected_prev_seq TEXT,                                    -- populated when gap_detected
+    UNIQUE (merchant_id, source_code, sequence_id)
+);
+CREATE INDEX IF NOT EXISTS idx_tsp_seq_merchant_source ON protocol.tsp_sequence_log(merchant_id, source_code, received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tsp_seq_gaps ON protocol.tsp_sequence_log(merchant_id, source_code) WHERE gap_detected = TRUE;
