@@ -24,5 +24,6 @@ CREATE TABLE IF NOT EXISTS app.lnurl_linked_keys (
     owner_type      text        NOT NULL DEFAULT 'merchant'
                     CHECK (owner_type IN ('merchant','user','agent')),
     first_seen_at   timestamptz NOT NULL DEFAULT now(),
-    last_auth_at    timestamptz NOT NULL DEFAULT now()
+    last_auth_at    timestamptz NOT NULL DEFAULT now(),
+    updated_at      timestamptz NOT NULL DEFAULT now()
 );

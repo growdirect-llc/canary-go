@@ -2,13 +2,11 @@ package lnurl
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"sync"
 
 	// bech32 — https://github.com/btcsuite/btcutil/tree/master/bech32
@@ -29,20 +27,25 @@ type Handler struct {
 	Store  LNURLStore
 	Secret []byte   // LNURL_JWT_SECRET raw bytes
 	Stub   bool     // LNURL_STUB=true skips secp256k1 verification
+	Scheme string   // "http" or "https"; set from LNURL_SCHEME env var
+	Host   string   // set from LNURL_HOST env var
 	Logger *zap.Logger
 
-	// pendingTokens is a short-lived in-memory map: k1 → JWT.
-	// Populated by callback, consumed by pollSession.
-	// TTL is implicitly bounded by the 5-minute challenge window.
+	// pendingTokens maps k1 → JWT string for the poll endpoint to consume.
+	// Known limitation: no TTL — tokens from abandoned sessions (UI closed before
+	// polling) accumulate until process restart. Schedule cleanup in a follow-up
+	// wave when session load warrants it.
 	pendingTokens sync.Map
 }
 
 // NewHandler constructs a Handler, building the PgxStore internally.
-func NewHandler(pool *pgxpool.Pool, secret []byte, stub bool, logger *zap.Logger) *Handler {
+func NewHandler(pool *pgxpool.Pool, secret []byte, stub bool, scheme, host string, logger *zap.Logger) *Handler {
 	return &Handler{
 		Store:  NewStore(pool),
 		Secret: secret,
 		Stub:   stub,
+		Scheme: scheme,
+		Host:   host,
 		Logger: logger,
 	}
 }
@@ -75,16 +78,7 @@ func (h *Handler) getLNURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	host := os.Getenv("LNURL_HOST")
-	if host == "" {
-		host = "localhost:8080"
-	}
-	scheme := "https"
-	if host == "localhost:8080" || host == "localhost" {
-		scheme = "http"
-	}
-
-	callbackURL := fmt.Sprintf("%s://%s/v1/auth/lnurl/callback?tag=login&k1=%s", scheme, host, k1)
+	callbackURL := h.callbackURL(k1)
 
 	lnurlStr, err := encodeLNURL(callbackURL)
 	if err != nil {
@@ -126,15 +120,7 @@ func (h *Handler) challenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	host := os.Getenv("LNURL_HOST")
-	if host == "" {
-		host = "localhost:8080"
-	}
-	scheme := "https"
-	if host == "localhost:8080" || host == "localhost" {
-		scheme = "http"
-	}
-	callbackURL := fmt.Sprintf("%s://%s/v1/auth/lnurl/callback", scheme, host)
+	callbackURL := fmt.Sprintf("%s://%s/v1/auth/lnurl/callback", h.Scheme, h.Host)
 
 	writeJSON(w, http.StatusOK, map[string]string{
 		"tag":      "login",
@@ -172,26 +158,23 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Verify challenge is consumable before writing key association.
 	ownerID := deterministicOwnerID(key)
-
-	if err := h.Store.UpsertLinkedKey(r.Context(), key, ownerID); err != nil {
-		h.Logger.Error("lnurl callback upsert_key", zap.Error(err))
-		writeError(w, http.StatusInternalServerError, "store_failed", "")
-		return
-	}
-
 	if err := h.Store.MarkUsed(r.Context(), k1, ownerID); err != nil {
 		switch {
 		case errors.Is(err, ErrAlreadyUsed):
-			writeError(w, http.StatusConflict, "already_used", "challenge has already been consumed")
+			writeError(w, http.StatusConflict, "already_used", "challenge already used")
 		case errors.Is(err, ErrExpired):
-			writeError(w, http.StatusGone, "expired", "challenge has expired")
-		case errors.Is(err, ErrNotFound):
-			writeError(w, http.StatusNotFound, "not_found", "k1 not found")
+			writeError(w, http.StatusGone, "expired", "challenge expired")
 		default:
-			h.Logger.Error("lnurl callback mark_used", zap.Error(err))
-			writeError(w, http.StatusInternalServerError, "store_failed", "")
+			h.Logger.Error("lnurl: mark used", zap.Error(err))
+			writeError(w, http.StatusInternalServerError, "internal_error", "")
 		}
+		return
+	}
+	if err := h.Store.UpsertLinkedKey(r.Context(), key, ownerID); err != nil {
+		h.Logger.Error("lnurl: upsert linked key", zap.Error(err))
+		writeError(w, http.StatusInternalServerError, "internal_error", "")
 		return
 	}
 
@@ -252,15 +235,17 @@ func (h *Handler) pollSession(w http.ResponseWriter, r *http.Request) {
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-// deterministicOwnerID produces a stable UUID from a linking key by taking
-// the first 16 bytes of SHA-256(key). This allows Phase 1 operation without
-// a merchants/users table — the key IS the identity until a real user record
-// is bound.
+// lnurlNamespace is the fixed UUID v5 namespace for LNURL linking keys.
+// Must not change after deployment — changing it invalidates all existing owner IDs.
+var lnurlNamespace = uuid.MustParse("6ba7b814-9dad-11d1-80b4-00c04fd430c8") // uuid.NamespaceDNS
+
 func deterministicOwnerID(linkingKey string) uuid.UUID {
-	h := sha256.Sum256([]byte(linkingKey))
-	var id uuid.UUID
-	copy(id[:], h[:16])
-	return id
+	return uuid.NewSHA1(lnurlNamespace, []byte(linkingKey))
+}
+
+// callbackURL builds the full callback URL for a given k1 challenge.
+func (h *Handler) callbackURL(k1 string) string {
+	return fmt.Sprintf("%s://%s/v1/auth/lnurl/callback?tag=login&k1=%s", h.Scheme, h.Host, k1)
 }
 
 // encodeLNURL bech32-encodes a URL as an LNURL per the spec:

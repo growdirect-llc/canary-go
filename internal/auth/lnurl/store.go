@@ -130,10 +130,10 @@ func (s *PgxStore) MarkUsed(ctx context.Context, k1 string, ownerID uuid.UUID) e
 // updates last_auth_at if the key already exists.
 func (s *PgxStore) UpsertLinkedKey(ctx context.Context, linkingKey string, ownerID uuid.UUID) error {
 	const q = `
-		INSERT INTO app.lnurl_linked_keys (linking_key, owner_id)
-		VALUES ($1, $2)
+		INSERT INTO app.lnurl_linked_keys (linking_key, owner_id, owner_type)
+		VALUES ($1, $2, 'merchant')
 		ON CONFLICT (linking_key) DO UPDATE
-		    SET last_auth_at = now()
+		    SET last_auth_at = now(), updated_at = now()
 	`
 	_, err := s.pool.Exec(ctx, q, linkingKey, ownerID)
 	if err != nil {

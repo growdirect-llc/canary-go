@@ -91,6 +91,8 @@ func newTestHandler(store lnurl.LNURLStore) *lnurl.Handler {
 		Store:  store,
 		Secret: []byte("test-secret-32-bytes-padded-xxxx"),
 		Stub:   true,
+		Scheme: "http",
+		Host:   "localhost:8080",
 		Logger: logger,
 	}
 }

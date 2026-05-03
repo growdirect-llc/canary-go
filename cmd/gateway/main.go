@@ -309,6 +309,8 @@ func buildValidateHandler(pool *pgxpool.Pool, logger *zap.Logger) *validate.Hand
 // LNURL_JWT_SECRET: 64-char hex key for HS256 session JWTs. If absent or
 // invalid, a random 32-byte key is generated (ephemeral, dev only).
 // LNURL_STUB: "true" skips secp256k1 signature verification (CI/signet).
+// LNURL_SCHEME: "http" or "https" (default "https").
+// LNURL_HOST: hostname[:port] for callback URLs (default "localhost:8080").
 func buildLNURLHandler(pool *pgxpool.Pool, logger *zap.Logger) *lnurl.Handler {
 	secret := make([]byte, 32)
 	secretHex := os.Getenv("LNURL_JWT_SECRET")
@@ -327,7 +329,16 @@ func buildLNURLHandler(pool *pgxpool.Pool, logger *zap.Logger) *lnurl.Handler {
 
 	stub := os.Getenv("LNURL_STUB") == "true"
 
-	return lnurl.NewHandler(pool, secret, stub, logger)
+	scheme := os.Getenv("LNURL_SCHEME")
+	if scheme == "" {
+		scheme = "https"
+	}
+	host := os.Getenv("LNURL_HOST")
+	if host == "" {
+		host = "localhost:8080"
+	}
+
+	return lnurl.NewHandler(pool, secret, stub, scheme, host, logger)
 }
 
 // requestLogger is a small middleware that emits a structured zap line
