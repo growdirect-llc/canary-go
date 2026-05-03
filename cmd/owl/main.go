@@ -25,6 +25,8 @@ import (
 
 	"github.com/growdirect-llc/rapidpos/internal/config"
 	"github.com/growdirect-llc/rapidpos/internal/db"
+	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/growdirect-llc/rapidpos/internal/obs"
 	"github.com/growdirect-llc/rapidpos/internal/owl"
 )
 
@@ -44,16 +46,39 @@ func main() {
 	}
 	defer pool.Close()
 
+	// Wave A obs scaffold — first module to fully exercise tracer +
+	// trace-aware logger + chi span middleware. GRO-765 Phase C.3.
+	obsLogger := obs.NewLogger(serviceName)
+	tracer, err := obs.NewTracer(ctx, serviceName)
+	if err != nil {
+		logger.Fatal("obs tracer", zap.Error(err))
+	}
+	defer func() { _ = tracer.Shutdown(context.Background()) }()
+	logger = obsLogger // structured zap with trace correlation hooks
+
 	store := owl.NewPgxStore(pool)
 	aggregator := owl.NewAggregator(store)
 	handler := owl.New(aggregator, logger)
 
+	dashStore := owl.NewDashboardStore(pool)
+	dashHandler := owl.NewDashboardHandler(dashStore, logger)
+
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP, middleware.Recoverer)
+	r.Use(obs.Middleware(serviceName))
 	r.Use(requestLogger(logger))
 
 	r.Get("/health", healthHandler(cfg))
 	handler.Mount(r)
+
+	// Wave C dashboard endpoints under API-key auth.
+	r.Group(func(r chi.Router) {
+		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
+			Pool:     pool,
+			Required: true,
+		}))
+		dashHandler.Mount(r)
+	})
 
 	addr := ":" + cfg.Port
 	logger.Info("starting",
