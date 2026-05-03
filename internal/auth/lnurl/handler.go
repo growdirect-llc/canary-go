@@ -228,7 +228,7 @@ func (h *Handler) pollSession(w http.ResponseWriter, r *http.Request) {
 		c, err := h.Store.GetChallenge(r.Context(), k1)
 		if err != nil {
 			if errors.Is(err, ErrNotFound) {
-				writeError(w, http.StatusNotFound, "not_found", "k1 not found")
+				writeError(w, http.StatusGone, "not_found", "k1 not found or expired")
 			} else {
 				writeError(w, http.StatusInternalServerError, "lookup_failed", "")
 			}
