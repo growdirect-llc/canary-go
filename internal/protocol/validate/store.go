@@ -117,11 +117,10 @@ func (s *PgxStore) GetToken(ctx context.Context, tokenID uuid.UUID) (*Verificati
 func (s *PgxStore) ConsumeToken(ctx context.Context, tokenID uuid.UUID) error {
 	const q = `
 		UPDATE protocol.l402_verification_tokens
-		SET status = 'consumed',
-		    consumed_at = now()
-		WHERE token_id = $1
-		  AND status = 'pending'
-		  AND expires_at > now()
+		   SET status = 'consumed',
+		       consumed_at = now(),
+		       updated_at = now()
+		 WHERE token_id = $1 AND status = 'pending' AND expires_at > now()
 	`
 	ct, err := s.pool.Exec(ctx, q, tokenID)
 	if err != nil {
@@ -211,6 +210,12 @@ func (s *PgxStore) GetAnchorProof(ctx context.Context, eventHash string) (*Ancho
 	// Event exists in evidence but no anchor row joined.
 	if anchorID == nil {
 		return nil, ErrNotAnchored
+	}
+
+	// anchorID is non-nil but a partial LEFT JOIN row could still leave
+	// the remaining anchor fields nil. Guard against that.
+	if merkleRoot == nil || network == nil || anchorStatus == nil || leafIndex == nil || anchoredAt == nil {
+		return nil, fmt.Errorf("validate: GetAnchorProof: partial anchor row for event %s: %w", eventHash, ErrNotAnchored)
 	}
 
 	proof.AnchorID = *anchorID

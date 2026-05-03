@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"github.com/growdirect-llc/rapidpos/internal/protocol/sub3"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
@@ -107,6 +108,7 @@ func newHandler(store validate.ValidationStore) (*validate.Handler, *StubL402Wra
 	h := &validate.Handler{
 		Store:        store,
 		L402:         l402,
+		Logger:       zap.NewNop(),
 		SatoshiPrice: 100,
 	}
 	return h, &StubL402Wrapper{inner: l402}

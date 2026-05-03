@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -21,9 +22,11 @@ import (
 //	POST /v1/protocol/verify         — issue L402 challenge or consume if auth present
 //	GET  /v1/protocol/verify/{token_id} — consume a token and return the Merkle proof
 type Handler struct {
-	Store        ValidationStore
-	L402         *StubL402
-	Logger       *zap.Logger
+	Store  ValidationStore
+	L402   *StubL402
+	Logger *zap.Logger
+	// SatoshiPrice is the cost per proof verification, denominated in satoshis.
+	// Set from VALIDATOR_SATOSHI_PRICE env var (default 100) at startup.
 	SatoshiPrice int64
 }
 
@@ -67,9 +70,14 @@ type verifyRequest struct {
 //     - Not found → 404.
 //     - Anchored → issue 402 with WWW-Authenticate header.
 func (h *Handler) issueChallenge(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<16))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "body_read_failed", err.Error())
+		return
+	}
 	var req verifyRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "malformed_json", err.Error())
 		return
 	}
 
@@ -297,10 +305,11 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-func writeError(w http.ResponseWriter, status int, code, detail string) {
-	body := map[string]string{"code": code}
-	if detail != "" {
-		body["error"] = detail
-	}
-	writeJSON(w, status, body)
+type errorBody struct {
+	Code    string `json:"code"`
+	Message string `json:"message,omitempty"`
+}
+
+func writeError(w http.ResponseWriter, status int, code, msg string) {
+	writeJSON(w, status, errorBody{Code: code, Message: msg})
 }

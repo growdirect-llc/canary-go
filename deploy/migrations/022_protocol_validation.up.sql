@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS protocol.l402_verification_tokens (
     preimage_hash   text,
     created_at      timestamptz NOT NULL DEFAULT now(),
     expires_at      timestamptz NOT NULL DEFAULT now() + interval '24 hours',
-    consumed_at     timestamptz
+    consumed_at     timestamptz,
+    updated_at      timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_l402_token_event
