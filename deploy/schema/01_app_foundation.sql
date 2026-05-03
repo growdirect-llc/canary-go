@@ -385,3 +385,55 @@ CREATE TABLE IF NOT EXISTS app.bull_event_log (
     processed_at TIMESTAMPTZ,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ─────────────────────────────────────────────────────────────────────
+-- Workflow substrate — per OQ Resolution Pack §A.1 OQ-3.2
+-- (founder-approved 2026-05-03 per GRO-762).
+--
+-- Two-table substrate for cross-cutting orchestration: long-running
+-- multi-step processes that span modules (three-way-match, l402
+-- charge cycle, evidence-anchor batches, etc.). Coordination uses
+-- PostgreSQL pg_advisory_lock so multiple service instances don't
+-- step on each other's executions:
+--
+--   https://www.postgresql.org/docs/17/explicit-locking.html
+--
+-- workflow_definitions is registered by code at service boot; rows
+-- are immutable per (workflow_code, version). workflow_executions is
+-- append-only audit — each kick-off creates one row that's mutated
+-- by Advance / Complete to track current_step, status, finished_at.
+-- ─────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS app.workflow_definitions (
+    id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    workflow_code   TEXT        NOT NULL,                          -- 'three_way_match' | 'l402_charge_cycle' | etc.
+    display_name    TEXT        NOT NULL,
+    version         INT         NOT NULL DEFAULT 1,
+    status          TEXT        NOT NULL DEFAULT 'active'
+                                CHECK (status IN ('active', 'deprecated')),
+    attributes      JSONB       NOT NULL DEFAULT '{}',
+    registered_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (workflow_code, version)
+);
+
+CREATE TABLE IF NOT EXISTS app.workflow_executions (
+    id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID        NOT NULL REFERENCES app.tenants(id),
+    workflow_id     UUID        NOT NULL REFERENCES app.workflow_definitions(id),
+    external_ref    TEXT,                                           -- caller-supplied correlation id
+    status          TEXT        NOT NULL DEFAULT 'pending'
+                                CHECK (status IN ('pending', 'running', 'succeeded', 'failed', 'cancelled')),
+    current_step    TEXT,                                           -- caller-defined step identifier
+    context         JSONB       NOT NULL DEFAULT '{}',              -- accumulated state across steps
+    started_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    finished_at     TIMESTAMPTZ,
+    error_message   TEXT,
+    attributes      JSONB       NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_exec_tenant_status
+    ON app.workflow_executions(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_workflow_exec_workflow
+    ON app.workflow_executions(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_exec_external_ref
+    ON app.workflow_executions(tenant_id, external_ref)
+    WHERE external_ref IS NOT NULL;
