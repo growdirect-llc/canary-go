@@ -94,5 +94,26 @@ CROSS JOIN (VALUES
 ) AS src(code, display_name)
 ON CONFLICT (tenant_id, code) DO NOTHING;
 
+-- ─────────────────────────────────────────────────────────────────────
+-- f.markup_envelope_tiers defaults per archetype — loop4-wave-a
+-- (GRO-763 §B.2). Source: OQ Resolution Pack §A.1 OQ-2.1
+-- (founder-approved 2026-05-03 per GRO-762).
+--
+-- Pricing module (Wave B) reads tenant override
+-- (app.tenants.attributes->>'markup_envelope_pct') first and falls back
+-- to the active row here for the tenant's archetype. Idempotent: skip
+-- if a non-expired row for the archetype already exists.
+-- ─────────────────────────────────────────────────────────────────────
+INSERT INTO f.markup_envelope_tiers (archetype, markup_pct, attributes)
+SELECT * FROM (VALUES
+    ('small',  50.00, '{"seeded": true, "source": "OQ-2.1"}'::jsonb),
+    ('medium', 30.00, '{"seeded": true, "source": "OQ-2.1"}'::jsonb),
+    ('large',  15.00, '{"seeded": true, "source": "OQ-2.1"}'::jsonb)
+) AS v(archetype, markup_pct, attributes)
+WHERE NOT EXISTS (
+    SELECT 1 FROM f.markup_envelope_tiers
+    WHERE archetype = v.archetype AND expires_at IS NULL
+);
+
 -- Convenience view: stable identifiers used throughout dev/test
 COMMENT ON TABLE app.merchants IS 'Multi-POS merchants. Dev seed: id=33333333-0000-0000-0000-000000000001 (Acme Main Street, Square)';

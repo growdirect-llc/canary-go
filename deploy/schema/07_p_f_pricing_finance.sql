@@ -292,3 +292,30 @@ CREATE INDEX idx_pay_vendor ON f.payments(vendor_id);
 CREATE INDEX idx_pay_status ON f.payments(status) WHERE status IN ('scheduled', 'issued');
 CREATE INDEX idx_pay_invapp_payment ON f.payment_invoice_applications(payment_id);
 CREATE INDEX idx_pay_invapp_invoice ON f.payment_invoice_applications(invoice_id);
+
+-- f.markup_envelope_tiers — platform-wide cost-plus markup defaults per
+-- merchant archetype. Per-tenant override path is
+-- app.tenants.attributes->>'markup_envelope_pct'; the pricing module
+-- (Wave B) reads tenant override first, falls back to the active row
+-- here for the tenant's archetype. Source: OQ Resolution Pack §A.1
+-- OQ-2.1 (founder-approved 2026-05-03 per GRO-762).
+CREATE TABLE f.markup_envelope_tiers (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  archetype       text NOT NULL,                              -- small | medium | large
+  markup_pct      numeric(5,2) NOT NULL,                      -- 50.00, 30.00, 15.00 per OQ-2.1
+  effective_at    timestamptz NOT NULL DEFAULT now(),
+  expires_at      timestamptz,                                -- NULL = open-ended
+  attributes      jsonb NOT NULL DEFAULT '{}',
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now(),
+  CHECK (archetype IN ('small','medium','large')),
+  CHECK (markup_pct >= 0 AND markup_pct <= 100)
+);
+
+-- One active row per archetype at any given time (the partial unique
+-- index enforces "at most one open-ended row per archetype"). When a
+-- new tier replaces the prior, the application sets expires_at on the
+-- old row in the same transaction as the insert.
+CREATE UNIQUE INDEX uq_markup_envelope_active
+  ON f.markup_envelope_tiers(archetype)
+  WHERE expires_at IS NULL;
