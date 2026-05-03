@@ -10,8 +10,9 @@
 //   - Record per-event Merkle proof paths in protocol.evidence_anchors
 //   - Expose GET /v1/protocol/anchor/{event_hash} for bilateral verification
 //
-// The Merkle tree implementation follows the standard Bitcoin convention:
-// odd-length levels duplicate the last node before hashing upward.
+// The Merkle tree uses SHA-256 of the concatenation of the decoded byte
+// arrays of the left and right child hashes. Odd-length levels duplicate
+// the last node before hashing upward (standard binary Merkle convention).
 package sub3
 
 import (
@@ -49,7 +50,7 @@ type MerkleResult struct {
 // Rules:
 //   - 1-leaf tree: root == leaf hash; proof is empty.
 //   - Odd-length levels: the last node is duplicated before hashing.
-//   - All internal nodes are SHA-256(left || right) in hex.
+//   - All internal nodes are SHA-256(decoded(left) || decoded(right)) in hex.
 //
 // Returns an error if leaves is empty.
 func BuildMerkleTree(leaves []string) (MerkleResult, error) {
@@ -95,7 +96,10 @@ func BuildMerkleTree(leaves []string) (MerkleResult, error) {
 				isDuplicate = true
 			}
 
-			parentHash := merkleParent(left.hash, right.hash)
+			parentHash, err := merkleParent(left.hash, right.hash)
+			if err != nil {
+				return MerkleResult{}, err
+			}
 
 			// Add proof nodes for all leaves on the LEFT side.
 			// Their sibling is the RIGHT node, positioned "right".
@@ -153,24 +157,36 @@ func BuildMerkleTree(leaves []string) (MerkleResult, error) {
 func VerifyProof(root, leafHash string, proof []ProofNode) bool {
 	current := leafHash
 	for _, node := range proof {
+		var err error
 		switch node.Position {
 		case "left":
-			current = merkleParent(node.SiblingHash, current)
+			current, err = merkleParent(node.SiblingHash, current)
 		case "right":
-			current = merkleParent(current, node.SiblingHash)
+			current, err = merkleParent(current, node.SiblingHash)
 		default:
+			return false
+		}
+		if err != nil {
 			return false
 		}
 	}
 	return current == root
 }
 
-// merkleParent returns SHA-256(left || right) encoded as lowercase hex.
-// Inputs are treated as raw hex strings — they are concatenated as
-// strings (not decoded to bytes) to keep the implementation simple and
-// consistent with the on-disk representation.
-func merkleParent(left, right string) string {
-	h := sha256.New()
-	_, _ = fmt.Fprintf(h, "%s%s", left, right)
-	return hex.EncodeToString(h.Sum(nil))
+// merkleParent returns SHA-256(decoded(left) || decoded(right)) encoded as
+// lowercase hex. Each input is a hex-encoded byte array; the bytes are decoded
+// and concatenated before hashing. This produces SHA-256 of the concatenated
+// decoded byte arrays — not of the hex string characters.
+func merkleParent(left, right string) (string, error) {
+	lb, err := hex.DecodeString(left)
+	if err != nil {
+		return "", fmt.Errorf("merkle: decode left: %w", err)
+	}
+	rb, err := hex.DecodeString(right)
+	if err != nil {
+		return "", fmt.Errorf("merkle: decode right: %w", err)
+	}
+	combined := append(lb, rb...)
+	h := sha256.Sum256(combined)
+	return hex.EncodeToString(h[:]), nil
 }

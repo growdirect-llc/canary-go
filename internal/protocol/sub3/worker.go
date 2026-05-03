@@ -22,8 +22,9 @@ type WorkerConfig struct {
 
 // Worker drives the Sub 3 Merkle-anchor batch loop.
 type Worker struct {
-	cfg WorkerConfig
-	log *zap.Logger
+	cfg   WorkerConfig
+	log   *zap.Logger
+	store AnchorStorer
 }
 
 // NewWorker wires a Worker with defaults applied. Callers own pool and
@@ -46,8 +47,34 @@ func NewWorker(cfg WorkerConfig) *Worker {
 		log = zap.NewNop()
 	}
 	return &Worker{
-		cfg: cfg,
-		log: log.With(zap.String("svc", "sub3-merkle-ordinal")),
+		cfg:   cfg,
+		log:   log.With(zap.String("svc", "sub3-merkle-ordinal")),
+		store: NewStore(cfg.Pool, cfg.Network),
+	}
+}
+
+// newWorkerWithStore is used by tests to inject a stub AnchorStorer.
+func newWorkerWithStore(cfg WorkerConfig, store AnchorStorer) *Worker {
+	if cfg.Network == "" {
+		cfg.Network = "signet"
+	}
+	if cfg.PollInterval == 0 {
+		cfg.PollInterval = 10 * time.Minute
+	}
+	if cfg.BatchSize == 0 {
+		cfg.BatchSize = 50
+	}
+	if cfg.MinBatch == 0 {
+		cfg.MinBatch = 2
+	}
+	log := cfg.Logger
+	if log == nil {
+		log = zap.NewNop()
+	}
+	return &Worker{
+		cfg:   cfg,
+		log:   log.With(zap.String("svc", "sub3-merkle-ordinal")),
+		store: store,
 	}
 }
 
@@ -89,66 +116,37 @@ func (w *Worker) Tick(ctx context.Context) error {
 	return w.tick(ctx)
 }
 
-// tick is one anchor cycle: fetch → skip-if-too-small → Merkle → inscribe → write.
+// tick is one anchor cycle. It delegates the fetch → inscribe → write
+// sequence to store.WriteAnchor, which uses two transactions:
+//
+//   - Tx 1: lock and fetch unanchored rows → commit (lock released)
+//   - External: Inscribe (network call, outside any transaction)
+//   - Tx 2: write anchor + evidence_anchors → commit
+//
+// Failed inscriptions are recorded in protocol.anchors with
+// anchor_status = 'failed' for audit; evidence_anchors rows are not
+// written so those events remain available for the next retry cycle.
+//
+// Returns nil when the batch is below minBatch (no-op).
 func (w *Worker) tick(ctx context.Context) error {
-	rows, err := LockAndFetchUnanchored(ctx, w.cfg.Pool, w.cfg.BatchSize)
+	result, err := w.store.WriteAnchor(ctx, w.cfg.Inscriber, w.cfg.BatchSize, w.cfg.MinBatch)
 	if err != nil {
+		w.log.Warn("anchor cycle failed", zap.Error(err))
 		return err
 	}
 
-	if len(rows) == 0 {
-		w.log.Debug("no unanchored events — skipping")
+	if result == nil {
+		// Below minBatch or no unanchored events — clean no-op.
+		w.log.Debug("below minBatch threshold or no unanchored events — skipping")
 		return nil
-	}
-
-	if len(rows) < w.cfg.MinBatch {
-		w.log.Debug("below minBatch threshold — skipping single-event anchor",
-			zap.Int("count", len(rows)),
-			zap.Int("min_batch", w.cfg.MinBatch),
-		)
-		return nil
-	}
-
-	// Extract chain_hash values as Merkle leaves.
-	leaves := make([]string, len(rows))
-	for i, r := range rows {
-		leaves[i] = r.ChainHash
-	}
-
-	merkleResult, err := BuildMerkleTree(leaves)
-	if err != nil {
-		return err
-	}
-
-	w.log.Info("merkle tree built",
-		zap.String("root", merkleResult.Root),
-		zap.Int("leaves", len(leaves)),
-	)
-
-	inscribeResult, err := w.cfg.Inscriber.Inscribe(ctx, merkleResult.Root, w.cfg.Network)
-	if err != nil {
-		// Log and write a failed anchor record so we have an audit trail.
-		w.log.Warn("inscription failed — writing failed anchor",
-			zap.String("merkle_root", merkleResult.Root),
-			zap.Error(err),
-		)
-		// We do NOT write evidence_anchors on failure — those rows must
-		// only appear when the inscription succeeded (or at least was
-		// submitted). A future poll cycle will retry the same events.
-		return err
-	}
-
-	anchor, err := WriteAnchor(ctx, w.cfg.Pool, merkleResult, rows, inscribeResult, w.cfg.Network)
-	if err != nil {
-		return err
 	}
 
 	w.log.Info("anchor written",
-		zap.String("anchor_id", anchor.AnchorID.String()),
-		zap.String("merkle_root", anchor.MerkleRoot),
-		zap.String("inscription_id", anchor.InscriptionID),
-		zap.String("status", anchor.AnchorStatus),
-		zap.Int("events", anchor.EventCount),
+		zap.String("anchor_id", result.AnchorID.String()),
+		zap.String("merkle_root", result.MerkleRoot),
+		zap.String("inscription_id", result.InscriptionID),
+		zap.String("status", result.AnchorStatus),
+		zap.Int("events", result.EventCount),
 	)
 	return nil
 }

@@ -11,50 +11,71 @@ import (
 	"go.uber.org/zap"
 )
 
-// ─── Fake pool ───────────────────────────────────────────────────────────────
-//
-// Worker calls LockAndFetchUnanchored and WriteAnchor against a real
-// *pgxpool.Pool. For unit tests we want to exercise the worker logic
-// without Postgres, so we test the constituent building blocks directly
-// (tick is not exported, and the pool is injected).
-//
-// The unit tests here cover:
-//   1. MinBatch gate: tick logic when count < MinBatch
-//   2. StubInscriber round-trip through BuildMerkleTree
-//   3. Idempotent proof verification (same root, same proof → same result)
+// ─── Stub store ──────────────────────────────────────────────────────────────
 
-// makeLeaf returns a deterministic leaf hash.
-func makeLeaf(i int) string {
-	h := sha256.Sum256([]byte(fmt.Sprintf("chain-hash-%d", i)))
-	return hex.EncodeToString(h[:])
+// stubStore implements AnchorStorer for unit tests. It simulates the
+// WriteAnchor behavior without a real database: it calls the inscriber only
+// when rowCount >= minBatch, mirroring the real Store contract.
+type stubStore struct {
+	rowCount  int // number of rows the stub pretends to have fetched
+	inscriber Inscriber
 }
 
-// TestWorker_SkipBelowMinBatch verifies that when fewer than MinBatch
-// rows are returned the worker logs and skips without calling Inscribe.
-// We can't inject a fake pool easily for unit tests, so we verify the
-// MinBatch guard by inspecting the worker config and the Inscriber call
-// counter via a counting stub.
+func (s *stubStore) WriteAnchor(ctx context.Context, inscriber Inscriber, batchSize, minBatch int) (*AnchorResult, error) {
+	if s.rowCount < minBatch {
+		// Below threshold — no-op, same as real Store.
+		return nil, nil
+	}
+	// Build a minimal Merkle tree over fake leaves.
+	leaves := make([]string, s.rowCount)
+	for i := range leaves {
+		h := sha256.Sum256([]byte(fmt.Sprintf("fake-chain-hash-%d", i)))
+		leaves[i] = hex.EncodeToString(h[:])
+	}
+	mr, err := BuildMerkleTree(leaves)
+	if err != nil {
+		return nil, err
+	}
+	ir, err := inscriber.Inscribe(ctx, mr.Root, "signet")
+	if err != nil {
+		return nil, err
+	}
+	return &AnchorResult{
+		MerkleRoot:    mr.Root,
+		InscriptionID: ir.InscriptionID,
+		EventCount:    s.rowCount,
+		AnchorStatus:  "inscribed",
+		AnchoredAt:    testTime(),
+	}, nil
+}
+
+func testTime() time.Time {
+	return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+}
+
+// ─── Tests ───────────────────────────────────────────────────────────────────
+
+// TestWorker_SkipBelowMinBatch verifies that when fewer than MinBatch rows
+// are available the worker skips inscription. It exercises w.Tick with a
+// stub store that reports 1 row (below MinBatch=2) and asserts the
+// countingInscriber was never called.
 func TestWorker_SkipBelowMinBatch(t *testing.T) {
 	stub := &countingInscriber{}
-	// Don't need a real pool — just verify the guard logic by building
-	// the worker and confirming MinBatch defaults correctly.
-	w := NewWorker(WorkerConfig{
+	store := &stubStore{rowCount: 1, inscriber: stub}
+
+	w := newWorkerWithStore(WorkerConfig{
 		Inscriber: stub,
 		MinBatch:  2,
+		BatchSize: 50,
 		Logger:    zap.NewNop(),
-	})
-	if w.cfg.MinBatch != 2 {
-		t.Fatalf("MinBatch not set: %d", w.cfg.MinBatch)
+	}, store)
+
+	ctx := context.Background()
+	if err := w.Tick(ctx); err != nil {
+		t.Fatalf("Tick returned unexpected error: %v", err)
 	}
-	// Simulate 1 row (below MinBatch=2). Because we can't call tick
-	// without a pool, we test the guard inline.
-	rows := []EvidenceRow{{EventHash: "h0", ChainHash: makeLeaf(0)}}
-	if len(rows) >= w.cfg.MinBatch {
-		t.Fatal("guard logic error in test: expected below threshold")
-	}
-	// Inscriber must NOT have been called.
 	if stub.calls != 0 {
-		t.Fatalf("Inscribe called %d times, want 0", stub.calls)
+		t.Fatalf("Inscribe called %d times, want 0 (below MinBatch)", stub.calls)
 	}
 }
 
@@ -136,7 +157,35 @@ func TestWorker_Defaults(t *testing.T) {
 	}
 }
 
+// TestWorker_AboveMinBatch_CallsInscriber verifies that when rows >= MinBatch
+// the inscriber IS called via Tick.
+func TestWorker_AboveMinBatch_CallsInscriber(t *testing.T) {
+	stub := &countingInscriber{}
+	store := &stubStore{rowCount: 3, inscriber: stub}
+
+	w := newWorkerWithStore(WorkerConfig{
+		Inscriber: stub,
+		MinBatch:  2,
+		BatchSize: 50,
+		Logger:    zap.NewNop(),
+	}, store)
+
+	ctx := context.Background()
+	if err := w.Tick(ctx); err != nil {
+		t.Fatalf("Tick returned unexpected error: %v", err)
+	}
+	if stub.calls != 1 {
+		t.Fatalf("Inscribe called %d times, want 1", stub.calls)
+	}
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
+
+// makeLeaf returns a deterministic leaf hash.
+func makeLeaf(i int) string {
+	h := sha256.Sum256([]byte(fmt.Sprintf("chain-hash-%d", i)))
+	return hex.EncodeToString(h[:])
+}
 
 type countingInscriber struct {
 	calls int

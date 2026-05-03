@@ -58,6 +58,7 @@ func main() {
 	// Poll interval and batch settings.
 	pollInterval := parseDuration("SUB3_POLL_INTERVAL", 10*time.Minute)
 	batchSize := parseInt("SUB3_BATCH_SIZE", 50)
+	minBatch := parseInt("SUB3_MIN_BATCH", 2)
 
 	w := sub3.NewWorker(sub3.WorkerConfig{
 		Pool:         pool,
@@ -65,6 +66,7 @@ func main() {
 		Network:      network,
 		PollInterval: pollInterval,
 		BatchSize:    batchSize,
+		MinBatch:     minBatch,
 		Logger:       logger,
 	})
 
@@ -86,6 +88,7 @@ func main() {
 		zap.String("network", network),
 		zap.Duration("poll_interval", pollInterval),
 		zap.Int("batch_size", batchSize),
+		zap.Int("min_batch", minBatch),
 		zap.Bool("real_inscriber", apiKey != ""),
 	)
 

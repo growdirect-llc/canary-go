@@ -13,12 +13,21 @@ func leafHash(s string) string {
 	return hex.EncodeToString(h[:])
 }
 
-// computeParent mirrors merkleParent — recomputed here so the test has
-// no implicit dependency on the implementation's helper.
+// computeParent mirrors merkleParent — SHA-256 of the concatenated decoded
+// byte arrays of left and right. Recomputed here so the test has no implicit
+// dependency on the implementation's helper.
 func computeParent(l, r string) string {
-	h := sha256.New()
-	_, _ = fmt.Fprintf(h, "%s%s", l, r)
-	return hex.EncodeToString(h.Sum(nil))
+	lb, err := hex.DecodeString(l)
+	if err != nil {
+		panic(fmt.Sprintf("computeParent: decode left %q: %v", l, err))
+	}
+	rb, err := hex.DecodeString(r)
+	if err != nil {
+		panic(fmt.Sprintf("computeParent: decode right %q: %v", r, err))
+	}
+	combined := append(lb, rb...)
+	h := sha256.Sum256(combined)
+	return hex.EncodeToString(h[:])
 }
 
 // ─── BuildMerkleTree ─────────────────────────────────────────────────────────
@@ -98,7 +107,7 @@ func TestBuildMerkleTree_FourLeaves_VerifyEach(t *testing.T) {
 
 func TestBuildMerkleTree_FiveLeaves_OddDuplicate_VerifyAll(t *testing.T) {
 	// 5 leaves: the 5th is duplicated at the 3-node level so the tree
-	// balances. This is the standard Bitcoin Merkle convention.
+	// balances. This is the standard binary Merkle convention.
 	leaves := make([]string, 5)
 	for i := range leaves {
 		leaves[i] = leafHash(fmt.Sprintf("leaf-%d", i))
@@ -158,7 +167,7 @@ func TestVerifyProof_WrongRoot_ReturnsFalse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Tamper with the root.
+	// Tamper with the root — must be valid hex for the byte-decode path.
 	if VerifyProof("deadbeef", l0, res.Proofs[0]) {
 		t.Fatal("expected false with wrong root")
 	}

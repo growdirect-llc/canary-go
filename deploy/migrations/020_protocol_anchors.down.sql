@@ -3,6 +3,6 @@
 -- Rolls back migration 020: drops the Merkle anchor tables.
 -- GRO-750.
 
-DROP INDEX IF EXISTS protocol.idx_evidence_anchors_event_hash;
+DROP INDEX IF EXISTS idx_evidence_anchors_event_hash;
 DROP TABLE IF EXISTS protocol.evidence_anchors;
 DROP TABLE IF EXISTS protocol.anchors;
