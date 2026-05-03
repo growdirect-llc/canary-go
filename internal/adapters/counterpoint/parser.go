@@ -160,10 +160,10 @@ func (*Adapter) Parse(env adapters.Envelope) (*sub2.CanonicalEvent, error) {
 	}
 
 	for _, pay := range doc.Payments {
-		// SDD-vague: TenderTypeID FK to f.tender_types is required
-		// by schema but the Counterpoint payload doesn't carry one.
-		// Loop 2 leaves TenderTypeID as uuid.Nil; the integration
-		// path needs a seeded "default" tender type per merchant.
+		// Loop 3 Wave 1 (GRO-762 §B.2): leave TenderTypeID = uuid.Nil
+		// — Sub2 store resolves the (tenant, source_code='counterpoint')
+		// default from f.tender_types before insert. Adapters pkg
+		// invariant preserved: parsers never invent FK IDs.
 		canonical.Tenders = append(canonical.Tenders, types.TransactionTender{
 			TenderSequence:    int32(pay.PaymentSequence),
 			Amount:            decimalString(pay.Amount),

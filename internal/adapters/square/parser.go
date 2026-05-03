@@ -262,14 +262,13 @@ func parsePayment(env publisher.Event, sq squareEnvelope, txnType string) (*sub2
 		canonical.Transaction.VoidReason = &voidReason
 	}
 
-	// Tender row for the payment. SDD-vague on tender_type_id: the
-	// schema requires an FK to f.tender_types, but the gateway
-	// envelope doesn't carry a tender type ID. Loop 2 leaves
-	// TenderTypeID as uuid.Nil — the integration test will need a
-	// seeded "default" tender type, and Loop 3 will introduce a real
-	// tender-type lookup keyed by adapter + brand. For Loop 2 we omit
-	// the tender row entirely when we don't have a tender_type_id;
-	// the canonical event is otherwise well-formed.
+	// Tender row for the payment. Loop 3 Wave 1 (GRO-762 §B.2): emit
+	// the tender with TenderTypeID = uuid.Nil; Sub2 store resolves the
+	// (tenant, source_code) default tender_type_id from f.tender_types
+	// before insert (see internal/protocol/sub2/store.go
+	// resolveTenderTypeID). Adapters pkg invariant preserved: parsers
+	// never invent FK IDs — Sub2 owns FK resolution. Wave 2 will refine
+	// to brand-specific tender_type_ids using card.CardBrand.
 	tender := types.TransactionTender{
 		TenderSequence: 1,
 		Amount:         amount,
@@ -285,12 +284,7 @@ func parsePayment(env publisher.Event, sq squareEnvelope, txnType string) (*sub2
 	if cash != nil {
 		tender.ChangeAmount = centsToDecimalString(cash.ChangeBackMoney.Amount)
 	}
-	// Hold the tender on the canonical event but only attach it when
-	// we have a tender_type_id. Until Loop 3 lookup, we store the
-	// tender data inside Transaction.Attributes (the raw payload
-	// already round-trips it) and skip the tender row to avoid the
-	// FK violation. Adapters pkg invariant: never invent FK IDs.
-	_ = tender
+	canonical.Tenders = append(canonical.Tenders, tender)
 
 	return canonical, nil
 }

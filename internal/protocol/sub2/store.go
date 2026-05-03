@@ -129,11 +129,32 @@ func (s *PgxStore) Persist(ctx context.Context, evt *CanonicalEvent) error {
 		}
 	}
 
+	// Resolve the per-source default tender_type_id once for the
+	// envelope. Loop 3 Wave 1 (GRO-762 §B.2): adapters set
+	// TenderTypeID = uuid.Nil because their wire envelopes don't
+	// carry a stable tender-type identifier; the (tenant, source)
+	// default seeded in f.tender_types is the FK we resolve here.
+	// Lookup is a read against a tiny reference table — outside the
+	// transaction is fine.
+	defaultTenderTypeID, tenderResolveErr := s.resolveTenderTypeID(ctx, tenantID, evt.SourceCode)
+
 	for i := range evt.Tenders {
 		evt.Tenders[i].TenantID = tenantID
 		evt.Tenders[i].TransactionID = evt.Transaction.ID
 		if evt.Tenders[i].ID == uuid.Nil {
 			evt.Tenders[i].ID = uuid.New()
+		}
+		// Stamp the resolved default when adapter left it Nil; preserve
+		// any tender_type_id the adapter explicitly set (future-proof
+		// for adapters that get smarter). When no default exists, skip
+		// the tender row rather than fail the whole transaction —
+		// canonical event header + line items are the load-bearing
+		// signal; tenders are detail metadata.
+		if evt.Tenders[i].TenderTypeID == uuid.Nil {
+			if tenderResolveErr != nil {
+				continue
+			}
+			evt.Tenders[i].TenderTypeID = defaultTenderTypeID
 		}
 		if err := insertTender(ctx, tx, &evt.Tenders[i]); err != nil {
 			return fmt.Errorf("sub2: insert tender %d: %w", i, err)
@@ -260,6 +281,30 @@ func (s *PgxStore) lookupEmployee(ctx context.Context, tenantID uuid.UUID, emplo
 	).Scan(&id)
 	if err != nil {
 		return uuid.Nil, err
+	}
+	return id, nil
+}
+
+// resolveTenderTypeID looks up the (tenant, source_code) default
+// tender_type_id from the partial unique index uq_tender_source_default
+// (deploy/schema/07_p_f_pricing_finance.sql). Mirrors
+// adapters.ResolveTenderType but kept inline here to avoid an import
+// cycle (internal/adapters already imports sub2). Loop 3 Wave 2 will
+// add an LRU cache; Wave 1 keeps it simple.
+func (s *PgxStore) resolveTenderTypeID(ctx context.Context, tenantID uuid.UUID, sourceCode string) (uuid.UUID, error) {
+	if sourceCode == "" {
+		return uuid.Nil, fmt.Errorf("sub2: resolveTenderTypeID: empty source_code")
+	}
+	var id uuid.UUID
+	err := s.pool.QueryRow(ctx,
+		`SELECT id FROM f.tender_types WHERE tenant_id = $1 AND source_code = $2 LIMIT 1`,
+		tenantID, sourceCode,
+	).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, fmt.Errorf("sub2: no default tender_type seeded for tenant=%s source=%s", tenantID, sourceCode)
+	}
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("sub2: resolveTenderTypeID: %w", err)
 	}
 	return id, nil
 }

@@ -67,5 +67,32 @@ INSERT INTO protocol.source_secrets
      300)
 ON CONFLICT (id) DO NOTHING;
 
+-- ─────────────────────────────────────────────────────────────────────
+-- f.tender_types defaults per source — loop3-wave1 (GRO-762 §B.2)
+-- One default-tender row per (tenant, source) so Sub2 can resolve a
+-- tender_type_id when the inbound POS payload doesn't carry one.
+-- Tenants can add unlimited custom rows beyond these defaults
+-- (source_code NULL); the partial unique index uq_tender_source_default
+-- only constrains the seeded ones. Idempotent via ON CONFLICT on the
+-- natural (tenant, code) key.
+-- ─────────────────────────────────────────────────────────────────────
+INSERT INTO f.tender_types (id, tenant_id, source_code, code, name, tender_class, is_active, attributes)
+SELECT
+    gen_random_uuid(),
+    t.id,
+    src.code,
+    upper(src.code) || '_DEFAULT',
+    src.display_name || ' Default',
+    'unknown',
+    true,
+    jsonb_build_object('seeded', true, 'source', 'loop3_wave1_default')
+FROM app.tenants t
+CROSS JOIN (VALUES
+    ('square',       'Square'),
+    ('counterpoint', 'NCR Counterpoint'),
+    ('clover',       'Clover')
+) AS src(code, display_name)
+ON CONFLICT (tenant_id, code) DO NOTHING;
+
 -- Convenience view: stable identifiers used throughout dev/test
 COMMENT ON TABLE app.merchants IS 'Multi-POS merchants. Dev seed: id=33333333-0000-0000-0000-000000000001 (Acme Main Street, Square)';

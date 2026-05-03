@@ -160,9 +160,17 @@ CREATE INDEX idx_gl_parent ON f.gl_accounts(parent_id);
 CREATE INDEX idx_gl_type ON f.gl_accounts(account_type);
 
 -- f.tender_types — payment method master
+-- source_code (loop3-wave1, GRO-762 §B.2): the POS adapter that
+-- declares this tender (square|counterpoint|clover). NULL when the
+-- tender is merchant-defined and not bound to one upstream source.
+-- The Sub2 persistence path uses (tenant_id, source_code) to resolve
+-- a default tender_type_id when the inbound payload doesn't carry one
+-- (most adapters don't surface a stable tender-type identifier in
+-- their wire envelope). Per OQ-2.3 + Loop 2 finding #7.
 CREATE TABLE f.tender_types (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id       uuid NOT NULL REFERENCES app.tenants(id),
+  source_code     text,                                            -- POS adapter that owns this default; NULL = merchant-defined
   code            text NOT NULL,                                  -- CASH, VISA, MC, AMEX, EBT, GIFT, STORE_CREDIT, CHECK
   name            text NOT NULL,
   tender_class    text NOT NULL,                                  -- cash | credit_card | debit_card | gift_card | store_credit | check | electronic_check | ebt_snap | wic | crypto
@@ -178,8 +186,15 @@ CREATE TABLE f.tender_types (
   UNIQUE (tenant_id, code)
 );
 
+-- Partial unique index — at most one source-default tender per
+-- (tenant, source). Lets Sub2 ResolveTenderType() be a deterministic
+-- lookup, while leaving merchants free to add unlimited custom
+-- tender_types with source_code IS NULL.
+CREATE UNIQUE INDEX uq_tender_source_default ON f.tender_types(tenant_id, source_code) WHERE source_code IS NOT NULL;
+
 CREATE INDEX idx_tender_tenant ON f.tender_types(tenant_id);
 CREATE INDEX idx_tender_class ON f.tender_types(tender_class);
+CREATE INDEX idx_tender_source ON f.tender_types(source_code) WHERE source_code IS NOT NULL;
 
 -- f.supplier_invoices — AP invoice with three-way match FKs
 CREATE TABLE f.supplier_invoices (
