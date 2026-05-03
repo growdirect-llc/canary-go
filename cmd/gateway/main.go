@@ -32,6 +32,7 @@ import (
 	reportPkg    "github.com/growdirect-llc/rapidpos/internal/report"
 	returnsPkg   "github.com/growdirect-llc/rapidpos/internal/returns"
 
+	"github.com/growdirect-llc/rapidpos/internal/auth/lnurl"
 	"github.com/growdirect-llc/rapidpos/internal/config"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
 	"github.com/growdirect-llc/rapidpos/internal/db"
@@ -113,6 +114,13 @@ func main() {
 	// VALIDATOR_SATOSHI_PRICE: sat price per proof (default 100).
 	validateHandler := buildValidateHandler(pool, logger)
 
+	// LNURL-auth login surface — Lightning wallet QR login. GRO-753.
+	// LNURL_JWT_SECRET: 64-char hex key for HS256 session JWTs. If absent,
+	// a random key is generated (ephemeral, dev only).
+	// LNURL_STUB: set to "true" to skip secp256k1 signature verification
+	// (CI/signet mode).
+	lnurlHandler := buildLNURLHandler(pool, logger)
+
 	// /v1/webhooks/* — admin endpoints under API-key auth.
 	// GRO-764 Phase A.3 (folds part of GRO-642).
 	dlq := domainwebhook.NewDLQ(pool)
@@ -151,6 +159,11 @@ func main() {
 	// Mounted outside audit group; the payment record IS the audit trail.
 	// GRO-752.
 	validateHandler.Mount(r)
+
+	// LNURL-auth login — wallet QR challenge/response + JWT session.
+	// Mounted outside audit group; Lightning wallet calls are read-only
+	// from an audit perspective until the session is established. GRO-753.
+	lnurlHandler.Mount(r)
 
 	// Audit middleware records every state-mutating protocol invocation
 	// into app.audit_log. Scoped to webhook routes so /health and
@@ -289,6 +302,43 @@ func buildValidateHandler(pool *pgxpool.Pool, logger *zap.Logger) *validate.Hand
 		Logger:       logger,
 		SatoshiPrice: price,
 	}
+}
+
+// buildLNURLHandler constructs the LNURL-auth handler from env vars.
+//
+// LNURL_JWT_SECRET: 64-char hex key for HS256 session JWTs. If absent or
+// invalid, a random 32-byte key is generated (ephemeral, dev only).
+// LNURL_STUB: "true" skips secp256k1 signature verification (CI/signet).
+// LNURL_SCHEME: "http" or "https" (default "https").
+// LNURL_HOST: hostname[:port] for callback URLs (default "localhost:8080").
+func buildLNURLHandler(pool *pgxpool.Pool, logger *zap.Logger) *lnurl.Handler {
+	secret := make([]byte, 32)
+	secretHex := os.Getenv("LNURL_JWT_SECRET")
+	if secretHex != "" {
+		decoded, err := hex.DecodeString(secretHex)
+		if err != nil || len(decoded) != 32 {
+			logger.Warn("LNURL_JWT_SECRET invalid; generating ephemeral random key",
+				zap.String("hint", "set LNURL_JWT_SECRET to a 64-char hex string for production"))
+		} else {
+			copy(secret, decoded)
+		}
+	} else {
+		_, _ = cryptoRand.Read(secret)
+		logger.Warn("LNURL_JWT_SECRET not set; using ephemeral random key (dev only)")
+	}
+
+	stub := os.Getenv("LNURL_STUB") == "true"
+
+	scheme := os.Getenv("LNURL_SCHEME")
+	if scheme == "" {
+		scheme = "https"
+	}
+	host := os.Getenv("LNURL_HOST")
+	if host == "" {
+		host = "localhost:8080"
+	}
+
+	return lnurl.NewHandler(pool, secret, stub, scheme, host, logger)
 }
 
 // requestLogger is a small middleware that emits a structured zap line
