@@ -25,6 +25,7 @@ Valkey:  DB 2 on growdirect_valkey :6379
 ## Service ports (go-module-layout.md)
 identity :8086 · tsp :8080 · chirp :8081 · hawk :8082 · fox :8083 · owl :8084
 bull :8085 · alert :8087 · analytics :8088 · asset :8089 · item :8090
+customer :8091 · employee :8092 · returns :8093 · report :8094
 
 ## SDDs (read before touching a service)
 `docs/sdds/go-handoff/` — data-model.md, go-module-layout.md, microservice-architecture.md, identity.md
