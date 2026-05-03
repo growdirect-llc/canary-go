@@ -23,11 +23,13 @@ import (
 
 	"github.com/growdirect-llc/rapidpos/internal/config"
 	"github.com/growdirect-llc/rapidpos/internal/db"
+	"github.com/growdirect-llc/rapidpos/internal/identity"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/audit"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/evidence"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/secrets"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/webhook"
+	domainwebhook "github.com/growdirect-llc/rapidpos/internal/webhook"
 )
 
 const (
@@ -106,6 +108,19 @@ func main() {
 	r.Group(func(r chi.Router) {
 		r.Use(auditMW)
 		handler.Mount(r)
+	})
+
+	// /v1/webhooks/* — admin endpoints under API-key auth.
+	// GRO-764 Phase A.3 (folds part of GRO-642).
+	dlq := domainwebhook.NewDLQ(pool)
+	admin := newAdminHandlers(dlq, pub)
+	r.Group(func(r chi.Router) {
+		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
+			Pool:     pool,
+			Required: true,
+		}))
+		r.Use(auditMW)
+		admin.Mount(r)
 	})
 
 	addr := ":" + cfg.Port
