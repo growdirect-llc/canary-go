@@ -21,9 +21,18 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
+	alertPkg     "github.com/growdirect-llc/rapidpos/internal/alert"
+	analyticsPkg "github.com/growdirect-llc/rapidpos/internal/analytics"
+	assetPkg     "github.com/growdirect-llc/rapidpos/internal/asset"
+	customerPkg  "github.com/growdirect-llc/rapidpos/internal/customer"
+	employeePkg  "github.com/growdirect-llc/rapidpos/internal/employee"
+	reportPkg    "github.com/growdirect-llc/rapidpos/internal/report"
+	returnsPkg   "github.com/growdirect-llc/rapidpos/internal/returns"
+
 	"github.com/growdirect-llc/rapidpos/internal/config"
 	"github.com/growdirect-llc/rapidpos/internal/db"
 	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/growdirect-llc/rapidpos/internal/mcp"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/audit"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/evidence"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
@@ -84,6 +93,22 @@ func main() {
 	handler := webhook.New(resolver, pub, nonceStore, logger)
 	evidenceHandler := evidence.New(pool, logger)
 
+	// /v1/webhooks/* — admin endpoints under API-key auth.
+	// GRO-764 Phase A.3 (folds part of GRO-642).
+	dlq := domainwebhook.NewDLQ(pool)
+	admin := newAdminHandlers(dlq, pub)
+
+	// Build MCP tool registry over the 7 Wave D module stores. GRO-767.
+	mcpRegistry := mcp.NewRegistry()
+	mcp.RegisterAlertTools(mcpRegistry, alertPkg.NewStore(pool))
+	mcp.RegisterAnalyticsTools(mcpRegistry, analyticsPkg.NewStore(pool))
+	mcp.RegisterAssetTools(mcpRegistry, assetPkg.NewStore(pool))
+	mcp.RegisterCustomerTools(mcpRegistry, customerPkg.NewStore(pool))
+	mcp.RegisterEmployeeTools(mcpRegistry, employeePkg.NewStore(pool))
+	mcp.RegisterReturnsTools(mcpRegistry, returnsPkg.NewStore(pool))
+	mcp.RegisterReportTools(mcpRegistry, reportPkg.NewPgxStore(pool))
+	mcpHandler := mcp.New(mcpRegistry)
+
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP, middleware.Recoverer)
 	r.Use(requestLogger(logger))
@@ -110,10 +135,6 @@ func main() {
 		handler.Mount(r)
 	})
 
-	// /v1/webhooks/* — admin endpoints under API-key auth.
-	// GRO-764 Phase A.3 (folds part of GRO-642).
-	dlq := domainwebhook.NewDLQ(pool)
-	admin := newAdminHandlers(dlq, pub)
 	r.Group(func(r chi.Router) {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
 			Pool:     pool,
@@ -121,6 +142,16 @@ func main() {
 		}))
 		r.Use(auditMW)
 		admin.Mount(r)
+	})
+
+	// POST /mcp — MCP JSON-RPC 2.0 endpoint. API-key auth, tenant-scoped.
+	// 26 tools across 7 domain modules. GRO-767.
+	r.Group(func(r chi.Router) {
+		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
+			Pool:     pool,
+			Required: true,
+		}))
+		mcpHandler.Mount(r)
 	})
 
 	addr := ":" + cfg.Port
