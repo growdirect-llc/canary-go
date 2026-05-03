@@ -25,11 +25,11 @@ import (
 
 // Handler binds report endpoints onto a chi router.
 type Handler struct {
-	Store  *Store
+	Store  Storer
 	Logger *zap.Logger
 }
 
-func New(store *Store, logger *zap.Logger) *Handler {
+func New(store Storer, logger *zap.Logger) *Handler {
 	if logger == nil {
 		logger = zap.NewNop()
 	}

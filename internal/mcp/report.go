@@ -11,7 +11,7 @@ import (
 )
 
 // RegisterReportTools registers 3 report tools with the registry.
-func RegisterReportTools(reg *Registry, s *report.Store) {
+func RegisterReportTools(reg *Registry, s report.Storer) {
 	reg.Register(ToolDef{
 		Name:        "canary.report.create",
 		Description: "Enqueue a report generation job. report_type: sales_summary | return_detail | shrink. format: csv | xlsx | json.",
