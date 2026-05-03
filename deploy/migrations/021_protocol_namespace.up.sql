@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS protocol.namespace_registrations (
                      CHECK (reg_status IN ('pending','active','expired','revoked')),
     payload_hash     text        NOT NULL,          -- SHA-256 of the registration payload
     registered_at    timestamptz NOT NULL DEFAULT now(),
+    updated_at       timestamptz NOT NULL DEFAULT now(),
     expires_at       timestamptz                    -- null = perpetual
 );
 

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,19 +15,18 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/protocol/sub3"
 )
 
-// ─── stubHandlerStore ─────────────────────────────────────────────────────────
+// ─── stubStore ───────────────────────────────────────────────────────────────
 
-// stubHandlerStore satisfies both inserter and the GetByName signature
-// used by the handler so tests can run without a DB.
-type stubHandlerStore struct {
+// stubStore satisfies NamespaceStore so tests can run without a DB.
+type stubStore struct {
 	regs map[string]*Registration
 }
 
-func newStubHandlerStore() *stubHandlerStore {
-	return &stubHandlerStore{regs: make(map[string]*Registration)}
+func newStubStore() *stubStore {
+	return &stubStore{regs: make(map[string]*Registration)}
 }
 
-func (s *stubHandlerStore) Insert(_ context.Context, reg Registration) error {
+func (s *stubStore) Insert(_ context.Context, reg Registration) error {
 	if _, exists := s.regs[reg.Name]; exists {
 		return ErrNameTaken
 	}
@@ -37,7 +35,7 @@ func (s *stubHandlerStore) Insert(_ context.Context, reg Registration) error {
 	return nil
 }
 
-func (s *stubHandlerStore) GetByName(_ context.Context, name string) (*Registration, error) {
+func (s *stubStore) GetByName(_ context.Context, name string) (*Registration, error) {
 	reg, ok := s.regs[name]
 	if !ok {
 		return nil, pgx.ErrNoRows
@@ -45,110 +43,50 @@ func (s *stubHandlerStore) GetByName(_ context.Context, name string) (*Registrat
 	return reg, nil
 }
 
-// ─── testHandler ─────────────────────────────────────────────────────────────
-
-// testHandler constructs a Handler wired to stubHandlerStore so no pool
-// or real DB is needed.
-func testHandler(t *testing.T) (*Handler, *stubHandlerStore) {
-	t.Helper()
-	store := newStubHandlerStore()
-	h := &Handler{
-		store:     nil, // not used directly — we override via handlerWithStore
-		inscriber: &sub3.StubInscriber{},
-		logger:    nil,
+func (s *stubStore) GetByOwner(_ context.Context, ownerID uuid.UUID, ownerType string) ([]Registration, error) {
+	var out []Registration
+	for _, reg := range s.regs {
+		if reg.OwnerID == ownerID && reg.OwnerType == ownerType {
+			out = append(out, *reg)
+		}
 	}
-	_ = h
-	// Use the overridden handler that accepts the stub store.
-	return &Handler{
-		store:     nil,
-		inscriber: &sub3.StubInscriber{},
-		logger:    nil,
-	}, store
+	return out, nil
 }
+
+func (s *stubStore) UpdateInscription(_ context.Context, regID uuid.UUID,
+	inscriptionID, btcTxID string, blockHeight int64, status string) error {
+	for _, reg := range s.regs {
+		if reg.RegID == regID {
+			reg.InscriptionID = inscriptionID
+			reg.BtcTxID = btcTxID
+			reg.BtcBlockHeight = blockHeight
+			reg.RegStatus = status
+			return nil
+		}
+	}
+	return ErrNotFound
+}
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
 // handlerWithStub returns an http.Handler for the two namespace routes
-// backed by a stubHandlerStore, bypassing the real *Store.
-func handlerWithStub(stub *stubHandlerStore) http.Handler {
-	h := &handlerStub{
+// backed by a stubStore, bypassing the real *Store.
+func handlerWithStub(stub *stubStore) http.Handler {
+	h := &Handler{
 		store:     stub,
 		inscriber: &sub3.StubInscriber{},
+		logger:    nil,
 	}
 	r := chi.NewRouter()
-	r.Post("/v1/protocol/namespace", h.handleRegister)
-	r.Get("/v1/protocol/namespace/{name}", h.handleLookup)
+	h.Mount(r)
 	return r
-}
-
-// handlerStub mirrors Handler but uses stubHandlerStore instead of *Store.
-type handlerStub struct {
-	store     *stubHandlerStore
-	inscriber sub3.Inscriber
-}
-
-func (h *handlerStub) handleRegister(w http.ResponseWriter, r *http.Request) {
-	var req registerRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "invalid_json"})
-		return
-	}
-	if req.Name == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "missing_name"})
-		return
-	}
-	ownerID, err := uuid.Parse(req.OwnerID)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "invalid_owner_id"})
-		return
-	}
-	if req.OwnerType == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "missing_owner_type"})
-		return
-	}
-	network := req.Network
-	if network == "" {
-		network = "signet"
-	}
-
-	reg, err := register(r.Context(), h.store, h.inscriber, RegisterRequest{
-		Name:      req.Name,
-		OwnerID:   ownerID,
-		OwnerType: req.OwnerType,
-		Network:   network,
-	})
-	switch {
-	case errors.Is(err, ErrInvalidName):
-		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "invalid_name", "error": err.Error()})
-	case errors.Is(err, ErrNameTaken):
-		writeJSON(w, http.StatusConflict, map[string]string{"code": "name_taken"})
-	case err != nil:
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"code": "registration_failed"})
-	default:
-		writeJSON(w, http.StatusCreated, reg)
-	}
-}
-
-func (h *handlerStub) handleLookup(w http.ResponseWriter, r *http.Request) {
-	name := chi.URLParam(r, "name")
-	if name == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "missing_name"})
-		return
-	}
-	reg, err := h.store.GetByName(r.Context(), name)
-	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-		writeJSON(w, http.StatusNotFound, map[string]string{"code": "not_found", "name": name})
-	case err != nil:
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"code": "lookup_failed"})
-	default:
-		writeJSON(w, http.StatusOK, reg)
-	}
 }
 
 // ─── POST tests ──────────────────────────────────────────────────────────────
 
 func TestHandler_POST_201_ValidRegistration(t *testing.T) {
 	t.Parallel()
-	stub := newStubHandlerStore()
+	stub := newStubStore()
 	srv := handlerWithStub(stub)
 
 	body, _ := json.Marshal(map[string]string{
@@ -182,7 +120,7 @@ func TestHandler_POST_201_ValidRegistration(t *testing.T) {
 
 func TestHandler_POST_409_DuplicateName(t *testing.T) {
 	t.Parallel()
-	stub := newStubHandlerStore()
+	stub := newStubStore()
 	srv := handlerWithStub(stub)
 
 	ownerID := uuid.New().String()
@@ -219,7 +157,7 @@ func TestHandler_POST_409_DuplicateName(t *testing.T) {
 
 func TestHandler_POST_400_InvalidName(t *testing.T) {
 	t.Parallel()
-	stub := newStubHandlerStore()
+	stub := newStubStore()
 	srv := handlerWithStub(stub)
 
 	body, _ := json.Marshal(map[string]string{
@@ -241,7 +179,7 @@ func TestHandler_POST_400_InvalidName(t *testing.T) {
 
 func TestHandler_GET_200_ExistingName(t *testing.T) {
 	t.Parallel()
-	stub := newStubHandlerStore()
+	stub := newStubStore()
 	srv := handlerWithStub(stub)
 
 	// Register first.
@@ -278,7 +216,7 @@ func TestHandler_GET_200_ExistingName(t *testing.T) {
 
 func TestHandler_GET_404_UnknownName(t *testing.T) {
 	t.Parallel()
-	stub := newStubHandlerStore()
+	stub := newStubStore()
 	srv := handlerWithStub(stub)
 
 	getReq := httptest.NewRequest(http.MethodGet, "/v1/protocol/namespace/does-not-exist.jeffe", nil)

@@ -61,7 +61,7 @@ type inserter interface {
 // registration. Returns the new Registration. Returns ErrNameTaken if
 // the name is already registered, ErrInvalidName if the name is
 // malformed.
-func Register(ctx context.Context, store *Store, inscriber sub3.Inscriber,
+func Register(ctx context.Context, store NamespaceStore, inscriber sub3.Inscriber,
 	req RegisterRequest) (*Registration, error) {
 	return register(ctx, store, inscriber, req)
 }
@@ -143,6 +143,7 @@ func validateName(name string) error {
 		return fmt.Errorf("%w: must end in %q", ErrInvalidName, suffix)
 	}
 	label := strings.TrimSuffix(name, suffix)
+	// len() is correct here: validateName only reaches this point for ASCII-safe inputs ([a-z0-9-]).
 	if len(label) < 3 {
 		return fmt.Errorf("%w: label too short (min 3 chars before .jeffe)", ErrInvalidName)
 	}

@@ -19,7 +19,7 @@ import (
 //	POST /v1/protocol/namespace        — register a name
 //	GET  /v1/protocol/namespace/{name} — look up a registration
 type Handler struct {
-	store     *Store
+	store     NamespaceStore
 	inscriber sub3.Inscriber
 	logger    *zap.Logger
 }

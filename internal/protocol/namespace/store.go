@@ -11,6 +11,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// ErrNotFound is returned by UpdateInscription when no row matches regID.
+var ErrNotFound = errors.New("namespace: not found")
+
 // Registration is the persistent record for a .jeffe namespace claim.
 type Registration struct {
 	RegID          uuid.UUID  `json:"reg_id"`
@@ -25,7 +28,17 @@ type Registration struct {
 	RegStatus      string     `json:"reg_status"`
 	PayloadHash    string     `json:"payload_hash"`
 	RegisteredAt   time.Time  `json:"registered_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
+}
+
+// NamespaceStore is the interface callers use for all namespace DB operations.
+// *Store satisfies it; tests can supply a stub.
+type NamespaceStore interface {
+	inserter // Insert(ctx, Registration) error
+	GetByName(ctx context.Context, name string) (*Registration, error)
+	GetByOwner(ctx context.Context, ownerID uuid.UUID, ownerType string) ([]Registration, error)
+	UpdateInscription(ctx context.Context, regID uuid.UUID, inscriptionID, btcTxID string, blockHeight int64, status string) error
 }
 
 // Store wraps a pgxpool with the namespace DB operations.
@@ -46,9 +59,9 @@ func (s *Store) Insert(ctx context.Context, reg Registration) error {
 		INSERT INTO protocol.namespace_registrations
 			(reg_id, name, owner_id, owner_type, raas_uuid,
 			 inscription_id, btc_tx_id, btc_block_height,
-			 network, reg_status, payload_hash, registered_at, expires_at)
+			 network, reg_status, payload_hash, registered_at, updated_at, expires_at)
 		VALUES
-			($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		ON CONFLICT (name) DO NOTHING
 	`
 	nullableInscription := nullText(reg.InscriptionID)
@@ -62,7 +75,7 @@ func (s *Store) Insert(ctx context.Context, reg Registration) error {
 	ct, err := s.pool.Exec(ctx, q,
 		reg.RegID, reg.Name, reg.OwnerID, reg.OwnerType, reg.RaaSUUID,
 		nullableInscription, nullableTxID, nullableBlock,
-		reg.Network, reg.RegStatus, reg.PayloadHash, reg.RegisteredAt, reg.ExpiresAt,
+		reg.Network, reg.RegStatus, reg.PayloadHash, reg.RegisteredAt, reg.UpdatedAt, reg.ExpiresAt,
 	)
 	if err != nil {
 		return fmt.Errorf("namespace store insert: %w", err)
@@ -80,7 +93,7 @@ func (s *Store) GetByName(ctx context.Context, name string) (*Registration, erro
 		SELECT reg_id, name, owner_id, owner_type, raas_uuid,
 		       COALESCE(inscription_id, ''), COALESCE(btc_tx_id, ''),
 		       COALESCE(btc_block_height, 0),
-		       network, reg_status, payload_hash, registered_at, expires_at
+		       network, reg_status, payload_hash, registered_at, updated_at, expires_at
 		FROM protocol.namespace_registrations
 		WHERE name = $1
 	`
@@ -101,7 +114,7 @@ func (s *Store) GetByOwner(ctx context.Context, ownerID uuid.UUID, ownerType str
 		SELECT reg_id, name, owner_id, owner_type, raas_uuid,
 		       COALESCE(inscription_id, ''), COALESCE(btc_tx_id, ''),
 		       COALESCE(btc_block_height, 0),
-		       network, reg_status, payload_hash, registered_at, expires_at
+		       network, reg_status, payload_hash, registered_at, updated_at, expires_at
 		FROM protocol.namespace_registrations
 		WHERE owner_id = $1 AND owner_type = $2
 		ORDER BY registered_at DESC
@@ -124,7 +137,8 @@ func (s *Store) GetByOwner(ctx context.Context, ownerID uuid.UUID, ownerType str
 }
 
 // UpdateInscription writes confirmed on-chain data back after the
-// OrdinalsBot webhook confirms the inscription.
+// OrdinalsBot webhook confirms the inscription. Returns ErrNotFound if
+// no row matches regID.
 func (s *Store) UpdateInscription(ctx context.Context, regID uuid.UUID,
 	inscriptionID, btcTxID string, blockHeight int64, status string) error {
 	const q = `
@@ -132,12 +146,16 @@ func (s *Store) UpdateInscription(ctx context.Context, regID uuid.UUID,
 		SET inscription_id = $2,
 		    btc_tx_id = $3,
 		    btc_block_height = $4,
-		    reg_status = $5
+		    reg_status = $5,
+		    updated_at = now()
 		WHERE reg_id = $1
 	`
-	_, err := s.pool.Exec(ctx, q, regID, inscriptionID, btcTxID, blockHeight, status)
+	ct, err := s.pool.Exec(ctx, q, regID, inscriptionID, btcTxID, blockHeight, status)
 	if err != nil {
 		return fmt.Errorf("namespace store update_inscription: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return ErrNotFound
 	}
 	return nil
 }
@@ -159,6 +177,7 @@ func scanRegistration(row scanner) (*Registration, error) {
 		&reg.RegID, &reg.Name, &reg.OwnerID, &reg.OwnerType, &reg.RaaSUUID,
 		&reg.InscriptionID, &reg.BtcTxID, &reg.BtcBlockHeight,
 		&reg.Network, &reg.RegStatus, &reg.PayloadHash, &reg.RegisteredAt,
+		&reg.UpdatedAt,
 		&expiresAt,
 	); err != nil {
 		return nil, err
