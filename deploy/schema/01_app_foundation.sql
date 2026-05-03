@@ -99,6 +99,13 @@ CREATE TABLE IF NOT EXISTS app.merchant_settings (
     -- the de-merge UX ships in a later loop.
     de_merge_audit_visibility TEXT       NOT NULL DEFAULT 'lp_only'
                                          CHECK (de_merge_audit_visibility IN ('lp_only', 'all_internal')),
+    -- three_way_match_variance_pct — variance tolerance for the PO ↔
+    -- receipt ↔ supplier-invoice match workflow. Lines whose variance
+    -- exceeds this percentage are flagged for review rather than
+    -- auto-approved. Per GRO-764 Phase B.4 (folds part of GRO-647).
+    three_way_match_variance_pct NUMERIC(5,2) NOT NULL DEFAULT 5.00
+                                         CHECK (three_way_match_variance_pct >= 0
+                                                AND three_way_match_variance_pct <= 100),
     created_at               TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at               TIMESTAMPTZ NOT NULL DEFAULT now()
 );
