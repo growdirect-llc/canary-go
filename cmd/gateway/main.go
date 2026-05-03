@@ -11,7 +11,10 @@ package main
 
 import (
 	"context"
+	cryptoRand "crypto/rand"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 
@@ -30,6 +33,7 @@ import (
 	returnsPkg   "github.com/growdirect-llc/rapidpos/internal/returns"
 
 	"github.com/growdirect-llc/rapidpos/internal/config"
+	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
 	"github.com/growdirect-llc/rapidpos/internal/db"
 	"github.com/growdirect-llc/rapidpos/internal/identity"
 	"github.com/growdirect-llc/rapidpos/internal/mcp"
@@ -103,6 +107,12 @@ func main() {
 	inscriber := sub3.NewOrdinalsBot(os.Getenv("ORDINALSBOT_API_KEY"), "signet")
 	nsHandler := namespace.New(pool, inscriber, logger)
 
+	// L402 sat-gated Validation API — revenue surface. GRO-752.
+	// VALIDATOR_SECRET: 32-byte hex key for stub L402 HMAC. If absent,
+	// a random key is generated at startup (stub mode, not production-safe).
+	// VALIDATOR_SATOSHI_PRICE: sat price per proof (default 100).
+	validateHandler := buildValidateHandler(pool, logger)
+
 	// /v1/webhooks/* — admin endpoints under API-key auth.
 	// GRO-764 Phase A.3 (folds part of GRO-642).
 	dlq := domainwebhook.NewDLQ(pool)
@@ -136,6 +146,11 @@ func main() {
 	// carries its own payload_hash + inscription_id as the audit
 	// trail. GRO-751.
 	nsHandler.Mount(r)
+
+	// L402 sat-gated verification — POST issues challenge, GET consumes.
+	// Mounted outside audit group; the payment record IS the audit trail.
+	// GRO-752.
+	validateHandler.Mount(r)
 
 	// Audit middleware records every state-mutating protocol invocation
 	// into app.audit_log. Scoped to webhook routes so /health and
@@ -237,6 +252,43 @@ func buildResolver(ctx context.Context, pool *pgxpool.Pool, logger *zap.Logger) 
 		zap.String("project_id", projectID),
 	)
 	return smResolver
+}
+
+// buildValidateHandler constructs the L402 validation handler from env vars.
+//
+// VALIDATOR_SECRET: 32-byte hex key. If absent or invalid, a random key
+// is generated and a warning is logged (stub/dev mode only).
+// VALIDATOR_SATOSHI_PRICE: satoshi price per proof verification (default 100).
+func buildValidateHandler(pool *pgxpool.Pool, logger *zap.Logger) *validate.Handler {
+	secret := make([]byte, 32)
+	secretHex := os.Getenv("VALIDATOR_SECRET")
+	if secretHex != "" {
+		decoded, err := hex.DecodeString(secretHex)
+		if err != nil || len(decoded) != 32 {
+			logger.Warn("VALIDATOR_SECRET invalid; generating random key (stub mode)",
+				zap.String("hint", "set VALIDATOR_SECRET to a 64-char hex string for production"))
+		} else {
+			copy(secret, decoded)
+		}
+	} else {
+		_, _ = cryptoRand.Read(secret)
+		logger.Warn("VALIDATOR_SECRET not set; using ephemeral random key (stub mode only)")
+	}
+
+	price := int64(100)
+	if priceStr := os.Getenv("VALIDATOR_SATOSHI_PRICE"); priceStr != "" {
+		var p int64
+		if _, err := fmt.Sscanf(priceStr, "%d", &p); err == nil && p > 0 {
+			price = p
+		}
+	}
+
+	return &validate.Handler{
+		Store:        validate.NewPgxStore(pool),
+		L402:         &validate.StubL402{Secret: secret},
+		Logger:       logger,
+		SatoshiPrice: price,
+	}
 }
 
 // requestLogger is a small middleware that emits a structured zap line
