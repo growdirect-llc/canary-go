@@ -29,10 +29,14 @@ bull :8085 · alert :8087 · analytics :8088 · asset :8089 · item :8090
 ## SDDs (read before touching a service)
 `docs/sdds/go-handoff/` — data-model.md, go-module-layout.md, microservice-architecture.md, identity.md
 
-## sqlc
+## sqlc rule (amended 2026-05-03 — Loop 4 Wave A Phase A.1)
+- Read paths: direct pgx + inline SQL is acceptable
+- Simple writes (single INSERT/UPDATE/DELETE): direct pgx acceptable
+- Complex writes (multi-statement tx, cross-table, ≥3 callers): SHOULD use sqlc
 - Input queries: `internal/db/sqlc/<service>.sql`
 - Generated output: `internal/db/query/<service>/` — do not hand-edit
 - Run: `make sqlc-gen` (requires sqlc binary installed)
+- Full convention: `docs/conventions.md`
 
 ## Migrations
 - Path: `deploy/migrations/` (flat numbered, 001–014 for M1)
