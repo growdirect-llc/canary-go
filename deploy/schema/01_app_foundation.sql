@@ -89,6 +89,16 @@ CREATE TABLE IF NOT EXISTS app.merchant_settings (
     notif_phone              TEXT,
     theme                    TEXT,
     show_employee_names      BOOLEAN     NOT NULL DEFAULT false,
+    -- de_merge_audit_visibility — controls who can read the audit
+    -- trail of de-duplicated party / customer merges. 'lp_only' (the
+    -- default) restricts visibility to LP-tier roles + auditor; the
+    -- party-module de-merge UX returns 403 to other internal roles.
+    -- 'all_internal' opens the trail to every authenticated tenant
+    -- user. Per OQ Resolution Pack §A.1 OQ-1.4 (founder-approved
+    -- 2026-05-03 per GRO-762). Handler-level enforcement lands when
+    -- the de-merge UX ships in a later loop.
+    de_merge_audit_visibility TEXT       NOT NULL DEFAULT 'lp_only'
+                                         CHECK (de_merge_audit_visibility IN ('lp_only', 'all_internal')),
     created_at               TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at               TIMESTAMPTZ NOT NULL DEFAULT now()
 );
