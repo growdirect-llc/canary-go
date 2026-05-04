@@ -2,8 +2,8 @@
 -- Source: docs/sdds/go-handoff/canonical-data-model.md §5 (lines 1476-1875)
 -- Schemas: c, e
 
--- c.customers — Customer master (sparse-by-default; supports anonymous walk-in through B2B accounts)
-CREATE TABLE c.customers (
+-- customer.customers — Customer master (sparse-by-default; supports anonymous walk-in through B2B accounts)
+CREATE TABLE customer.customers (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id       uuid NOT NULL REFERENCES app.tenants(id),
   customer_code   text,                                  -- merchant-assigned (loyalty number, account number); nullable for anonymous walk-in
@@ -19,25 +19,25 @@ CREATE TABLE c.customers (
   primary_address jsonb DEFAULT '{}',                    -- {line1, line2, city, region, postal_code, country}
   attributes      jsonb NOT NULL DEFAULT '{}',           -- demographics, segments, merchant-defined
   status          text NOT NULL DEFAULT 'active',        -- active | inactive | suppressed | merged
-  merged_into     uuid REFERENCES c.customers(id),       -- for dedup / merge events
+  merged_into     uuid REFERENCES customer.customers(id),       -- for dedup / merge events
   external_ids    jsonb DEFAULT '{}',                    -- {pos_native_id, square_id, stripe_customer_id, etc.}
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, customer_code) DEFERRABLE INITIALLY DEFERRED
 );
 
-CREATE INDEX idx_customers_tenant ON c.customers(tenant_id);
-CREATE INDEX idx_customers_email ON c.customers(tenant_id, lower(email)) WHERE email IS NOT NULL AND status = 'active';
-CREATE INDEX idx_customers_phone ON c.customers(tenant_id, phone) WHERE phone IS NOT NULL AND status = 'active';
-CREATE INDEX idx_customers_status ON c.customers(status) WHERE status != 'active';
-CREATE INDEX idx_customers_attributes ON c.customers USING gin(attributes);
-CREATE INDEX idx_customers_external_ids ON c.customers USING gin(external_ids);
+CREATE INDEX idx_customers_tenant ON customer.customers(tenant_id);
+CREATE INDEX idx_customers_email ON customer.customers(tenant_id, lower(email)) WHERE email IS NOT NULL AND status = 'active';
+CREATE INDEX idx_customers_phone ON customer.customers(tenant_id, phone) WHERE phone IS NOT NULL AND status = 'active';
+CREATE INDEX idx_customers_status ON customer.customers(status) WHERE status != 'active';
+CREATE INDEX idx_customers_attributes ON customer.customers USING gin(attributes);
+CREATE INDEX idx_customers_external_ids ON customer.customers USING gin(external_ids);
 
--- c.customer_addresses — Multi-address per customer (B2B ship-to, billing, mailing)
-CREATE TABLE c.customer_addresses (
+-- customer.customer_addresses — Multi-address per customer (B2B ship-to, billing, mailing)
+CREATE TABLE customer.customer_addresses (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id       uuid NOT NULL REFERENCES app.tenants(id),
-  customer_id     uuid NOT NULL REFERENCES c.customers(id) ON DELETE CASCADE,
+  customer_id     uuid NOT NULL REFERENCES customer.customers(id) ON DELETE CASCADE,
   address_type    text NOT NULL DEFAULT 'shipping',      -- shipping | billing | mailing | service | pickup
   recipient_name  text,
   line_1          text NOT NULL,
@@ -56,15 +56,15 @@ CREATE TABLE c.customer_addresses (
   CONSTRAINT one_default_per_type EXCLUDE (customer_id WITH =, address_type WITH =) WHERE (is_default = true AND status = 'active')
 );
 
-CREATE INDEX idx_addresses_tenant ON c.customer_addresses(tenant_id);
-CREATE INDEX idx_addresses_customer ON c.customer_addresses(customer_id);
-CREATE INDEX idx_addresses_type_default ON c.customer_addresses(customer_id, address_type) WHERE is_default = true;
+CREATE INDEX idx_addresses_tenant ON customer.customer_addresses(tenant_id);
+CREATE INDEX idx_addresses_customer ON customer.customer_addresses(customer_id);
+CREATE INDEX idx_addresses_type_default ON customer.customer_addresses(customer_id, address_type) WHERE is_default = true;
 
--- c.loyalty_memberships — Loyalty membership (multi-program, denormalized points balance)
-CREATE TABLE c.loyalty_memberships (
+-- customer.loyalty_memberships — Loyalty membership (multi-program, denormalized points balance)
+CREATE TABLE customer.loyalty_memberships (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id           uuid NOT NULL REFERENCES app.tenants(id),
-  customer_id         uuid NOT NULL REFERENCES c.customers(id) ON DELETE CASCADE,
+  customer_id         uuid NOT NULL REFERENCES customer.customers(id) ON DELETE CASCADE,
   program_code        text NOT NULL DEFAULT 'default',   -- merchant may run multiple programs
   membership_number   text NOT NULL,                     -- the loyalty card / member ID
   enrollment_date     date NOT NULL DEFAULT CURRENT_DATE,
@@ -82,13 +82,13 @@ CREATE TABLE c.loyalty_memberships (
   UNIQUE (tenant_id, customer_id, program_code)            -- one membership per customer per program
 );
 
-CREATE INDEX idx_loyalty_tenant ON c.loyalty_memberships(tenant_id);
-CREATE INDEX idx_loyalty_customer ON c.loyalty_memberships(customer_id);
-CREATE INDEX idx_loyalty_member_lookup ON c.loyalty_memberships(tenant_id, membership_number) WHERE status = 'active';
-CREATE INDEX idx_loyalty_tier ON c.loyalty_memberships(tier) WHERE status = 'active';
+CREATE INDEX idx_loyalty_tenant ON customer.loyalty_memberships(tenant_id);
+CREATE INDEX idx_loyalty_customer ON customer.loyalty_memberships(customer_id);
+CREATE INDEX idx_loyalty_member_lookup ON customer.loyalty_memberships(tenant_id, membership_number) WHERE status = 'active';
+CREATE INDEX idx_loyalty_tier ON customer.loyalty_memberships(tier) WHERE status = 'active';
 
--- e.employees — Employee master (no pay rate stored; nullable user_id for cashiers without login)
-CREATE TABLE e.employees (
+-- employee.employees — Employee master (no pay rate stored; nullable user_id for cashiers without login)
+CREATE TABLE employee.employees (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id           uuid NOT NULL REFERENCES app.tenants(id),
   user_id             uuid REFERENCES app.users(id),         -- if employee has a Canary login (managers, supervisors); nullable for cashiers without login
@@ -109,16 +109,16 @@ CREATE TABLE e.employees (
   UNIQUE (tenant_id, employee_code)
 );
 
-CREATE INDEX idx_employees_tenant ON e.employees(tenant_id);
-CREATE INDEX idx_employees_user ON e.employees(user_id) WHERE user_id IS NOT NULL;
-CREATE INDEX idx_employees_status ON e.employees(employment_status) WHERE employment_status != 'active';
-CREATE INDEX idx_employees_external_ids ON e.employees USING gin(external_ids);
+CREATE INDEX idx_employees_tenant ON employee.employees(tenant_id);
+CREATE INDEX idx_employees_user ON employee.employees(user_id) WHERE user_id IS NOT NULL;
+CREATE INDEX idx_employees_status ON employee.employees(employment_status) WHERE employment_status != 'active';
+CREATE INDEX idx_employees_external_ids ON employee.employees USING gin(external_ids);
 
--- e.employee_role_assignments — Effective-dated role assignments (cashier, manager, etc.)
-CREATE TABLE e.employee_role_assignments (
+-- employee.employee_role_assignments — Effective-dated role assignments (cashier, manager, etc.)
+CREATE TABLE employee.employee_role_assignments (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id       uuid NOT NULL REFERENCES app.tenants(id),
-  employee_id     uuid NOT NULL REFERENCES e.employees(id) ON DELETE CASCADE,
+  employee_id     uuid NOT NULL REFERENCES employee.employees(id) ON DELETE CASCADE,
   role_code       text NOT NULL,                              -- cashier | shift_lead | manager | gm | inventory_lead | etc.
   effective_start date NOT NULL DEFAULT CURRENT_DATE,
   effective_end   date,                                       -- NULL = current
@@ -128,16 +128,16 @@ CREATE TABLE e.employee_role_assignments (
   UNIQUE (tenant_id, employee_id, role_code, effective_start)
 );
 
-CREATE INDEX idx_emp_roles_tenant ON e.employee_role_assignments(tenant_id);
-CREATE INDEX idx_emp_roles_employee ON e.employee_role_assignments(employee_id);
-CREATE INDEX idx_emp_roles_active ON e.employee_role_assignments(employee_id, role_code) WHERE effective_end IS NULL;
+CREATE INDEX idx_emp_roles_tenant ON employee.employee_role_assignments(tenant_id);
+CREATE INDEX idx_emp_roles_employee ON employee.employee_role_assignments(employee_id);
+CREATE INDEX idx_emp_roles_active ON employee.employee_role_assignments(employee_id, role_code) WHERE effective_end IS NULL;
 
--- e.employee_location_assignments — Effective-dated employee-to-location with single-primary EXCLUDE
-CREATE TABLE e.employee_location_assignments (
+-- employee.employee_location_assignments — Effective-dated employee-to-location with single-primary EXCLUDE
+CREATE TABLE employee.employee_location_assignments (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id       uuid NOT NULL REFERENCES app.tenants(id),
-  employee_id     uuid NOT NULL REFERENCES e.employees(id) ON DELETE CASCADE,
-  location_id     uuid NOT NULL REFERENCES l.locations(id) ON DELETE CASCADE,
+  employee_id     uuid NOT NULL REFERENCES employee.employees(id) ON DELETE CASCADE,
+  location_id     uuid NOT NULL REFERENCES location.locations(id) ON DELETE CASCADE,
   assignment_type text NOT NULL DEFAULT 'home',                 -- home | rotating | temporary | floating
   effective_start date NOT NULL DEFAULT CURRENT_DATE,
   effective_end   date,
@@ -149,7 +149,7 @@ CREATE TABLE e.employee_location_assignments (
   CONSTRAINT one_primary_per_employee EXCLUDE (employee_id WITH =) WHERE (is_primary = true AND effective_end IS NULL)
 );
 
-CREATE INDEX idx_emp_loc_tenant ON e.employee_location_assignments(tenant_id);
-CREATE INDEX idx_emp_loc_employee ON e.employee_location_assignments(employee_id);
-CREATE INDEX idx_emp_loc_location ON e.employee_location_assignments(location_id);
-CREATE INDEX idx_emp_loc_active ON e.employee_location_assignments(employee_id, location_id) WHERE effective_end IS NULL;
+CREATE INDEX idx_emp_loc_tenant ON employee.employee_location_assignments(tenant_id);
+CREATE INDEX idx_emp_loc_employee ON employee.employee_location_assignments(employee_id);
+CREATE INDEX idx_emp_loc_location ON employee.employee_location_assignments(location_id);
+CREATE INDEX idx_emp_loc_active ON employee.employee_location_assignments(employee_id, location_id) WHERE effective_end IS NULL;

@@ -30,7 +30,7 @@ CREATE INDEX IF NOT EXISTS idx_organizations_is_active ON app.organizations (is_
 -- ─────────────────────────────────────────────────────────────────────
 -- app.tenants — promoted per canonical §10
 -- The single multi-tenant boundary that every canonical retail-spine
--- entity FKs to (m.*, l.*, s.*, c.*, e.*, i.*, o.*, p.*, f.*, t.*, q.*, ledger.*).
+-- entity FKs to (catalog.*, location.*, space.*, customer.*, employee.*, inventory.*, orders.*, pricing.*, finance.*, transaction.*, detection.*, ledger.*).
 -- 1:1 with app.merchants for now (seeded in 99_seed.sql).
 -- ─────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS app.tenants (
@@ -155,7 +155,7 @@ CREATE TABLE IF NOT EXISTS app.user_roles (
 
 -- ─────────────────────────────────────────────────────────────────────
 -- app.locations + app.employees + links + assignments
--- (Current Canary tables. Canonical §4 adds parallel l.locations for
+-- (Current Canary tables. Canonical §4 adds parallel location.locations for
 -- richer ARTS-anchored modeling; both coexist for now.)
 -- ─────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS app.locations (

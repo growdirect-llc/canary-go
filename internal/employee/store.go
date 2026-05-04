@@ -1,7 +1,7 @@
 // internal/employee/store.go
 //
-// pgx-backed employee store. Reads e.employees and aggregates over
-// q.detections (cashier_employee_id) for the alert summary view.
+// pgx-backed employee store. Reads employee.employees and aggregates over
+// detection.detections (cashier_employee_id) for the alert summary view.
 //
 // Spec: GRO-766 Phase D.
 
@@ -51,7 +51,7 @@ func (s *Store) List(ctx context.Context, f ListFilters) ([]EmployeeDTO, error) 
 	}
 	args := []any{f.TenantID}
 	q := `SELECT` + employeeCols + `
-		FROM e.employees e
+		FROM employee.employees e
 		WHERE e.tenant_id = $1`
 
 	if f.EmploymentStatus != "" {
@@ -88,7 +88,7 @@ func (s *Store) List(ctx context.Context, f ListFilters) ([]EmployeeDTO, error) 
 // GetByID returns a single employee.
 func (s *Store) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*EmployeeDTO, error) {
 	q := `SELECT` + employeeCols + `
-		FROM e.employees e
+		FROM employee.employees e
 		WHERE e.tenant_id = $1 AND e.id = $2`
 	row := s.pool.QueryRow(ctx, q, tenantID, id)
 	e, err := scanEmployee(row)
@@ -112,8 +112,8 @@ func (s *Store) AlertSummaries(ctx context.Context, tenantID uuid.UUID) ([]Alert
 		    COUNT(d.id) FILTER (WHERE d.status = 'acknowledged')  AS acked_alerts,
 		    COUNT(d.id) FILTER (WHERE d.severity = 'critical')    AS critical_count,
 		    COUNT(d.id) FILTER (WHERE d.severity = 'high')        AS high_count
-		FROM e.employees e
-		JOIN q.detections d ON d.cashier_employee_id = e.id
+		FROM employee.employees e
+		JOIN detection.detections d ON d.cashier_employee_id = e.id
 		WHERE e.tenant_id = $1
 		  AND d.tenant_id = $1
 		GROUP BY e.id, e.employee_code, e.display_name

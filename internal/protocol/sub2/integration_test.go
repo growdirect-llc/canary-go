@@ -3,8 +3,8 @@
 // Integration test for Sub 2 (Parse & Route) — patent Application
 // 63/991,596 Node 4. Wires the real stack: Postgres + Valkey Streams +
 // the worker + the adapter registry with both Square and Counterpoint
-// reference parsers. The substrate proof is a single t.transactions
-// row populated from a Square envelope AND a single t.transactions
+// reference parsers. The substrate proof is a single transaction.transactions
+// row populated from a Square envelope AND a single transaction.transactions
 // row populated from a Counterpoint envelope, both routed through the
 // same dispatcher.
 //
@@ -51,7 +51,7 @@ func skipIfNoIntegration(t *testing.T) (dbURL, valkeyURL string) {
 	return
 }
 
-// seedTenantWithLocation inserts org → tenant → merchant → l.locations
+// seedTenantWithLocation inserts org → tenant → merchant → location.locations
 // row. Returns merchantID, tenantID, locationCode, and a cleanup func.
 func seedTenantWithLocation(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (uuid.UUID, uuid.UUID, string, func()) {
 	t.Helper()
@@ -78,16 +78,16 @@ func seedTenantWithLocation(t *testing.T, ctx context.Context, pool *pgxpool.Poo
 	exec(`INSERT INTO app.merchants (id, organization_id, tenant_id, source_merchant_id, merchant_name)
 	       VALUES ($1, $2, $3, $4, 'GRO-761 Sub2 IT Merchant')`,
 		merchantID, orgID, tenantID, sourceMerchantID)
-	exec(`INSERT INTO l.locations (id, tenant_id, location_code, name, location_type)
+	exec(`INSERT INTO location.locations (id, tenant_id, location_code, name, location_type)
 	       VALUES ($1, $2, $3, 'Sub2 IT Location', 'store')`,
 		locationID, tenantID, locationCode)
 
 	cleanup := func() {
 		// In dependency order. Triggers don't block t.* rows.
-		_, _ = pool.Exec(ctx, `DELETE FROM t.transaction_tenders WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx, `DELETE FROM t.transaction_line_items WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx, `DELETE FROM t.transactions WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx, `DELETE FROM l.locations WHERE id = $1`, locationID)
+		_, _ = pool.Exec(ctx, `DELETE FROM transaction.transaction_tenders WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx, `DELETE FROM transaction.transaction_line_items WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx, `DELETE FROM transaction.transactions WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx, `DELETE FROM location.locations WHERE id = $1`, locationID)
 		_, _ = pool.Exec(ctx, `DELETE FROM app.merchants WHERE id = $1`, merchantID)
 		_, _ = pool.Exec(ctx, `DELETE FROM app.tenants WHERE id = $1`, tenantID)
 		_, _ = pool.Exec(ctx, `DELETE FROM app.organizations WHERE id = $1`, orgID)
@@ -211,7 +211,7 @@ func TestIntegration_Sub2_BothAdaptersLandInSameTable(t *testing.T) {
 	// adapter X?").
 	rows, err := pool.Query(ctx, `
 		SELECT transaction_number, transaction_type, grand_total, external_ids
-		FROM t.transactions
+		FROM transaction.transactions
 		WHERE tenant_id = $1
 		ORDER BY transaction_number
 	`, tenantID)
@@ -271,7 +271,7 @@ func TestIntegration_Sub2_BothAdaptersLandInSameTable(t *testing.T) {
 		t.Errorf("Counterpoint row external_ids missing counterpoint_document_number: %s", cp.extIDs)
 	}
 
-	t.Logf("substrate proven: 2 sources → 2 rows in t.transactions, dispatched by SourceCode")
+	t.Logf("substrate proven: 2 sources → 2 rows in transaction.transactions, dispatched by SourceCode")
 
 	// Cleanup the stream
 	_, _ = rdb.Del(ctx, stream).Result()
@@ -325,7 +325,7 @@ func TestIntegration_Sub2_UnknownSource_AcksAndDoesNotPersist(t *testing.T) {
 
 	var count int
 	if err := pool.QueryRow(ctx,
-		`SELECT count(*) FROM t.transactions WHERE tenant_id = $1`,
+		`SELECT count(*) FROM transaction.transactions WHERE tenant_id = $1`,
 		tenantID).Scan(&count); err != nil {
 		t.Fatalf("count: %v", err)
 	}

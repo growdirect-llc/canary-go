@@ -1,7 +1,7 @@
 // internal/alert/store.go
 //
-// pgx-backed alert store. Reads and mutates q.detections — the
-// canonical alert surface. JOINs q.detection_rules for the enriched
+// pgx-backed alert store. Reads and mutates detection.detections — the
+// canonical alert surface. JOINs detection.detection_rules for the enriched
 // wire shape (rule_code, rule_category).
 //
 // Spec: GRO-766 Phase A.1.
@@ -62,8 +62,8 @@ func scanAlert(row interface{ Scan(dest ...any) error }) (*AlertDTO, error) {
 // GetByID returns a single detection row enriched with rule metadata.
 func (s *Store) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*AlertDTO, error) {
 	q := `SELECT ` + selectCols + `
-	        FROM q.detections d
-	        JOIN q.detection_rules r ON r.id = d.rule_id
+	        FROM detection.detections d
+	        JOIN detection.detection_rules r ON r.id = d.rule_id
 	       WHERE d.tenant_id = $1 AND d.id = $2`
 	row := s.pool.QueryRow(ctx, q, tenantID, id)
 	a, err := scanAlert(row)
@@ -84,8 +84,8 @@ func (s *Store) List(ctx context.Context, f ListFilters) ([]AlertDTO, error) {
 	}
 	args := []any{f.TenantID}
 	q := `SELECT ` + selectCols + `
-	        FROM q.detections d
-	        JOIN q.detection_rules r ON r.id = d.rule_id
+	        FROM detection.detections d
+	        JOIN detection.detection_rules r ON r.id = d.rule_id
 	       WHERE d.tenant_id = $1`
 
 	if f.Severity != "" {
@@ -129,7 +129,7 @@ func (s *Store) List(ctx context.Context, f ListFilters) ([]AlertDTO, error) {
 func (s *Store) Acknowledge(ctx context.Context, tenantID, id, byUserID uuid.UUID) (*AlertDTO, error) {
 	now := time.Now().UTC()
 	const q = `
-		UPDATE q.detections
+		UPDATE detection.detections
 		   SET status = 'acknowledged',
 		       acknowledged_at = $3,
 		       acknowledged_by = $4
@@ -156,7 +156,7 @@ func (s *Store) Acknowledge(ctx context.Context, tenantID, id, byUserID uuid.UUI
 // Resolve dismisses a detection with a disposition label.
 func (s *Store) Resolve(ctx context.Context, tenantID, id uuid.UUID, req ResolveRequest) (*AlertDTO, error) {
 	const q = `
-		UPDATE q.detections
+		UPDATE detection.detections
 		   SET status = 'dismissed',
 		       attributes = attributes || jsonb_build_object(
 		           'disposition', $3::text,
@@ -187,7 +187,7 @@ func (s *Store) Suppress(ctx context.Context, tenantID, id uuid.UUID, req Suppre
 		suppressedUntil = &t
 	}
 	const q = `
-		UPDATE q.detections
+		UPDATE detection.detections
 		   SET status = 'dismissed',
 		       attributes = attributes || jsonb_build_object(
 		           'suppressed', true,
@@ -214,8 +214,8 @@ func (s *Store) Suppress(ctx context.Context, tenantID, id uuid.UUID, req Suppre
 func (s *Store) Stats(ctx context.Context, tenantID uuid.UUID) ([]AlertStatsRow, error) {
 	const q = `
 		SELECT r.rule_category, d.severity, d.status, COUNT(*) AS cnt
-		  FROM q.detections d
-		  JOIN q.detection_rules r ON r.id = d.rule_id
+		  FROM detection.detections d
+		  JOIN detection.detection_rules r ON r.id = d.rule_id
 		 WHERE d.tenant_id = $1
 		 GROUP BY r.rule_category, d.severity, d.status
 		 ORDER BY r.rule_category, d.severity, d.status`

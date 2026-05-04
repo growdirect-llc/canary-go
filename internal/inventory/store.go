@@ -1,6 +1,6 @@
 // internal/inventory/store.go
 //
-// pgx-backed access to i.inventory_positions and i.inventory_movements.
+// pgx-backed access to inventory.inventory_positions and inventory.inventory_movements.
 //
 // Loop 2 dispatch override: direct pgx + raw SQL. The CanaryGo CLAUDE.md
 // rule "all queries go through sqlc" is paused for Loop 2 — sqlc retrofit
@@ -60,7 +60,7 @@ func (s *Store) GetPosition(ctx context.Context, tenantID, itemID, locationID uu
 		       on_order_quantity::text, in_transit_quantity::text,
 		       last_movement_at, last_count_at, cost_basis::text,
 		       attributes, status, created_at, updated_at
-		  FROM i.inventory_positions
+		  FROM inventory.inventory_positions
 		 WHERE tenant_id = $1
 		   AND item_id = $2
 		   AND location_id = $3
@@ -90,7 +90,7 @@ func (s *Store) ListPositions(ctx context.Context, tenantID uuid.UUID, locationI
 		       on_order_quantity::text, in_transit_quantity::text,
 		       last_movement_at, last_count_at, cost_basis::text,
 		       attributes, status, created_at, updated_at
-		  FROM i.inventory_positions
+		  FROM inventory.inventory_positions
 		 WHERE tenant_id = $1`
 
 	args := []any{tenantID}
@@ -128,8 +128,8 @@ func (s *Store) ListPositions(ctx context.Context, tenantID uuid.UUID, locationI
 	return out, nil
 }
 
-// AppendMovement INSERTs a new row into i.inventory_movements and
-// updates the matching i.inventory_positions row in a single transaction.
+// AppendMovement INSERTs a new row into inventory.inventory_movements and
+// updates the matching inventory.inventory_positions row in a single transaction.
 // Returns the persisted movement and the new position.
 //
 // If no position row exists for (tenant, item, location, zone=NULL),
@@ -145,7 +145,7 @@ func (s *Store) AppendMovement(ctx context.Context, req AppendMovementRequest, m
 
 	movID := uuid.New()
 	const insertQ = `
-		INSERT INTO i.inventory_movements
+		INSERT INTO inventory.inventory_movements
 		    (id, tenant_id, item_id, location_id, zone_id, lot_id,
 		     movement_type, quantity_delta, movement_at,
 		     source_document_id, source_transaction_id,
@@ -180,16 +180,16 @@ func (s *Store) AppendMovement(ctx context.Context, req AppendMovementRequest, m
 	// (tenant_id, item_id, location_id, zone_id) to add the delta atomically.
 	// Cost-basis is updated if provided; otherwise left untouched.
 	const upsertQ = `
-		INSERT INTO i.inventory_positions
+		INSERT INTO inventory.inventory_positions
 		    (tenant_id, item_id, location_id, zone_id,
 		     on_hand_quantity, last_movement_at, cost_basis)
 		VALUES ($1, $2, $3, NULL,
 		        $4::numeric, $5, $6::numeric)
 		ON CONFLICT (tenant_id, item_id, location_id, zone_id)
 		DO UPDATE SET
-		    on_hand_quantity = i.inventory_positions.on_hand_quantity + EXCLUDED.on_hand_quantity,
+		    on_hand_quantity = inventory.inventory_positions.on_hand_quantity + EXCLUDED.on_hand_quantity,
 		    last_movement_at = EXCLUDED.last_movement_at,
-		    cost_basis       = COALESCE(EXCLUDED.cost_basis, i.inventory_positions.cost_basis),
+		    cost_basis       = COALESCE(EXCLUDED.cost_basis, inventory.inventory_positions.cost_basis),
 		    updated_at       = now()
 		RETURNING id, tenant_id, item_id, location_id, zone_id,
 		          on_hand_quantity::text, reserved_quantity::text,
@@ -223,7 +223,7 @@ func (s *Store) ListMovements(ctx context.Context, tenantID, itemID, locationID 
 		       source_transaction_id, reason_code, reference,
 		       performed_by_user_id, performed_by_employee_id,
 		       cost_basis::text, attributes, created_at
-		  FROM i.inventory_movements
+		  FROM inventory.inventory_movements
 		 WHERE tenant_id = $1
 		   AND item_id = $2
 		   AND location_id = $3`

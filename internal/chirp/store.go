@@ -60,7 +60,7 @@ const sqlLoadRules = `
 SELECT id, tenant_id, rule_code, name, description, rule_category,
        rule_definition, severity, status, evaluation_frequency,
        attributes, created_at, updated_at
-FROM   q.detection_rules
+FROM   detection.detection_rules
 WHERE  tenant_id = $1
   AND  status = 'active'
   AND  ($2 = '' OR evaluation_frequency = $2)
@@ -99,7 +99,7 @@ func (s *PgxStore) ListRules(ctx context.Context, tenantID uuid.UUID) ([]Rule, e
 SELECT id, tenant_id, rule_code, name, description, rule_category,
        rule_definition, severity, status, evaluation_frequency,
        attributes, created_at, updated_at
-FROM   q.detection_rules
+FROM   detection.detection_rules
 WHERE  tenant_id = $1
 ORDER BY rule_code
 `
@@ -132,7 +132,7 @@ SELECT id, tenant_id, transaction_number, transaction_type,
        currency, channel, pos_software_version, is_training_mode,
        is_offline, is_reentered, is_suspended, void_reason,
        attributes, external_ids, created_at, updated_at
-FROM   t.transactions
+FROM   transaction.transactions
 WHERE  id = $1
 `
 
@@ -166,7 +166,7 @@ SELECT id, tenant_id, transaction_id, line_number, item_id,
        category_id, zone_id, lot_id, inventory_movement_id,
        is_void, void_reason, is_return, return_reason,
        is_weighable, is_food_stamp_eligible, attributes, created_at
-FROM   t.transaction_line_items
+FROM   transaction.transaction_line_items
 WHERE  transaction_id = $1
 ORDER BY line_number
 `
@@ -201,7 +201,7 @@ SELECT id, tenant_id, transaction_id, discount_sequence, scope,
        line_item_id, discount_type, source_promotion_id, promotion_rule_id,
        amount, percentage, reason_code, authorized_by_employee_id,
        attributes, created_at
-FROM   t.transaction_discounts
+FROM   transaction.transaction_discounts
 WHERE  transaction_id = $1
 ORDER BY discount_sequence
 `
@@ -232,7 +232,7 @@ const sqlLoadCashierActions = `
 SELECT id, tenant_id, transaction_id, location_id, cashier_employee_id,
        pos_terminal_id, action_type, performed_at,
        authorized_by_employee_id, details, attributes, created_at
-FROM   t.cashier_actions
+FROM   transaction.cashier_actions
 WHERE  cashier_employee_id = $1
   AND  performed_at >= $2
   AND  performed_at <= $3
@@ -271,7 +271,7 @@ const sqlLoadDrawerEvents = `
 SELECT id, tenant_id, location_id, pos_terminal_id, cashier_employee_id,
        event_type, event_at, expected_amount, counted_amount, variance,
        reason, paid_in_out_amount, reference, attributes, created_at
-FROM   t.cash_drawer_events
+FROM   transaction.cash_drawer_events
 WHERE  location_id = $1
   AND  ($2::text IS NULL OR pos_terminal_id = $2)
   AND  event_at >= $3
@@ -309,10 +309,10 @@ func (s *PgxStore) loadDrawerEvents(
 	return out, rows.Err()
 }
 
-const sqlLoadLocationConfig = `SELECT operating_hours, timezone FROM l.locations WHERE id = $1`
+const sqlLoadLocationConfig = `SELECT operating_hours, timezone FROM location.locations WHERE id = $1`
 
 // loadLocationConfig fetches the operating_hours JSONB blob and the
-// IANA timezone identifier (l.locations.timezone, RFC 6557) for a
+// IANA timezone identifier (location.locations.timezone, RFC 6557) for a
 // location in one round-trip. Both are evaluator inputs; loading
 // together saves a query per transaction.
 func (s *PgxStore) loadLocationConfig(ctx context.Context, locationID uuid.UUID) (json.RawMessage, string, error) {
@@ -379,7 +379,7 @@ func (s *PgxStore) LoadEvalContext(ctx context.Context, tx *Transaction) (*EvalC
 }
 
 const sqlInsertDetection = `
-INSERT INTO q.detections (
+INSERT INTO detection.detections (
     tenant_id, rule_id, detected_at, source_entity_type, source_entity_id,
     location_id, cashier_employee_id, customer_id, severity, signal_strength,
     evidence, status, attributes
@@ -413,7 +413,7 @@ func (s *PgxStore) InsertDetection(ctx context.Context, d *Detection) error {
 
 const sqlListTransactionsSince = `
 SELECT id
-FROM   t.transactions
+FROM   transaction.transactions
 WHERE  tenant_id = $1
   AND  created_at >= $2
 ORDER BY created_at
@@ -441,7 +441,7 @@ SELECT id, tenant_id, rule_id, detected_at, source_entity_type, source_entity_id
        location_id, cashier_employee_id, customer_id, severity, signal_strength,
        evidence, case_id, status, acknowledged_at, acknowledged_by,
        attributes, created_at
-FROM   q.detections
+FROM   detection.detections
 WHERE  tenant_id = $1
   AND  ($2::timestamptz IS NULL OR detected_at >= $2)
   AND  ($3::timestamptz IS NULL OR detected_at <= $3)

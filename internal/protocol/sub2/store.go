@@ -18,7 +18,7 @@ import (
 var ErrTenantUnknown = errors.New("sub2: tenant lookup failed for merchant")
 
 // ErrLocationUnknown is returned when SourceLocationCode does not
-// resolve to an l.locations row for the resolved tenant.
+// resolve to an location.locations row for the resolved tenant.
 var ErrLocationUnknown = errors.New("sub2: location lookup failed")
 
 // Store is the persistence interface the dispatcher uses. The pgx
@@ -51,7 +51,7 @@ func NewPgxStore(pool *pgxpool.Pool) *PgxStore {
 const pgUniqueViolation = "23505"
 
 // Persist resolves FKs (merchant→tenant, location_code→location_id,
-// employee_code→employee_id) then inserts the t.transactions header
+// employee_code→employee_id) then inserts the transaction.transactions header
 // and every child row in a single transaction. Any sub-row failure
 // rolls back the parent.
 //
@@ -59,8 +59,8 @@ const pgUniqueViolation = "23505"
 // access to the tenant database. The store fills:
 //
 //   - Transaction.TenantID    from app.merchants.tenant_id
-//   - Transaction.LocationID  from l.locations(tenant_id, location_code)
-//   - Transaction.CashierEmployeeID from e.employees(tenant_id, employee_code)
+//   - Transaction.LocationID  from location.locations(tenant_id, location_code)
+//   - Transaction.CashierEmployeeID from employee.employees(tenant_id, employee_code)
 //
 // Then mints the parent ID, propagates it onto each child, and inserts.
 func (s *PgxStore) Persist(ctx context.Context, evt *CanonicalEvent) error {
@@ -133,7 +133,7 @@ func (s *PgxStore) Persist(ctx context.Context, evt *CanonicalEvent) error {
 	// envelope. Loop 3 Wave 1 (GRO-762 §B.2): adapters set
 	// TenderTypeID = uuid.Nil because their wire envelopes don't
 	// carry a stable tender-type identifier; the (tenant, source)
-	// default seeded in f.tender_types is the FK we resolve here.
+	// default seeded in finance.tender_types is the FK we resolve here.
 	// Lookup is a read against a tiny reference table — outside the
 	// transaction is fine.
 	defaultTenderTypeID, tenderResolveErr := s.resolveTenderTypeID(ctx, tenantID, evt.SourceCode)
@@ -250,14 +250,14 @@ func (s *PgxStore) lookupTenant(ctx context.Context, merchantID uuid.UUID) (uuid
 }
 
 // lookupLocation resolves a POS-native location code to an
-// l.locations.id within the tenant.
+// location.locations.id within the tenant.
 func (s *PgxStore) lookupLocation(ctx context.Context, tenantID uuid.UUID, locationCode string) (uuid.UUID, error) {
 	if locationCode == "" {
 		return uuid.Nil, fmt.Errorf("%w: empty location_code", ErrLocationUnknown)
 	}
 	var id uuid.UUID
 	err := s.pool.QueryRow(ctx,
-		`SELECT id FROM l.locations WHERE tenant_id = $1 AND location_code = $2`,
+		`SELECT id FROM location.locations WHERE tenant_id = $1 AND location_code = $2`,
 		tenantID, locationCode,
 	).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -269,14 +269,14 @@ func (s *PgxStore) lookupLocation(ctx context.Context, tenantID uuid.UUID, locat
 	return id, nil
 }
 
-// lookupEmployee resolves a POS-native employee code to e.employees.id.
+// lookupEmployee resolves a POS-native employee code to employee.employees.id.
 // Returns ErrLocationUnknown's spirit-cousin pgx.ErrNoRows when missing
 // (callers treat that as "leave cashier nil"). Errors other than
 // not-found propagate.
 func (s *PgxStore) lookupEmployee(ctx context.Context, tenantID uuid.UUID, employeeCode string) (uuid.UUID, error) {
 	var id uuid.UUID
 	err := s.pool.QueryRow(ctx,
-		`SELECT id FROM e.employees WHERE tenant_id = $1 AND employee_code = $2`,
+		`SELECT id FROM employee.employees WHERE tenant_id = $1 AND employee_code = $2`,
 		tenantID, employeeCode,
 	).Scan(&id)
 	if err != nil {
@@ -297,7 +297,7 @@ func (s *PgxStore) resolveTenderTypeID(ctx context.Context, tenantID uuid.UUID, 
 	}
 	var id uuid.UUID
 	err := s.pool.QueryRow(ctx,
-		`SELECT id FROM f.tender_types WHERE tenant_id = $1 AND source_code = $2 LIMIT 1`,
+		`SELECT id FROM finance.tender_types WHERE tenant_id = $1 AND source_code = $2 LIMIT 1`,
 		tenantID, sourceCode,
 	).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {

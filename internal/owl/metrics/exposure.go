@@ -14,18 +14,18 @@ import (
 
 // CashierExposure ranks cashiers by detection count in the period.
 //
-// Joins q.detections.cashier_employee_id → e.employees(id). Cashiers
+// Joins detection.detections.cashier_employee_id → employee.employees(id). Cashiers
 // without any detection in the period are omitted.
 //
 // SDD-vague: owl.md SDD says risk_score lives on app.employees (legacy
-// Square table), not e.employees (canonical). Both tables exist; the
-// detection rows reference e.employees per 09_q_canary_mechanics.sql:91
+// Square table), not employee.employees (canonical). Both tables exist; the
+// detection rows reference employee.employees per 09_q_canary_mechanics.sql:91
 // (no FK declared in the schema, but the column comment says
-// "FK to e.employees(id)"). We honor the canonical join.
+// "FK to employee.employees(id)"). We honor the canonical join.
 //
-// SDD-missing: q.detections.cashier_employee_id has no FK constraint
+// SDD-missing: detection.detections.cashier_employee_id has no FK constraint
 // declared in the schema (just a column comment). Loop 3 should add
-// `REFERENCES e.employees(id)` to enforce referential integrity.
+// `REFERENCES employee.employees(id)` to enforce referential integrity.
 // We use a LEFT JOIN to survive the meantime — orphan detections
 // surface as "(unknown)" rows in the response.
 func CashierExposure(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, from, to time.Time, limit int) ([]dtotypes.CashierExposure, error) {
@@ -37,8 +37,8 @@ func CashierExposure(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID
 		           NULLIF(TRIM(e.first_name || ' ' || e.last_name), ''),
 		           '(unknown)')         AS display_name,
 		  COUNT(*)                      AS detection_count
-		FROM q.detections d
-		LEFT JOIN e.employees e ON e.id = d.cashier_employee_id
+		FROM detection.detections d
+		LEFT JOIN employee.employees e ON e.id = d.cashier_employee_id
 		WHERE d.tenant_id = $1
 		  AND d.detected_at >= $2
 		  AND d.detected_at <  $3

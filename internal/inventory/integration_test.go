@@ -69,7 +69,7 @@ func seedFixtures(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (tenant
 		t.Fatalf("seed merchant: %v", err)
 	}
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO m.items (id, tenant_id, sku, description)
+		`INSERT INTO catalog.items (id, tenant_id, sku, description)
 		 VALUES ($1, $2, $3, $4)`,
 		itemID, tenantID,
 		"SKU-INV-TEST-"+itemID.String()[:8],
@@ -78,7 +78,7 @@ func seedFixtures(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (tenant
 		t.Fatalf("seed item: %v", err)
 	}
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO l.locations (id, tenant_id, location_code, name)
+		`INSERT INTO location.locations (id, tenant_id, location_code, name)
 		 VALUES ($1, $2, $3, $4)`,
 		locationID, tenantID,
 		"LOC-INV-TEST-"+locationID.String()[:8],
@@ -88,10 +88,10 @@ func seedFixtures(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (tenant
 	}
 
 	cleanup = func() {
-		_, _ = pool.Exec(ctx, `DELETE FROM i.inventory_movements WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx, `DELETE FROM i.inventory_positions WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx, `DELETE FROM l.locations WHERE id = $1`, locationID)
-		_, _ = pool.Exec(ctx, `DELETE FROM m.items WHERE id = $1`, itemID)
+		_, _ = pool.Exec(ctx, `DELETE FROM inventory.inventory_movements WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx, `DELETE FROM inventory.inventory_positions WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx, `DELETE FROM location.locations WHERE id = $1`, locationID)
+		_, _ = pool.Exec(ctx, `DELETE FROM catalog.items WHERE id = $1`, itemID)
 		_, _ = pool.Exec(ctx, `DELETE FROM app.merchants WHERE id = $1`, merchantID)
 		_, _ = pool.Exec(ctx, `DELETE FROM app.tenants WHERE id = $1`, tenantID)
 		_, _ = pool.Exec(ctx, `DELETE FROM app.organizations WHERE id = $1`, orgID)

@@ -1,6 +1,6 @@
 // internal/customer/store.go
 //
-// pgx-backed customer store. Reads c.customers and c.loyalty_memberships.
+// pgx-backed customer store. Reads customer.customers and customer.loyalty_memberships.
 // No mutation endpoints — customer records are written by the Bull ingest
 // pipeline from POS transaction data.
 //
@@ -52,7 +52,7 @@ func (s *Store) List(ctx context.Context, f ListFilters) ([]CustomerDTO, error) 
 	}
 	args := []any{f.TenantID}
 	q := `SELECT` + customerCols + `
-		FROM c.customers c
+		FROM customer.customers c
 		WHERE c.tenant_id = $1`
 
 	if f.Status != "" {
@@ -95,7 +95,7 @@ func (s *Store) List(ctx context.Context, f ListFilters) ([]CustomerDTO, error) 
 // GetByID returns a single customer.
 func (s *Store) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*CustomerDTO, error) {
 	q := `SELECT` + customerCols + `
-		FROM c.customers c
+		FROM customer.customers c
 		WHERE c.tenant_id = $1 AND c.id = $2`
 	row := s.pool.QueryRow(ctx, q, tenantID, id)
 	c, err := scanCustomer(row)
@@ -114,7 +114,7 @@ func (s *Store) GetMemberships(ctx context.Context, tenantID, customerID uuid.UU
 		SELECT id, tenant_id, customer_id, program_code, membership_number,
 		       tier, points_balance, points_lifetime, status, expires_at,
 		       created_at, updated_at
-		FROM c.loyalty_memberships
+		FROM customer.loyalty_memberships
 		WHERE tenant_id = $1 AND customer_id = $2
 		ORDER BY program_code, created_at`
 	rows, err := s.pool.Query(ctx, q, tenantID, customerID)

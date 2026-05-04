@@ -11,7 +11,7 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/owl/dtotypes"
 )
 
-// q.cases.status takes one of: open | active | pending_action |
+// detection.cases.status takes one of: open | active | pending_action |
 // resolved | closed | reopened (per 09_q_canary_mechanics.sql:62).
 // "Open" for Owl's purposes = anything not resolved/closed — the
 // terminal-state list is hardcoded into the SQL below for clarity.
@@ -20,13 +20,13 @@ import (
 // breakdowns in two short queries.
 //
 // SDD-vague: owl.md SDD doesn't define "closed in period". We use
-// resolved_at — the only timestamp on q.cases that fires once and
+// resolved_at — the only timestamp on detection.cases that fires once and
 // stays put. status='closed' could be reverted by a 'reopened' action;
 // resolved_at is set when the case actually wraps.
 //
 // SDD-missing: there's no `closed_at` separate from `resolved_at`.
 // closed-without-resolution would not show in this metric. Flag for
-// later loop — add `closed_at` to q.cases or treat status='closed'
+// later loop — add `closed_at` to detection.cases or treat status='closed'
 // as a separate counter.
 func CasesSummary(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, from, to time.Time) (dtotypes.CasesSummary, error) {
 	const counts = `
@@ -34,7 +34,7 @@ func CasesSummary(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, f
 		  COUNT(*) FILTER (WHERE status NOT IN ('resolved', 'closed'))                       AS open_now,
 		  COUNT(*) FILTER (WHERE opened_at   >= $2 AND opened_at   < $3)                     AS opened_in_period,
 		  COUNT(*) FILTER (WHERE resolved_at >= $2 AND resolved_at < $3)                     AS closed_in_period
-		FROM q.cases
+		FROM detection.cases
 		WHERE tenant_id = $1
 	`
 	out := dtotypes.CasesSummary{
@@ -53,7 +53,7 @@ func CasesSummary(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, f
 	// pivoting on unknown-cardinality enums in one query.
 	const sev = `
 		SELECT severity, COUNT(*)
-		FROM q.cases
+		FROM detection.cases
 		WHERE tenant_id = $1
 		  AND status NOT IN ('resolved', 'closed')
 		GROUP BY severity
@@ -64,7 +64,7 @@ func CasesSummary(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, f
 
 	const types = `
 		SELECT case_type, COUNT(*)
-		FROM q.cases
+		FROM detection.cases
 		WHERE tenant_id = $1
 		  AND status NOT IN ('resolved', 'closed')
 		GROUP BY case_type
@@ -78,7 +78,7 @@ func CasesSummary(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, f
 
 // DetectionRate is detections-per-1k-transactions in the period.
 //
-// q.detections.detected_at is append-only and timestamped, so this is
+// detection.detections.detected_at is append-only and timestamped, so this is
 // a clean single query. Wave 1 finding confirmed.
 //
 // SDD-conflict: the owl.md SDD defines no "detection rate" metric at
@@ -89,7 +89,7 @@ func DetectionRate(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, 
 	const q = `
 		WITH d AS (
 		  SELECT severity, COUNT(*) AS n
-		  FROM q.detections
+		  FROM detection.detections
 		  WHERE tenant_id = $1
 		    AND detected_at >= $2
 		    AND detected_at <  $3
@@ -98,7 +98,7 @@ func DetectionRate(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, 
 		),
 		t AS (
 		  SELECT COUNT(*) AS n
-		  FROM t.transactions
+		  FROM transaction.transactions
 		  WHERE tenant_id = $1
 		    AND started_at >= $2
 		    AND started_at <  $3
@@ -124,7 +124,7 @@ func DetectionRate(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, 
 
 	const sev = `
 		SELECT severity, COUNT(*)
-		FROM q.detections
+		FROM detection.detections
 		WHERE tenant_id = $1
 		  AND detected_at >= $2
 		  AND detected_at <  $3

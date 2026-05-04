@@ -2,7 +2,7 @@
 //
 // Wave C analytics surface — RFM rollups per party (consumer of the
 // party.decisioning_facts materialized view from Wave A B.5) plus
-// LP-rate metrics aggregating q.detections / q.cases. Spec: GRO-765
+// LP-rate metrics aggregating detection.detections / detection.cases. Spec: GRO-765
 // Phase C.
 //
 // Loop 2 ships internal/owl/ with metrics aggregation primitives;
@@ -144,24 +144,24 @@ func (s *DashboardStore) RefreshDecisioningFacts(ctx context.Context) error {
 	return nil
 }
 
-// LPRateRollup aggregates q.detections + q.cases for a tenant over a
+// LPRateRollup aggregates detection.detections + detection.cases for a tenant over a
 // time window, grouped by rule_type. Used by the LP-rate dashboard.
 func (s *DashboardStore) LPRateRollup(ctx context.Context, tenantID uuid.UUID, windowStart, windowEnd time.Time) ([]LPRateMetric, error) {
 	const q = `
 		WITH det AS (
 		    SELECT r.rule_type, COUNT(*) AS detection_count
-		      FROM q.detections d
-		      JOIN q.detection_rules r ON r.id = d.rule_id
+		      FROM detection.detections d
+		      JOIN detection.detection_rules r ON r.id = d.rule_id
 		     WHERE d.tenant_id = $1
 		       AND d.detected_at >= $2 AND d.detected_at < $3
 		     GROUP BY r.rule_type
 		),
 		cas AS (
 		    SELECT r.rule_type, COUNT(DISTINCT c.id) AS case_count
-		      FROM q.cases c
-		      JOIN q.detections d ON d.tenant_id = c.tenant_id
+		      FROM detection.cases c
+		      JOIN detection.detections d ON d.tenant_id = c.tenant_id
 		           AND (c.attributes->>'detection_id')::uuid = d.id
-		      JOIN q.detection_rules r ON r.id = d.rule_id
+		      JOIN detection.detection_rules r ON r.id = d.rule_id
 		     WHERE c.tenant_id = $1
 		       AND c.opened_at >= $2 AND c.opened_at < $3
 		     GROUP BY r.rule_type

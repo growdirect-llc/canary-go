@@ -128,79 +128,79 @@ CREATE INDEX idx_hhev_membership ON party.household_evidence(membership_id);
 CREATE INDEX idx_hhev_tenant_collected ON party.household_evidence(tenant_id, collected_at);
 
 -- §A.7 — decisioning_facts (materialized view; refresh cadence per
--- party-identity-design.md §E). The party_id column on t.transactions
+-- party-identity-design.md §E). The party_id column on transaction.transactions
 -- is added by §C below — but the view definition references it. Since
 -- this file loads §A first then §C as ALTER TABLE, the view must be
 -- created AFTER §C. We move the view creation to the end of this file.
 
--- §B — c.customers.party_id (HARD FK; one customer row resolves to
+-- §B — customer.customers.party_id (HARD FK; one customer row resolves to
 -- exactly one party, but a party may carry multiple customers — one
 -- per POS-source identity).
-ALTER TABLE c.customers
+ALTER TABLE customer.customers
     ADD COLUMN party_id uuid REFERENCES party.parties(id);
-CREATE INDEX idx_customers_party ON c.customers(party_id) WHERE party_id IS NOT NULL;
+CREATE INDEX idx_customers_party ON customer.customers(party_id) WHERE party_id IS NOT NULL;
 
--- §C — t.transactions.party_id (SOFT FK; high-volume write path,
+-- §C — transaction.transactions.party_id (SOFT FK; high-volume write path,
 -- party_module guarantees row immutability so DB-level FK is not
 -- needed. Application contract: party.GetByID + merged_into
 -- forwarding). Soft-FK to party.parties(id).
-ALTER TABLE t.transactions
+ALTER TABLE transaction.transactions
     ADD COLUMN party_id uuid;
-COMMENT ON COLUMN t.transactions.party_id IS 'soft-FK to party.parties(id) — see canonical-data-model-party-edits.md §C';
-CREATE INDEX idx_tx_party ON t.transactions(party_id) WHERE party_id IS NOT NULL;
+COMMENT ON COLUMN transaction.transactions.party_id IS 'soft-FK to party.parties(id) — see canonical-data-model-party-edits.md §C';
+CREATE INDEX idx_tx_party ON transaction.transactions(party_id) WHERE party_id IS NOT NULL;
 
--- §D — q.subjects.party_id (SOFT FK). Subsumes the soft-FK pattern
+-- §D — detection.subjects.party_id (SOFT FK). Subsumes the soft-FK pattern
 -- on related_employee_id / related_customer_id / related_vendor_id;
 -- those columns stay during Phases 1-5 for read-path compatibility.
-ALTER TABLE q.subjects
+ALTER TABLE detection.subjects
     ADD COLUMN party_id uuid;
-COMMENT ON COLUMN q.subjects.party_id IS 'soft-FK to party.parties(id) — see canonical-data-model-party-edits.md §D';
-CREATE INDEX idx_qsub_party ON q.subjects(party_id) WHERE party_id IS NOT NULL;
+COMMENT ON COLUMN detection.subjects.party_id IS 'soft-FK to party.parties(id) — see canonical-data-model-party-edits.md §D';
+CREATE INDEX idx_qsub_party ON detection.subjects(party_id) WHERE party_id IS NOT NULL;
 
--- §E — o.sales_orders.party_id (SOFT FK). Guest orders may resolve
+-- §E — orders.sales_orders.party_id (SOFT FK). Guest orders may resolve
 -- only at first-payment-attached event. customer_id stays in place
 -- for operational reads (display, address).
-ALTER TABLE o.sales_orders
+ALTER TABLE orders.sales_orders
     ADD COLUMN party_id uuid;
-COMMENT ON COLUMN o.sales_orders.party_id IS 'soft-FK to party.parties(id) — see canonical-data-model-party-edits.md §E';
-CREATE INDEX idx_so_party ON o.sales_orders(party_id) WHERE party_id IS NOT NULL;
+COMMENT ON COLUMN orders.sales_orders.party_id IS 'soft-FK to party.parties(id) — see canonical-data-model-party-edits.md §E';
+CREATE INDEX idx_so_party ON orders.sales_orders(party_id) WHERE party_id IS NOT NULL;
 
--- §F — q.detections.party_id (SOFT FK). Recommended (not strictly
+-- §F — detection.detections.party_id (SOFT FK). Recommended (not strictly
 -- required) — direct column gives party.decisioning_facts.party_fraud_risk
 -- recompute a single GROUP BY party_id rather than multi-step joins.
-ALTER TABLE q.detections
+ALTER TABLE detection.detections
     ADD COLUMN party_id uuid;
-COMMENT ON COLUMN q.detections.party_id IS 'soft-FK to party.parties(id) — perf optimization for party_fraud_risk recompute — see canonical-data-model-party-edits.md §F';
-CREATE INDEX idx_qdet_party ON q.detections(party_id) WHERE party_id IS NOT NULL;
+COMMENT ON COLUMN detection.detections.party_id IS 'soft-FK to party.parties(id) — perf optimization for party_fraud_risk recompute — see canonical-data-model-party-edits.md §F';
+CREATE INDEX idx_qdet_party ON detection.detections(party_id) WHERE party_id IS NOT NULL;
 
--- §A.7 (deferred — needs t.transactions.party_id from §C)
+-- §A.7 (deferred — needs transaction.transactions.party_id from §C)
 -- decisioning_facts: 12-month rolling RFM rollup per active party.
 -- Refresh cadence per party-identity-design.md §E (nightly initially;
 -- streaming refresh post-Phase-3).
 CREATE MATERIALIZED VIEW party.decisioning_facts AS
 SELECT
-    p.id                                              AS party_id,
-    p.tenant_id                                       AS tenant_id,
-    p.confidence                                      AS confidence,
-    COALESCE(SUM(t.grand_total) FILTER (
-        WHERE t.business_date >= CURRENT_DATE - INTERVAL '12 months'
+    pa.id                                              AS party_id,
+    pa.tenant_id                                       AS tenant_id,
+    pa.confidence                                      AS confidence,
+    COALESCE(SUM(tx.grand_total) FILTER (
+        WHERE tx.business_date >= CURRENT_DATE - INTERVAL '12 months'
     ), 0)::numeric(14,4)                              AS party_value,
-    COALESCE(EXTRACT(DAY FROM now() - p.last_seen_at)::int, 999) AS party_recency,
-    COUNT(t.id) FILTER (
-        WHERE t.business_date >= CURRENT_DATE - INTERVAL '12 months'
+    COALESCE(EXTRACT(DAY FROM now() - pa.last_seen_at)::int, 999) AS party_recency,
+    COUNT(tx.id) FILTER (
+        WHERE tx.business_date >= CURRENT_DATE - INTERVAL '12 months'
     )                                                 AS party_frequency,
-    COALESCE(AVG(t.grand_total) FILTER (
-        WHERE t.business_date >= CURRENT_DATE - INTERVAL '12 months'
+    COALESCE(AVG(tx.grand_total) FILTER (
+        WHERE tx.business_date >= CURRENT_DATE - INTERVAL '12 months'
     ), 0)::numeric(14,4)                              AS party_monetary,
     ARRAY[]::text[]                                   AS party_segment_tags,
     0.0::numeric(5,4)                                 AS party_fraud_risk,
     0.0::numeric(5,4)                                 AS party_churn_risk,
     now()                                             AS computed_at
-FROM party.parties p
-LEFT JOIN t.transactions t
-    ON t.party_id = p.id AND t.tenant_id = p.tenant_id
-WHERE p.status = 'active'
-GROUP BY p.id, p.tenant_id, p.confidence, p.last_seen_at;
+FROM party.parties pa
+LEFT JOIN transaction.transactions tx
+    ON tx.party_id = pa.id AND tx.tenant_id = pa.tenant_id
+WHERE pa.status = 'active'
+GROUP BY pa.id, pa.tenant_id, pa.confidence, pa.last_seen_at;
 
 CREATE UNIQUE INDEX idx_dfacts_party ON party.decisioning_facts(party_id);
 CREATE INDEX idx_dfacts_tenant_value ON party.decisioning_facts(tenant_id, party_value DESC);

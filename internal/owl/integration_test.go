@@ -98,32 +98,32 @@ func seed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) fixture {
 	mustExec(`INSERT INTO app.merchant_settings (merchant_id, timezone) VALUES ($1, 'UTC')`, merchantID)
 
 	// Two canonical locations.
-	mustExec(`INSERT INTO l.locations (id, tenant_id, location_code, name)
+	mustExec(`INSERT INTO location.locations (id, tenant_id, location_code, name)
 	          VALUES ($1, $2, '01', 'Main'), ($3, $2, '02', 'Annex')`,
 		locA, tenantID, locB)
 
-	// Cashier (canonical e.employees).
-	mustExec(`INSERT INTO e.employees (id, tenant_id, employee_code, first_name, last_name, hire_date)
+	// Cashier (canonical employee.employees).
+	mustExec(`INSERT INTO employee.employees (id, tenant_id, employee_code, first_name, last_name, hire_date)
 	          VALUES ($1, $2, 'E-101', 'Alex', 'Park', '2024-01-15')`,
 		cashierID, tenantID)
 
 	// Two items.
-	mustExec(`INSERT INTO m.items (id, tenant_id, sku, description) VALUES ($1, $2, 'SKU-X', 'Widget'), ($3, $2, 'SKU-Y', 'Gadget')`,
+	mustExec(`INSERT INTO catalog.items (id, tenant_id, sku, description) VALUES ($1, $2, 'SKU-X', 'Widget'), ($3, $2, 'SKU-Y', 'Gadget')`,
 		itemX, tenantID, itemY)
 
-	// Subject + case (q.cases needs a primary subject FK or NULL — use NULL).
-	mustExec(`INSERT INTO q.subjects (id, tenant_id, subject_code, subject_type, display_name)
+	// Subject + case (detection.cases needs a primary subject FK or NULL — use NULL).
+	mustExec(`INSERT INTO detection.subjects (id, tenant_id, subject_code, subject_type, display_name)
 	          VALUES ($1, $2, 'SUBJ-1', 'known_employee', 'Alex Park')`,
 		subjectID, tenantID)
-	mustExec(`INSERT INTO q.cases (id, tenant_id, case_number, title, severity, status, primary_subject_id, primary_location_id, opened_at)
+	mustExec(`INSERT INTO detection.cases (id, tenant_id, case_number, title, severity, status, primary_subject_id, primary_location_id, opened_at)
 	          VALUES ($1, $2, 'CASE-001', 'Suspicious refund pattern', 'high', 'open', $3, $4, now())`,
 		caseID, tenantID, subjectID, locA)
 
 	// Detection rule + detection.
-	mustExec(`INSERT INTO q.detection_rules (id, tenant_id, rule_code, name, rule_category, rule_definition)
+	mustExec(`INSERT INTO detection.detection_rules (id, tenant_id, rule_code, name, rule_category, rule_definition)
 	          VALUES ($1, $2, 'RULE-1', 'Excessive voids', 'fraud', '{}')`,
 		ruleID, tenantID)
-	mustExec(`INSERT INTO q.detections (id, tenant_id, rule_id, source_entity_type, source_entity_id, location_id, cashier_employee_id, severity)
+	mustExec(`INSERT INTO detection.detections (id, tenant_id, rule_id, source_entity_type, source_entity_id, location_id, cashier_employee_id, severity)
 	          VALUES ($1, $2, $3, 'transaction', gen_random_uuid(), $4, $5, 'high')`,
 		detectionID, tenantID, ruleID, locA, cashierID)
 
@@ -132,7 +132,7 @@ func seed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) fixture {
 	mkTx := func(loc uuid.UUID, ttype string, total, discount float64) {
 		txID := uuid.New()
 		txNum := "T-" + txID.String()[:8]
-		mustExec(`INSERT INTO t.transactions (id, tenant_id, transaction_number, transaction_type, location_id, cashier_employee_id, business_date, started_at, ended_at, status, subtotal, discount_total, grand_total)
+		mustExec(`INSERT INTO transaction.transactions (id, tenant_id, transaction_number, transaction_type, location_id, cashier_employee_id, business_date, started_at, ended_at, status, subtotal, discount_total, grand_total)
 		          VALUES ($1, $2, $3, $4, $5, $6, current_date, now(), now(), 'completed', $7, $8, $7)`,
 			txID, tenantID, txNum, ttype, loc, cashierID, total, discount)
 	}
@@ -150,17 +150,17 @@ func seed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) fixture {
 	cleanup := func() {
 		// FK-aware cleanup, best-effort.
 		ctx2 := context.Background()
-		_, _ = pool.Exec(ctx2, `DELETE FROM q.detections   WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx2, `DELETE FROM q.case_actions WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx2, `DELETE FROM q.case_evidence WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx2, `DELETE FROM q.cases        WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx2, `DELETE FROM q.detection_rules WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx2, `DELETE FROM q.subjects     WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx2, `DELETE FROM t.transaction_line_items WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx2, `DELETE FROM t.transactions WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx2, `DELETE FROM m.items        WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx2, `DELETE FROM e.employees    WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx2, `DELETE FROM l.locations    WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx2, `DELETE FROM detection.detections   WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx2, `DELETE FROM detection.case_actions WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx2, `DELETE FROM detection.case_evidence WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx2, `DELETE FROM detection.cases        WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx2, `DELETE FROM detection.detection_rules WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx2, `DELETE FROM detection.subjects     WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx2, `DELETE FROM transaction.transaction_line_items WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx2, `DELETE FROM transaction.transactions WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx2, `DELETE FROM catalog.items        WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx2, `DELETE FROM employee.employees    WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx2, `DELETE FROM location.locations    WHERE tenant_id = $1`, tenantID)
 		_, _ = pool.Exec(ctx2, `DELETE FROM app.merchant_settings WHERE merchant_id = $1`, merchantID)
 		_, _ = pool.Exec(ctx2, `DELETE FROM app.merchants  WHERE id = $1`, merchantID)
 		_, _ = pool.Exec(ctx2, `DELETE FROM app.tenants    WHERE id = $1`, tenantID)

@@ -47,7 +47,7 @@ func (s *Store) LoadDetection(ctx context.Context, id uuid.UUID) (*types.Detecti
 		       source_entity_id, location_id, cashier_employee_id, customer_id,
 		       severity, signal_strength, evidence, case_id, status,
 		       acknowledged_at, acknowledged_by, attributes, created_at
-		  FROM q.detections
+		  FROM detection.detections
 		 WHERE id = $1`
 	row := s.pool.QueryRow(ctx, q, id)
 	var d types.Detection
@@ -75,7 +75,7 @@ func (s *Store) LoadCase(ctx context.Context, id uuid.UUID) (*types.Case, error)
 		       assigned_to, opened_at, resolved_at, resolution_type,
 		       loss_amount_estimated, loss_amount_recovered, attributes,
 		       created_at, updated_at
-		  FROM q.cases
+		  FROM detection.cases
 		 WHERE id = $1`
 	row := s.pool.QueryRow(ctx, q, id)
 	var c types.Case
@@ -100,7 +100,7 @@ func (s *Store) LoadCase(ctx context.Context, id uuid.UUID) (*types.Case, error)
 // match exists (a soft miss is not an error).
 //
 // Implementation notes:
-//   - q.cases.primary_subject_id is the clustering key.
+//   - detection.cases.primary_subject_id is the clustering key.
 //   - "open" excludes resolved/closed; the schema's idx_qcases_active
 //     partial index covers this filter exactly.
 //   - We pick the most recent by opened_at to match the human
@@ -112,7 +112,7 @@ func (s *Store) FindOpenCaseBySubject(ctx context.Context, tenantID, subjectID u
 		       assigned_to, opened_at, resolved_at, resolution_type,
 		       loss_amount_estimated, loss_amount_recovered, attributes,
 		       created_at, updated_at
-		  FROM q.cases
+		  FROM detection.cases
 		 WHERE tenant_id = $1
 		   AND primary_subject_id = $2
 		   AND status NOT IN ('resolved','closed')
@@ -136,7 +136,7 @@ func (s *Store) FindOpenCaseBySubject(ctx context.Context, tenantID, subjectID u
 	return &c, nil
 }
 
-// OpenCase inserts a new q.cases row in a transaction along with its
+// OpenCase inserts a new detection.cases row in a transaction along with its
 // initial seeding state-change action. If the case is being opened
 // from a detection (linkDetection != nil), that detection's case_id
 // and status are updated atomically in the same tx so the lifecycle
@@ -173,7 +173,7 @@ func (s *Store) OpenCase(ctx context.Context, c *types.Case, linkDetection *uuid
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	const insertCase = `
-		INSERT INTO q.cases (
+		INSERT INTO detection.cases (
 			id, tenant_id, case_number, case_type, title, description,
 			severity, status, primary_subject_id, primary_location_id,
 			assigned_to, opened_at, attributes, created_at, updated_at
@@ -190,7 +190,7 @@ func (s *Store) OpenCase(ctx context.Context, c *types.Case, linkDetection *uuid
 
 	// Seed the action log so case history starts with a row, not a gap.
 	const insertAction = `
-		INSERT INTO q.case_actions (
+		INSERT INTO detection.case_actions (
 			id, tenant_id, case_id, action_type, performed_by, performed_at, details, created_at
 		) VALUES ($1,$2,$3,'status_change',$4,$5,$6,$7)`
 	openDetails, _ := json.Marshal(map[string]string{
@@ -205,7 +205,7 @@ func (s *Store) OpenCase(ctx context.Context, c *types.Case, linkDetection *uuid
 
 	if linkDetection != nil {
 		const updateDetection = `
-			UPDATE q.detections
+			UPDATE detection.detections
 			   SET case_id = $1, status = 'escalated_to_case'
 			 WHERE id = $2 AND tenant_id = $3`
 		ct, err := tx.Exec(ctx, updateDetection, c.ID, *linkDetection, c.TenantID)
@@ -223,7 +223,7 @@ func (s *Store) OpenCase(ctx context.Context, c *types.Case, linkDetection *uuid
 	return c.ID, nil
 }
 
-// AppendEvidence inserts a row into q.case_evidence and computes the
+// AppendEvidence inserts a row into detection.case_evidence and computes the
 // canonical SHA-256 hash + chains it to the previous evidence row's
 // hash. blockchain_anchor_id is left NULL — the L2 anchor pass
 // (separate dispatch) populates it asynchronously by querying for
@@ -262,7 +262,7 @@ func (s *Store) AppendEvidence(ctx context.Context, e *types.CaseEvidence) error
 
 	const prevQ = `
 		SELECT payload_hash
-		  FROM q.case_evidence
+		  FROM detection.case_evidence
 		 WHERE case_id = $1
 		 ORDER BY collected_at DESC
 		 LIMIT 1`
@@ -274,7 +274,7 @@ func (s *Store) AppendEvidence(ctx context.Context, e *types.CaseEvidence) error
 	e.PrevEvidenceHash = prevHash
 
 	const insertEv = `
-		INSERT INTO q.case_evidence (
+		INSERT INTO detection.case_evidence (
 			id, tenant_id, case_id, evidence_type, source_entity_type, source_entity_id,
 			payload, payload_hash, prev_evidence_hash, blockchain_anchor_id,
 			collected_by, collected_at, attributes, created_at
@@ -290,9 +290,9 @@ func (s *Store) AppendEvidence(ctx context.Context, e *types.CaseEvidence) error
 	}
 
 	// Mirror the operation into the action log so case history is
-	// complete from the q.case_actions table alone.
+	// complete from the detection.case_actions table alone.
 	const insertAction = `
-		INSERT INTO q.case_actions (
+		INSERT INTO detection.case_actions (
 			id, tenant_id, case_id, action_type, performed_by, performed_at, details, created_at
 		) VALUES ($1,$2,$3,'evidence_collected',$4,$5,$6,$7)`
 	det, _ := json.Marshal(map[string]string{
@@ -312,7 +312,7 @@ func (s *Store) AppendEvidence(ctx context.Context, e *types.CaseEvidence) error
 	return nil
 }
 
-// AppendAction inserts a single q.case_actions row. No tx — the table
+// AppendAction inserts a single detection.case_actions row. No tx — the table
 // is append-only and a single INSERT is atomic. Mutates *a so the
 // caller can observe the minted ID and timestamps.
 func (s *Store) AppendAction(ctx context.Context, a *types.CaseAction) error {
@@ -332,7 +332,7 @@ func (s *Store) AppendAction(ctx context.Context, a *types.CaseAction) error {
 	}
 
 	const q = `
-		INSERT INTO q.case_actions (
+		INSERT INTO detection.case_actions (
 			id, tenant_id, case_id, action_type, performed_by, performed_at, details, created_at
 		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`
 	if _, err := s.pool.Exec(ctx, q,
@@ -361,7 +361,7 @@ func (s *Store) CloseCase(ctx context.Context, tenantID, caseID uuid.UUID, resol
 
 	now := time.Now().UTC()
 	const upd = `
-		UPDATE q.cases
+		UPDATE detection.cases
 		   SET status = 'closed', resolved_at = $1, resolution_type = $2, updated_at = $1
 		 WHERE id = $3 AND tenant_id = $4`
 	ct, err := tx.Exec(ctx, upd, now, resolution, caseID, tenantID)
@@ -373,7 +373,7 @@ func (s *Store) CloseCase(ctx context.Context, tenantID, caseID uuid.UUID, resol
 	}
 
 	const insertAction = `
-		INSERT INTO q.case_actions (
+		INSERT INTO detection.case_actions (
 			id, tenant_id, case_id, action_type, performed_by, performed_at, details, created_at
 		) VALUES ($1,$2,$3,'resolution',$4,$5,$6,$7)`
 	det, _ := json.Marshal(map[string]string{
@@ -400,7 +400,7 @@ func (s *Store) ListEvidence(ctx context.Context, caseID uuid.UUID) ([]types.Cas
 		SELECT id, tenant_id, case_id, evidence_type, source_entity_type, source_entity_id,
 		       payload, payload_hash, prev_evidence_hash, blockchain_anchor_id,
 		       collected_by, collected_at, attributes, created_at
-		  FROM q.case_evidence
+		  FROM detection.case_evidence
 		 WHERE case_id = $1
 		 ORDER BY collected_at ASC`
 	rows, err := s.pool.Query(ctx, q, caseID)
@@ -427,7 +427,7 @@ func (s *Store) ListEvidence(ctx context.Context, caseID uuid.UUID) ([]types.Cas
 func (s *Store) ListActions(ctx context.Context, caseID uuid.UUID) ([]types.CaseAction, error) {
 	const q = `
 		SELECT id, tenant_id, case_id, action_type, performed_by, performed_at, details, created_at
-		  FROM q.case_actions
+		  FROM detection.case_actions
 		 WHERE case_id = $1
 		 ORDER BY performed_at ASC`
 	rows, err := s.pool.Query(ctx, q, caseID)
@@ -485,7 +485,7 @@ func (s *Store) ListCases(ctx context.Context, tenantID uuid.UUID, filter CaseFi
 		       assigned_to, opened_at, resolved_at, resolution_type,
 		       loss_amount_estimated, loss_amount_recovered, attributes,
 		       created_at, updated_at
-		  FROM q.cases
+		  FROM detection.cases
 		 WHERE ` + joinAnd(where) + `
 		 ORDER BY opened_at DESC
 		 LIMIT $` + fmt.Sprint(idx) + ` OFFSET $` + fmt.Sprint(idx+1)

@@ -59,14 +59,14 @@ func seedFixtures(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (tenant
 		t.Fatalf("seed tenant: %v", err)
 	}
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO q.detection_rules (id, tenant_id, rule_code, name, rule_category, rule_definition, severity)
+		`INSERT INTO detection.detection_rules (id, tenant_id, rule_code, name, rule_category, rule_definition, severity)
 		 VALUES ($1, $2, $3, $4, 'shrink', '{}', 'high')`,
 		ruleID, tenantID, "fox-it-rule", "Fox IT rule"); err != nil {
 		t.Fatalf("seed rule: %v", err)
 	}
-	cashier := uuid.New() // unbound — no FK to e.employees in the schema (nullable column)
+	cashier := uuid.New() // unbound — no FK to employee.employees in the schema (nullable column)
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO q.detections (id, tenant_id, rule_id, source_entity_type, source_entity_id,
+		`INSERT INTO detection.detections (id, tenant_id, rule_id, source_entity_type, source_entity_id,
 		                            cashier_employee_id, severity, evidence)
 		 VALUES ($1, $2, $3, 'transaction', $4, $5, 'high', $6)`,
 		detID, tenantID, ruleID, uuid.New(), cashier,
@@ -75,12 +75,12 @@ func seedFixtures(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (tenant
 	}
 
 	cleanup = func() {
-		_, _ = pool.Exec(ctx, `DELETE FROM q.case_actions    WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx, `DELETE FROM q.case_evidence   WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx, `DELETE FROM q.detections      WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx, `DELETE FROM q.cases           WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx, `DELETE FROM q.subjects        WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx, `DELETE FROM q.detection_rules WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx, `DELETE FROM detection.case_actions    WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx, `DELETE FROM detection.case_evidence   WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx, `DELETE FROM detection.detections      WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx, `DELETE FROM detection.cases           WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx, `DELETE FROM detection.subjects        WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx, `DELETE FROM detection.detection_rules WHERE tenant_id = $1`, tenantID)
 		_, _ = pool.Exec(ctx, `DELETE FROM app.tenants       WHERE id = $1`, tenantID)
 		_, _ = pool.Exec(ctx, `DELETE FROM app.organizations WHERE id = $1`, orgID)
 	}
@@ -127,7 +127,7 @@ func TestIntegration_FromDetection_OpensCase(t *testing.T) {
 	caseID := uuid.MustParse(resp.CaseID)
 	var count int
 	if err := pool.QueryRow(ctx,
-		`SELECT count(*) FROM q.cases WHERE id = $1 AND tenant_id = $2`,
+		`SELECT count(*) FROM detection.cases WHERE id = $1 AND tenant_id = $2`,
 		caseID, tenantID).Scan(&count); err != nil {
 		t.Fatalf("verify case: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestIntegration_FromDetection_OpensCase(t *testing.T) {
 		t.Errorf("expected 1 case row, got %d", count)
 	}
 	if err := pool.QueryRow(ctx,
-		`SELECT count(*) FROM q.case_evidence WHERE case_id = $1`,
+		`SELECT count(*) FROM detection.case_evidence WHERE case_id = $1`,
 		caseID).Scan(&count); err != nil {
 		t.Fatalf("verify evidence: %v", err)
 	}
@@ -145,7 +145,7 @@ func TestIntegration_FromDetection_OpensCase(t *testing.T) {
 	// Detection should now be linked back to the case.
 	var linkedCase *uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`SELECT case_id FROM q.detections WHERE id = $1`, detID).Scan(&linkedCase); err != nil {
+		`SELECT case_id FROM detection.detections WHERE id = $1`, detID).Scan(&linkedCase); err != nil {
 		t.Fatalf("verify detection link: %v", err)
 	}
 	if linkedCase == nil || *linkedCase != caseID {
@@ -195,11 +195,11 @@ func TestIntegration_AppendAction(t *testing.T) {
 		t.Fatalf("append action: %d %s", rec.Code, rec.Body.String())
 	}
 
-	// Verify q.case_actions has the row plus the auto-seeded
+	// Verify detection.case_actions has the row plus the auto-seeded
 	// status_change + evidence_collected rows from OpenCase + AppendEvidence.
 	var count int
 	if err := pool.QueryRow(ctx,
-		`SELECT count(*) FROM q.case_actions WHERE case_id = $1 AND tenant_id = $2`,
+		`SELECT count(*) FROM detection.case_actions WHERE case_id = $1 AND tenant_id = $2`,
 		caseID, tenantID).Scan(&count); err != nil {
 		t.Fatalf("verify actions: %v", err)
 	}
@@ -249,7 +249,7 @@ func TestIntegration_CloseCase_TerminalState(t *testing.T) {
 	var status string
 	var resolution *string
 	if err := pool.QueryRow(ctx,
-		`SELECT status, resolution_type FROM q.cases WHERE id = $1 AND tenant_id = $2`,
+		`SELECT status, resolution_type FROM detection.cases WHERE id = $1 AND tenant_id = $2`,
 		caseID, tenantID).Scan(&status, &resolution); err != nil {
 		t.Fatalf("verify close: %v", err)
 	}
@@ -262,7 +262,7 @@ func TestIntegration_CloseCase_TerminalState(t *testing.T) {
 }
 
 // TestIntegration_ResolveSubject — GRO-762 §B.3.
-// Verifies (a) Resolve creates a q.subjects row when none exists,
+// Verifies (a) Resolve creates a detection.subjects row when none exists,
 // (b) the second call with the same (tenant, kind, refID) returns
 // the SAME subject id (idempotency via the existing
 // (tenant_id, subject_code) unique constraint), and
@@ -303,7 +303,7 @@ func TestIntegration_ResolveSubject(t *testing.T) {
 	var subjectCode, subjectType string
 	var relatedEmpID *uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`SELECT subject_code, subject_type, related_employee_id FROM q.subjects WHERE id = $1`,
+		`SELECT subject_code, subject_type, related_employee_id FROM detection.subjects WHERE id = $1`,
 		first).Scan(&subjectCode, &subjectType, &relatedEmpID); err != nil {
 		t.Fatalf("verify subject row: %v", err)
 	}

@@ -5,21 +5,21 @@
 -- Three-rail accountability per platform thesis:
 --   - financial: l402_otb_budgets (L402-gated open-to-buy)
 --   - operational: ildwac_positions (satoshi cost-to-serve per cadence step)
---   - evidentiary: blockchain_anchors (L2 hash anchoring; cross-FK from q.case_evidence)
+--   - evidentiary: blockchain_anchors (L2 hash anchoring; cross-FK from detection.case_evidence)
 
 -- ledger.stock_ledger_entries — financial valuation per inventory movement
 CREATE TABLE ledger.stock_ledger_entries (
     id                    UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id             UUID        NOT NULL REFERENCES app.tenants(id),
-    inventory_movement_id UUID        NOT NULL,    -- FK to i.inventory_movements (canonical §6)
+    inventory_movement_id UUID        NOT NULL,    -- FK to inventory.inventory_movements (canonical §6)
     posted_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
-    item_id               UUID        NOT NULL,    -- FK to m.items (canonical §3)
-    location_id           UUID        NOT NULL,    -- FK to l.locations (canonical §4)
+    item_id               UUID        NOT NULL,    -- FK to catalog.items (canonical §3)
+    location_id           UUID        NOT NULL,    -- FK to location.locations (canonical §4)
     quantity_delta        NUMERIC(14,4) NOT NULL,
     cost_per_unit         NUMERIC(14,4) NOT NULL,
     cost_amount           NUMERIC(14,4) GENERATED ALWAYS AS (quantity_delta * cost_per_unit) STORED,
     cost_method           TEXT        NOT NULL DEFAULT 'weighted_average',  -- weighted_average | fifo | lifo | specific
-    gl_account_id         UUID,                    -- FK to f.gl_accounts (canonical §8)
+    gl_account_id         UUID,                    -- FK to finance.gl_accounts (canonical §8)
     attributes            JSONB       NOT NULL DEFAULT '{}',
     created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -55,8 +55,8 @@ CREATE INDEX idx_ildwac_unbilled ON ledger.ildwac_positions(tenant_id) WHERE inv
 CREATE TABLE ledger.rib_batches (
     id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id         UUID        NOT NULL REFERENCES app.tenants(id),
-    item_id           UUID        NOT NULL,    -- FK m.items
-    location_id       UUID,                    -- FK l.locations
+    item_id           UUID        NOT NULL,    -- FK catalog.items
+    location_id       UUID,                    -- FK location.locations
     batch_period      TSTZRANGE   NOT NULL,
     total_quantity    NUMERIC(14,4) NOT NULL DEFAULT 0,
     total_cost        NUMERIC(14,4) NOT NULL DEFAULT 0,
@@ -115,7 +115,7 @@ CREATE INDEX idx_anchor_type         ON ledger.blockchain_anchors(anchor_type);
 CREATE INDEX idx_anchor_payload_hash ON ledger.blockchain_anchors(payload_hash);
 CREATE INDEX idx_anchor_pending      ON ledger.blockchain_anchors(tenant_id) WHERE status = 'pending';
 
--- Backfill the q.case_evidence FK to ledger.blockchain_anchors now that it exists.
-ALTER TABLE q.case_evidence
+-- Backfill the detection.case_evidence FK to ledger.blockchain_anchors now that it exists.
+ALTER TABLE detection.case_evidence
   ADD CONSTRAINT fk_case_evidence_anchor
   FOREIGN KEY (blockchain_anchor_id) REFERENCES ledger.blockchain_anchors(id);

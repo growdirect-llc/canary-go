@@ -20,9 +20,9 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/owl/dtotypes"
 )
 
-// SalesSummary aggregates t.transactions over [from, to).
+// SalesSummary aggregates transaction.transactions over [from, to).
 //
-// Sales vs refunds: t.transactions.transaction_type carries 'sale'
+// Sales vs refunds: transaction.transactions.transaction_type carries 'sale'
 // (default) or 'refund'. We treat refunds as their own population —
 // counted separately, deducted from net.
 //
@@ -55,7 +55,7 @@ func SalesSummary(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, f
 		          / COUNT(*) FILTER (WHERE transaction_type = 'sale'))::text
 		    ELSE '0'
 		  END AS average_ticket
-		FROM t.transactions
+		FROM transaction.transactions
 		WHERE tenant_id = $1
 		  AND started_at >= $2
 		  AND started_at <  $3
@@ -81,8 +81,8 @@ func SalesSummary(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, f
 // TopItemsByUnits returns the top-N items ranked by sum(quantity)
 // across non-void, non-return line items in the period.
 //
-// SDD-missing: t.transaction_line_items has no `is_void` index that
-// pairs with the time filter on t.transactions. Postgres will use
+// SDD-missing: transaction.transaction_line_items has no `is_void` index that
+// pairs with the time filter on transaction.transactions. Postgres will use
 // idx_lines_tx for the join + filter; for >1M-line periods this would
 // want a `(tenant_id, created_at, is_void)` partial index. Flagging
 // as a future-Loop tuning item, not a blocker.
@@ -98,9 +98,9 @@ func TopItemsByUnits(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID
 		  i.description,
 		  COALESCE(SUM(li.quantity),       0)::text AS units,
 		  COALESCE(SUM(li.extended_price), 0)::text AS revenue
-		FROM t.transaction_line_items li
-		JOIN t.transactions       tx ON tx.id = li.transaction_id
-		JOIN m.items              i  ON i.id  = li.item_id
+		FROM transaction.transaction_line_items li
+		JOIN transaction.transactions       tx ON tx.id = li.transaction_id
+		JOIN catalog.items              i  ON i.id  = li.item_id
 		WHERE tx.tenant_id = $1
 		  AND tx.started_at >= $2
 		  AND tx.started_at <  $3
@@ -125,9 +125,9 @@ func TopItemsByRevenue(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UU
 		  i.description,
 		  COALESCE(SUM(li.quantity),       0)::text AS units,
 		  COALESCE(SUM(li.extended_price), 0)::text AS revenue
-		FROM t.transaction_line_items li
-		JOIN t.transactions       tx ON tx.id = li.transaction_id
-		JOIN m.items              i  ON i.id  = li.item_id
+		FROM transaction.transaction_line_items li
+		JOIN transaction.transactions       tx ON tx.id = li.transaction_id
+		JOIN catalog.items              i  ON i.id  = li.item_id
 		WHERE tx.tenant_id = $1
 		  AND tx.started_at >= $2
 		  AND tx.started_at <  $3
@@ -154,8 +154,8 @@ func TopItemsByRevenue(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UU
 func UnknownItemCount(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, from, to time.Time) (int64, error) {
 	const q = `
 		SELECT COUNT(*)
-		FROM t.transaction_line_items li
-		JOIN t.transactions       tx ON tx.id = li.transaction_id
+		FROM transaction.transaction_line_items li
+		JOIN transaction.transactions       tx ON tx.id = li.transaction_id
 		WHERE tx.tenant_id = $1
 		  AND tx.started_at >= $2
 		  AND tx.started_at <  $3
@@ -171,12 +171,12 @@ func UnknownItemCount(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUI
 	return n, nil
 }
 
-// SalesByLocation joins t.transactions to l.locations (canonical) for
+// SalesByLocation joins transaction.transactions to location.locations (canonical) for
 // per-location revenue.
 //
 // SDD-conflict: owl.md SDD groups by app.locations (legacy Square
-// table). The canonical schema has both app.locations and l.locations
-// — t.transactions.location_id FKs to l.locations(id) per
+// table). The canonical schema has both app.locations and location.locations
+// — transaction.transactions.location_id FKs to location.locations(id) per
 // 08_t_transactions.sql:12. We honor the canonical join, not the SDD.
 func SalesByLocation(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, from, to time.Time) ([]dtotypes.LocationMetric, error) {
 	const q = `
@@ -192,8 +192,8 @@ func SalesByLocation(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID
 		    0
 		  )::text AS net_sales,
 		  COUNT(*) FILTER (WHERE tx.transaction_type = 'sale') AS transaction_count
-		FROM t.transactions tx
-		JOIN l.locations    l ON l.id = tx.location_id
+		FROM transaction.transactions tx
+		JOIN location.locations    l ON l.id = tx.location_id
 		WHERE tx.tenant_id = $1
 		  AND tx.started_at >= $2
 		  AND tx.started_at <  $3

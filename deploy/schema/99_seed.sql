@@ -68,7 +68,7 @@ INSERT INTO protocol.source_secrets
 ON CONFLICT (id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────
--- f.tender_types defaults per source — loop3-wave1 (GRO-762 §B.2)
+-- finance.tender_types defaults per source — loop3-wave1 (GRO-762 §B.2)
 -- One default-tender row per (tenant, source) so Sub2 can resolve a
 -- tender_type_id when the inbound POS payload doesn't carry one.
 -- Tenants can add unlimited custom rows beyond these defaults
@@ -76,7 +76,7 @@ ON CONFLICT (id) DO NOTHING;
 -- only constrains the seeded ones. Idempotent via ON CONFLICT on the
 -- natural (tenant, code) key.
 -- ─────────────────────────────────────────────────────────────────────
-INSERT INTO f.tender_types (id, tenant_id, source_code, code, name, tender_class, is_active, attributes)
+INSERT INTO finance.tender_types (id, tenant_id, source_code, code, name, tender_class, is_active, attributes)
 SELECT
     gen_random_uuid(),
     t.id,
@@ -146,7 +146,7 @@ VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────
--- f.markup_envelope_tiers defaults per archetype — loop4-wave-a
+-- finance.markup_envelope_tiers defaults per archetype — loop4-wave-a
 -- (GRO-763 §B.2). Source: OQ Resolution Pack §A.1 OQ-2.1
 -- (founder-approved 2026-05-03 per GRO-762).
 --
@@ -155,14 +155,14 @@ ON CONFLICT (id) DO NOTHING;
 -- to the active row here for the tenant's archetype. Idempotent: skip
 -- if a non-expired row for the archetype already exists.
 -- ─────────────────────────────────────────────────────────────────────
-INSERT INTO f.markup_envelope_tiers (archetype, markup_pct, attributes)
+INSERT INTO finance.markup_envelope_tiers (archetype, markup_pct, attributes)
 SELECT * FROM (VALUES
     ('small',  50.00, '{"seeded": true, "source": "OQ-2.1"}'::jsonb),
     ('medium', 30.00, '{"seeded": true, "source": "OQ-2.1"}'::jsonb),
     ('large',  15.00, '{"seeded": true, "source": "OQ-2.1"}'::jsonb)
 ) AS v(archetype, markup_pct, attributes)
 WHERE NOT EXISTS (
-    SELECT 1 FROM f.markup_envelope_tiers
+    SELECT 1 FROM finance.markup_envelope_tiers
     WHERE archetype = v.archetype AND expires_at IS NULL
 );
 

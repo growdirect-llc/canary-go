@@ -53,7 +53,7 @@ var ErrNoDefaultTenderType = errors.New("no default tender_type for tenant+sourc
 // tender insert (preserving the canonical event header + line items
 // without a tender row).
 func ResolveTenderType(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, sourceCode string) (uuid.UUID, error) {
-	const q = `SELECT id FROM f.tender_types WHERE tenant_id = $1 AND source_code = $2 LIMIT 1`
+	const q = `SELECT id FROM finance.tender_types WHERE tenant_id = $1 AND source_code = $2 LIMIT 1`
 	var id uuid.UUID
 	err := pool.QueryRow(ctx, q, tenantID, sourceCode).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {

@@ -1,10 +1,10 @@
 // internal/transaction/store.go
 //
-// pgxpool-backed access to t.transactions and child tables. The
-// canonical schema's child tables (t.transaction_line_items, _tenders,
+// pgxpool-backed access to transaction.transactions and child tables. The
+// canonical schema's child tables (transaction.transaction_line_items, _tenders,
 // _discounts) have richer shapes than the wire DTOs — line_total /
 // extended_price / extended_tax are GENERATED columns, tender_type_id
-// is required NOT NULL and FKs f.tender_types, discounts have a
+// is required NOT NULL and FKs finance.tender_types, discounts have a
 // scope + discount_type + sequence model. The store mediates: callers
 // pass the wire-shape CreateRequest, the store maps to canonical
 // columns and writes.
@@ -90,7 +90,7 @@ func (s *Store) Create(ctx context.Context, req CreateRequest) (*TransactionDTO,
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	const insertTxQ = `
-		INSERT INTO t.transactions (
+		INSERT INTO transaction.transactions (
 			tenant_id, transaction_number, transaction_type, parent_transaction_id,
 			location_id, pos_terminal_id, cashier_employee_id, customer_id,
 			loyalty_membership_id, business_date, started_at, ended_at, status,
@@ -147,7 +147,7 @@ func insertChildren(ctx context.Context, tx pgx.Tx, txID, tenantID uuid.UUID, re
 			unitTax = li.TaxAmount.Div(li.Quantity)
 		}
 		const q = `
-			INSERT INTO t.transaction_line_items (
+			INSERT INTO transaction.transaction_line_items (
 				tenant_id, transaction_id, line_number, item_id, description,
 				quantity, unit_of_measure, unit_price, unit_tax, attributes
 			) VALUES (
@@ -165,7 +165,7 @@ func insertChildren(ctx context.Context, tx pgx.Tx, txID, tenantID uuid.UUID, re
 
 	// Tenders: tender_type_id is NOT NULL; if not supplied, the
 	// caller is responsible for resolving via the source's default
-	// tender type (per Wave 1 f.tender_types seed). The store
+	// tender type (per Wave 1 finance.tender_types seed). The store
 	// returns ErrValidation when missing.
 	for i, te := range req.Tenders {
 		if te.TenderTypeID == nil {
@@ -176,7 +176,7 @@ func insertChildren(ctx context.Context, tx pgx.Tx, txID, tenantID uuid.UUID, re
 			curr = req.Currency
 		}
 		const q = `
-			INSERT INTO t.transaction_tenders (
+			INSERT INTO transaction.transaction_tenders (
 				tenant_id, transaction_id, tender_sequence, tender_type_id,
 				amount, currency, processor_reference, attributes
 			) VALUES (
@@ -197,7 +197,7 @@ func insertChildren(ctx context.Context, tx pgx.Tx, txID, tenantID uuid.UUID, re
 	// pricing module owns the resolution path (Wave C).
 	for i, d := range req.Discounts {
 		const q = `
-			INSERT INTO t.transaction_discounts (
+			INSERT INTO transaction.transaction_discounts (
 				tenant_id, transaction_id, discount_sequence, scope,
 				discount_type, amount, reason_code, attributes
 			) VALUES (
@@ -215,7 +215,7 @@ func insertChildren(ctx context.Context, tx pgx.Tx, txID, tenantID uuid.UUID, re
 
 // GetByID returns a transaction with all child rows hydrated.
 func (s *Store) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*TransactionDTO, error) {
-	const q = `SELECT ` + selectColumns + ` FROM t.transactions WHERE tenant_id = $1 AND id = $2`
+	const q = `SELECT ` + selectColumns + ` FROM transaction.transactions WHERE tenant_id = $1 AND id = $2`
 	row := s.pool.QueryRow(ctx, q, tenantID, id)
 	out, err := scanTransaction(row)
 	if err != nil {
@@ -233,7 +233,7 @@ func (s *Store) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*Transacti
 // GetByReceiptNumber looks up by (tenant, location, business_date,
 // transaction_number). Used for POS scan + return-from-receipt.
 func (s *Store) GetByReceiptNumber(ctx context.Context, tenantID, locationID uuid.UUID, businessDate, txNumber string) (*TransactionDTO, error) {
-	const q = `SELECT ` + selectColumns + ` FROM t.transactions
+	const q = `SELECT ` + selectColumns + ` FROM transaction.transactions
 	            WHERE tenant_id = $1 AND location_id = $2
 	              AND business_date = $3::date AND transaction_number = $4`
 	row := s.pool.QueryRow(ctx, q, tenantID, locationID, businessDate, txNumber)
@@ -254,7 +254,7 @@ func (s *Store) List(ctx context.Context, f ListFilters) ([]TransactionDTO, erro
 		f.Limit = 50
 	}
 	args := []any{f.TenantID}
-	q := `SELECT ` + selectColumns + ` FROM t.transactions WHERE tenant_id = $1`
+	q := `SELECT ` + selectColumns + ` FROM transaction.transactions WHERE tenant_id = $1`
 	if f.LocationID != nil {
 		args = append(args, *f.LocationID)
 		q += fmt.Sprintf(" AND location_id = $%d", len(args))
@@ -316,7 +316,7 @@ func (s *Store) Void(ctx context.Context, tenantID, parentID uuid.UUID, req Void
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	if _, err := tx.Exec(ctx,
-		`UPDATE t.transactions SET status = 'voided', void_reason = $3, updated_at = now()
+		`UPDATE transaction.transactions SET status = 'voided', void_reason = $3, updated_at = now()
 		  WHERE tenant_id = $1 AND id = $2`,
 		tenantID, parentID, req.Reason,
 	); err != nil {
@@ -324,7 +324,7 @@ func (s *Store) Void(ctx context.Context, tenantID, parentID uuid.UUID, req Void
 	}
 
 	const insertQ = `
-		INSERT INTO t.transactions (
+		INSERT INTO transaction.transactions (
 			tenant_id, transaction_number, transaction_type, parent_transaction_id,
 			location_id, cashier_employee_id, business_date,
 			started_at, ended_at, status, currency, channel,
@@ -376,7 +376,7 @@ func (s *Store) Return(ctx context.Context, tenantID, parentID uuid.UUID, req Re
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	const insertQ = `
-		INSERT INTO t.transactions (
+		INSERT INTO transaction.transactions (
 			tenant_id, transaction_number, transaction_type, parent_transaction_id,
 			location_id, cashier_employee_id, customer_id, business_date,
 			started_at, ended_at, status, currency, channel,
@@ -421,7 +421,7 @@ func (s *Store) hydrateChildren(ctx context.Context, dto *TransactionDTO) error 
 		SELECT id, transaction_id, line_number, item_id, description,
 		       quantity::numeric, unit_price::numeric, line_total::numeric,
 		       extended_tax::numeric, created_at
-		  FROM t.transaction_line_items
+		  FROM transaction.transaction_line_items
 		 WHERE transaction_id = $1
 		 ORDER BY line_number`, dto.ID)
 	if err != nil {
@@ -441,7 +441,7 @@ func (s *Store) hydrateChildren(ctx context.Context, dto *TransactionDTO) error 
 	tRows, err := s.pool.Query(ctx, `
 		SELECT id, transaction_id, tender_type_id,
 		       amount::numeric, currency, processor_reference, created_at
-		  FROM t.transaction_tenders
+		  FROM transaction.transaction_tenders
 		 WHERE transaction_id = $1
 		 ORDER BY tender_sequence`, dto.ID)
 	if err != nil {
@@ -461,7 +461,7 @@ func (s *Store) hydrateChildren(ctx context.Context, dto *TransactionDTO) error 
 
 	dRows, err := s.pool.Query(ctx, `
 		SELECT id, transaction_id, discount_type, amount::numeric, reason_code, created_at
-		  FROM t.transaction_discounts
+		  FROM transaction.transaction_discounts
 		 WHERE transaction_id = $1
 		 ORDER BY discount_sequence`, dto.ID)
 	if err != nil {
@@ -479,7 +479,7 @@ func (s *Store) hydrateChildren(ctx context.Context, dto *TransactionDTO) error 
 	return nil
 }
 
-// selectColumns is the canonical column list for t.transactions reads.
+// selectColumns is the canonical column list for transaction.transactions reads.
 // Embedded as a constant so every read path uses the same set + order
 // and scanTransaction lines up correctly.
 const selectColumns = `id, tenant_id, transaction_number, transaction_type,

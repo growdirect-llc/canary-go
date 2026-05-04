@@ -80,17 +80,17 @@ func seed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (
 		"item-int-merch-"+merchantID.String()[:8],
 		"Item Integration Merchant")
 
-	mustExec(`INSERT INTO m.product_categories
+	mustExec(`INSERT INTO catalog.product_categories
 		(id, tenant_id, code, name, level, status)
 		VALUES ($1, $2, $3, $4, $5, $6)`,
 		categoryID, tenantID, "CAT-001", "Test Category", 0, "active")
 
-	mustExec(`INSERT INTO m.vendors
+	mustExec(`INSERT INTO catalog.vendors
 		(id, tenant_id, vendor_code, name, vendor_type, status)
 		VALUES ($1, $2, $3, $4, $5, $6)`,
 		vendorID, tenantID, "VND-001", "Test Vendor Inc", "supplier", "active")
 
-	mustExec(`INSERT INTO m.items
+	mustExec(`INSERT INTO catalog.items
 		(id, tenant_id, sku, description, short_description, item_type, category_id,
 		 unit_of_measure, uom_quantity, default_price, default_cost, default_currency,
 		 food_stamp_eligible, weighable, attributes, status)
@@ -100,17 +100,17 @@ func seed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (
 		"Int Widget", "standard", categoryID, "EA", "1", "9.99", "5.50", "USD",
 		false, false, []byte(`{"shelf":"A1"}`), "active")
 
-	mustExec(`INSERT INTO m.item_vendors
+	mustExec(`INSERT INTO catalog.item_vendors
 		(tenant_id, item_id, vendor_id, vendor_sku, unit_cost, is_primary, status)
 		VALUES ($1, $2, $3, $4, $5::numeric, $6, $7)`,
 		tenantID, itemID, vendorID, "VND-INT-001", "5.50", true, "active")
 
-	mustExec(`INSERT INTO m.item_barcodes
+	mustExec(`INSERT INTO catalog.item_barcodes
 		(id, tenant_id, item_id, barcode, barcode_type, uom_quantity, is_primary, status)
 		VALUES ($1, $2, $3, $4, $5, $6::numeric, $7, $8)`,
 		upcID, tenantID, itemID, upcBarcode, "UPC_A", "1", true, "active")
 
-	mustExec(`INSERT INTO m.item_barcodes
+	mustExec(`INSERT INTO catalog.item_barcodes
 		(id, tenant_id, item_id, barcode, barcode_type, uom_quantity, is_primary, status)
 		VALUES ($1, $2, $3, $4, $5, $6::numeric, $7, $8)`,
 		eanID, tenantID, itemID, eanBarcode, "EAN_13", "1", false, "active")
@@ -118,11 +118,11 @@ func seed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (
 	cleanup = func() {
 		// Tear down in dependency order. Best-effort — ignore errors so
 		// a partial failure in one test doesn't poison the next.
-		_, _ = pool.Exec(ctx, `DELETE FROM m.item_barcodes WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx, `DELETE FROM m.item_vendors WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx, `DELETE FROM m.items WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx, `DELETE FROM m.vendors WHERE tenant_id = $1`, tenantID)
-		_, _ = pool.Exec(ctx, `DELETE FROM m.product_categories WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx, `DELETE FROM catalog.item_barcodes WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx, `DELETE FROM catalog.item_vendors WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx, `DELETE FROM catalog.items WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx, `DELETE FROM catalog.vendors WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(ctx, `DELETE FROM catalog.product_categories WHERE tenant_id = $1`, tenantID)
 		_, _ = pool.Exec(ctx, `DELETE FROM app.merchants WHERE tenant_id = $1`, tenantID)
 		_, _ = pool.Exec(ctx, `DELETE FROM app.tenants WHERE id = $1`, tenantID)
 		_, _ = pool.Exec(ctx, `DELETE FROM app.organizations WHERE id = $1`, orgID)
@@ -241,8 +241,8 @@ func TestIntegration_FullCRUDPath(t *testing.T) {
 		}
 		createdID = resp.ID
 		t.Cleanup(func() {
-			_, _ = pool.Exec(ctx, `DELETE FROM m.item_barcodes WHERE item_id = $1`, createdID)
-			_, _ = pool.Exec(ctx, `DELETE FROM m.items WHERE id = $1`, createdID)
+			_, _ = pool.Exec(ctx, `DELETE FROM catalog.item_barcodes WHERE item_id = $1`, createdID)
+			_, _ = pool.Exec(ctx, `DELETE FROM catalog.items WHERE id = $1`, createdID)
 		})
 		if resp.SKU != "INT-SKU-NEW" {
 			t.Errorf("sku: got %q", resp.SKU)
@@ -338,7 +338,7 @@ func TestIntegration_FullCRUDPath(t *testing.T) {
 		// Verify status flipped, row not gone
 		var status string
 		if err := pool.QueryRow(ctx,
-			`SELECT status FROM m.items WHERE id = $1`, itemID).Scan(&status); err != nil {
+			`SELECT status FROM catalog.items WHERE id = $1`, itemID).Scan(&status); err != nil {
 			t.Fatalf("status check: %v", err)
 		}
 		if status != "inactive" {

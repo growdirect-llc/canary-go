@@ -1,7 +1,7 @@
 // internal/returns/store.go
 //
-// pgx-backed returns store. Reads t.transactions WHERE transaction_type =
-// 'return'. The FraudFlag write inserts a q.detections row — it does NOT
+// pgx-backed returns store. Reads transaction.transactions WHERE transaction_type =
+// 'return'. The FraudFlag write inserts a detection.detections row — it does NOT
 // update the transaction; the detection drives downstream alert lifecycle.
 //
 // Spec: GRO-766 Phase E.
@@ -44,8 +44,8 @@ func (s *Store) List(ctx context.Context, f ListFilters) ([]ReturnTransaction, e
 		    tx.business_date, tx.ended_at, tx.status,
 		    COALESCE(SUM(ABS(li.line_total)), 0) AS total_amount,
 		    COUNT(li.id) AS line_count
-		FROM t.transactions tx
-		LEFT JOIN t.transaction_line_items li ON li.transaction_id = tx.id
+		FROM transaction.transactions tx
+		LEFT JOIN transaction.transaction_line_items li ON li.transaction_id = tx.id
 		WHERE tx.tenant_id = $1
 		  AND tx.transaction_type = 'return'
 		  AND tx.business_date >= $2::date
@@ -97,8 +97,8 @@ func (s *Store) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*ReturnDet
 		    tx.business_date, tx.ended_at, tx.status,
 		    COALESCE(SUM(ABS(li.line_total)), 0) AS total_amount,
 		    COUNT(li.id) AS line_count
-		FROM t.transactions tx
-		LEFT JOIN t.transaction_line_items li ON li.transaction_id = tx.id
+		FROM transaction.transactions tx
+		LEFT JOIN transaction.transaction_line_items li ON li.transaction_id = tx.id
 		WHERE tx.tenant_id = $1 AND tx.id = $2 AND tx.transaction_type = 'return'
 		GROUP BY tx.id`
 	row := s.pool.QueryRow(ctx, txQ, tenantID, id)
@@ -118,7 +118,7 @@ func (s *Store) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*ReturnDet
 
 	const lineQ = `
 		SELECT id, item_id, description, quantity, unit_price, line_total, return_reason
-		FROM t.transaction_line_items
+		FROM transaction.transaction_line_items
 		WHERE transaction_id = $1
 		ORDER BY line_number`
 	lrows, err := s.pool.Query(ctx, lineQ, id)
@@ -152,8 +152,8 @@ func (s *Store) Summary(ctx context.Context, tenantID uuid.UUID, from, to time.T
 		    COUNT(DISTINCT tx.id) AS return_count,
 		    COALESCE(SUM(ABS(li.line_total)), 0) AS total_amount,
 		    COUNT(DISTINCT tx.customer_id) FILTER (WHERE tx.customer_id IS NOT NULL) AS unique_customers
-		FROM t.transactions tx
-		LEFT JOIN t.transaction_line_items li ON li.transaction_id = tx.id
+		FROM transaction.transactions tx
+		LEFT JOIN transaction.transaction_line_items li ON li.transaction_id = tx.id
 		WHERE tx.tenant_id = $1
 		  AND tx.transaction_type = 'return'
 		  AND tx.business_date >= $2::date
@@ -174,14 +174,14 @@ func (s *Store) Summary(ctx context.Context, tenantID uuid.UUID, from, to time.T
 	return ss, nil
 }
 
-// FraudFlag inserts a q.detections row pointing at the return transaction.
+// FraudFlag inserts a detection.detections row pointing at the return transaction.
 // The detection drives the alert lifecycle (ack/resolve/suppress) in the
 // alert service.
 func (s *Store) FraudFlag(ctx context.Context, tenantID, transactionID uuid.UUID, req FraudFlagRequest) (*FraudFlagResponse, error) {
 	// Verify transaction exists and belongs to this tenant.
 	const checkQ = `
 		SELECT location_id, cashier_employee_id, customer_id
-		FROM t.transactions
+		FROM transaction.transactions
 		WHERE tenant_id = $1 AND id = $2 AND transaction_type = 'return'`
 	var locID uuid.UUID
 	var cashierID, custID *uuid.UUID
@@ -195,7 +195,7 @@ func (s *Store) FraudFlag(ctx context.Context, tenantID, transactionID uuid.UUID
 
 	now := time.Now().UTC()
 	const insertQ = `
-		INSERT INTO q.detections
+		INSERT INTO detection.detections
 		    (tenant_id, rule_id, source_entity_type, source_entity_id,
 		     location_id, cashier_employee_id, customer_id,
 		     severity, signal_strength, status, detected_at)

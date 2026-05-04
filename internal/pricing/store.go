@@ -32,7 +32,7 @@ type Store interface {
 	ListTaxRates(ctx context.Context, tenantID uuid.UUID, locationID *uuid.UUID) ([]TaxRateRow, error)
 }
 
-// TaxRateRow joins p.tax_rates with p.tax_classes for the listing endpoint.
+// TaxRateRow joins pricing.tax_rates with pricing.tax_classes for the listing endpoint.
 type TaxRateRow struct {
 	types.TaxRate
 	TaxClassCode string
@@ -69,7 +69,7 @@ func (s *PgxStore) GetItemPrice(ctx context.Context, tenantID, itemID uuid.UUID,
 		       price_type, amount::text, currency, uom,
 		       effective_start, effective_end, source_promotion_id,
 		       attributes, status, created_at, updated_at
-		  FROM p.item_prices
+		  FROM pricing.item_prices
 		 WHERE tenant_id = $1
 		   AND item_id   = $2
 		   AND status    = 'active'
@@ -121,7 +121,7 @@ func (s *PgxStore) GetItem(ctx context.Context, tenantID, itemID uuid.UUID) (*ty
 		       default_price::text, default_cost::text, default_currency,
 		       tax_class, food_stamp_eligible, age_restriction, weighable,
 		       attributes, status, created_at, updated_at
-		  FROM m.items
+		  FROM catalog.items
 		 WHERE tenant_id = $1 AND id = $2`
 	var it types.Item
 	err := s.pool.QueryRow(ctx, q, tenantID, itemID).Scan(
@@ -165,7 +165,7 @@ func (s *PgxStore) ListActivePromotions(ctx context.Context, tenantID uuid.UUID,
 		       customer_segments, stackable, exclusive_with,
 		       max_uses_total, max_uses_per_customer, current_uses,
 		       attributes, status, created_at, updated_at
-		  FROM p.promotions
+		  FROM pricing.promotions
 		 WHERE tenant_id = $1
 		   AND status    = 'active'
 		   AND effective_start <= $2
@@ -207,7 +207,7 @@ func (s *PgxStore) ListPromotionRules(ctx context.Context, tenantID, promotionID
 		SELECT id, tenant_id, promotion_id, rule_order, trigger_type,
 		       trigger_qualifier, benefit_type, benefit_qualifier,
 		       created_at, updated_at
-		  FROM p.promotion_rules
+		  FROM pricing.promotion_rules
 		 WHERE tenant_id = $1 AND promotion_id = $2
 		 ORDER BY rule_order ASC`
 	rows, err := s.pool.Query(ctx, q, tenantID, promotionID)
@@ -235,7 +235,7 @@ func (s *PgxStore) GetTaxClassByCode(ctx context.Context, tenantID uuid.UUID, co
 	const q = `
 		SELECT id, tenant_id, code, name, description, is_default,
 		       attributes, status, created_at, updated_at
-		  FROM p.tax_classes
+		  FROM pricing.tax_classes
 		 WHERE tenant_id = $1 AND code = $2 AND status = 'active'
 		 LIMIT 1`
 	var c types.TaxClass
@@ -260,7 +260,7 @@ func (s *PgxStore) GetTaxRate(ctx context.Context, tenantID uuid.UUID, taxClassI
 		SELECT id, tenant_id, tax_class_id, location_id, jurisdiction,
 		       rate_type, rate::text,
 		       effective_start, effective_end, attributes, created_at, updated_at
-		  FROM p.tax_rates
+		  FROM pricing.tax_rates
 		 WHERE tenant_id    = $1
 		   AND tax_class_id = $2
 		   AND effective_start <= $4
@@ -313,8 +313,8 @@ func (s *PgxStore) ListTaxRates(ctx context.Context, tenantID uuid.UUID, locatio
 		       r.effective_start, r.effective_end, r.attributes,
 		       r.created_at, r.updated_at,
 		       c.code
-		  FROM p.tax_rates r
-		  JOIN p.tax_classes c ON c.id = r.tax_class_id
+		  FROM pricing.tax_rates r
+		  JOIN pricing.tax_classes c ON c.id = r.tax_class_id
 		 WHERE r.tenant_id = $1
 		   AND (r.effective_end IS NULL OR r.effective_end > CURRENT_DATE)
 		   AND (

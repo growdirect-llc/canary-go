@@ -42,8 +42,8 @@ func (s *Store) SalesSummary(ctx context.Context, f DateRangeFilter) (*SalesSumm
 		    COALESCE(SUM(li.quantity) FILTER (WHERE tx.transaction_type = 'sale' AND li.quantity > 0), 0) AS total_items,
 		    COUNT(*) FILTER (WHERE tx.transaction_type = 'return')                     AS return_count,
 		    COALESCE(SUM(ABS(li.line_total)) FILTER (WHERE tx.transaction_type = 'return'), 0) AS return_revenue
-		FROM t.transactions tx
-		JOIN t.transaction_line_items li ON li.transaction_id = tx.id
+		FROM transaction.transactions tx
+		JOIN transaction.transaction_line_items li ON li.transaction_id = tx.id
 		WHERE tx.tenant_id = $1
 		  AND tx.business_date >= $2::date
 		  AND tx.business_date <= $3::date
@@ -91,8 +91,8 @@ func (s *Store) BasketMetrics(ctx context.Context, f DateRangeFilter) (*BasketMe
 		    SELECT tx.id,
 		           COUNT(li.id) AS item_count,
 		           SUM(li.line_total) AS ticket_total
-		    FROM t.transactions tx
-		    JOIN t.transaction_line_items li ON li.transaction_id = tx.id
+		    FROM transaction.transactions tx
+		    JOIN transaction.transaction_line_items li ON li.transaction_id = tx.id
 		    WHERE tx.tenant_id = $1
 		      AND tx.business_date >= $2::date
 		      AND tx.business_date <= $3::date
@@ -122,8 +122,8 @@ func (s *Store) BasketMetrics(ctx context.Context, f DateRangeFilter) (*BasketMe
 		    tt.tender_type,
 		    COUNT(*) AS cnt,
 		    COALESCE(SUM(tt.amount), 0) AS total_amount
-		FROM t.transaction_tenders tt
-		JOIN t.transactions tx ON tx.id = tt.transaction_id
+		FROM transaction.transaction_tenders tt
+		JOIN transaction.transactions tx ON tx.id = tt.transaction_id
 		WHERE tx.tenant_id = $1
 		  AND tx.business_date >= $2::date
 		  AND tx.business_date <= $3::date
@@ -167,10 +167,10 @@ func (s *Store) CohortRows(ctx context.Context, f DateRangeFilter) ([]CohortRow,
 		        TO_CHAR(DATE_TRUNC('month', tx.business_date), 'YYYY-MM') AS period,
 		        tx.customer_id,
 		        MIN(first_seen.first_date) AS first_date
-		    FROM t.transactions tx
+		    FROM transaction.transactions tx
 		    JOIN (
 		        SELECT customer_id, MIN(business_date) AS first_date
-		        FROM t.transactions
+		        FROM transaction.transactions
 		        WHERE tenant_id = $1
 		          AND customer_id IS NOT NULL
 		        GROUP BY customer_id
@@ -231,8 +231,8 @@ func (s *Store) VelocityItems(ctx context.Context, f DateRangeFilter) ([]Velocit
 		    SUM(li.quantity)    AS total_qty,
 		    SUM(li.line_total)  AS total_rev,
 		    COUNT(DISTINCT li.transaction_id) AS tx_count
-		FROM t.transaction_line_items li
-		JOIN t.transactions tx ON tx.id = li.transaction_id
+		FROM transaction.transaction_line_items li
+		JOIN transaction.transactions tx ON tx.id = li.transaction_id
 		WHERE tx.tenant_id = $1
 		  AND tx.business_date >= $2::date
 		  AND tx.business_date <= $3::date
@@ -275,8 +275,8 @@ func (s *Store) ShrinkSummary(ctx context.Context, f DateRangeFilter) (*ShrinkSu
 		    COALESCE(SUM(ABS(li.line_total)) FILTER (WHERE li.is_void = true), 0)               AS void_revenue,
 		    COUNT(*) FILTER (WHERE li.item_id IS NULL)                                           AS unknown_scan_count,
 		    COALESCE(SUM(li.line_total) FILTER (WHERE tx.transaction_type = 'sale' AND NOT li.is_void), 0) AS gross_revenue
-		FROM t.transaction_line_items li
-		JOIN t.transactions tx ON tx.id = li.transaction_id
+		FROM transaction.transaction_line_items li
+		JOIN transaction.transactions tx ON tx.id = li.transaction_id
 		WHERE tx.tenant_id = $1
 		  AND tx.business_date >= $2::date
 		  AND tx.business_date <= $3::date

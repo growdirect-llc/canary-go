@@ -110,9 +110,9 @@ func (s *Store) ResolveFromDetection(ctx context.Context, det *types.Detection) 
 	return nil, nil
 }
 
-// ResolveSubject upserts a q.subjects row keyed on (tenant_id,
+// ResolveSubject upserts a detection.subjects row keyed on (tenant_id,
 // party_id) and returns the canonical subject id. Idempotent —
-// re-resolving the same party returns the same q.subjects.id.
+// re-resolving the same party returns the same detection.subjects.id.
 //
 // Subject row carries party_id (Wave A canonical-data-model-party-
 // edits §D); the legacy related_employee_id / related_customer_id /
@@ -128,7 +128,7 @@ func (s *Store) ResolveSubject(ctx context.Context, tenantID, partyID uuid.UUID)
 	// Look for existing subject by party_id
 	var existing uuid.UUID
 	err = tx.QueryRow(ctx, `
-		SELECT id FROM q.subjects
+		SELECT id FROM detection.subjects
 		 WHERE tenant_id = $1 AND party_id = $2
 		 LIMIT 1`, tenantID, partyID).Scan(&existing)
 	if err == nil {
@@ -142,7 +142,7 @@ func (s *Store) ResolveSubject(ctx context.Context, tenantID, partyID uuid.UUID)
 	// per tenant); subject_type = "external_party" matches the schema
 	// CHECK enum. display_name is human-readable; downstream UX overrides.
 	const insertQ = `
-		INSERT INTO q.subjects (tenant_id, party_id, subject_code,
+		INSERT INTO detection.subjects (tenant_id, party_id, subject_code,
 		    subject_type, display_name, status)
 		VALUES ($1, $2, $3, 'external_party', $4, 'active')
 		ON CONFLICT (tenant_id, subject_code) DO UPDATE

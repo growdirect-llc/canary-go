@@ -1,6 +1,6 @@
 // Package transaction implements the canonical write path for
-// t.transactions and its child tables (t.transaction_line_items,
-// t.transaction_tenders, t.transaction_discounts).
+// transaction.transactions and its child tables (transaction.transaction_line_items,
+// transaction.transaction_tenders, transaction.transaction_discounts).
 //
 // Spec: GRO-764 Phase B (folds GRO-647). The transaction module is
 // the canonical example of "complex writes" per the sqlc rule

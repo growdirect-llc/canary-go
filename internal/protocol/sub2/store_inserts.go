@@ -27,7 +27,7 @@ func nullableJSON(raw json.RawMessage) any {
 
 func insertTransaction(ctx context.Context, tx pgx.Tx, t *types.Transaction) error {
 	const q = `
-		INSERT INTO t.transactions (
+		INSERT INTO transaction.transactions (
 		  id, tenant_id, transaction_number, transaction_type,
 		  parent_transaction_id, location_id, pos_terminal_id,
 		  cashier_employee_id, customer_id, loyalty_membership_id,
@@ -59,7 +59,7 @@ func insertTransaction(ctx context.Context, tx pgx.Tx, t *types.Transaction) err
 // extended_tax, line_total, margin) — Postgres computes those.
 func insertLineItem(ctx context.Context, tx pgx.Tx, li *types.TransactionLineItem) error {
 	const q = `
-		INSERT INTO t.transaction_line_items (
+		INSERT INTO transaction.transaction_line_items (
 		  id, tenant_id, transaction_id, line_number, item_id,
 		  barcode_scanned, description, quantity, unit_of_measure,
 		  unit_price, list_price, unit_discount, unit_tax,
@@ -87,7 +87,7 @@ func insertLineItem(ctx context.Context, tx pgx.Tx, li *types.TransactionLineIte
 
 func insertTender(ctx context.Context, tx pgx.Tx, t *types.TransactionTender) error {
 	const q = `
-		INSERT INTO t.transaction_tenders (
+		INSERT INTO transaction.transaction_tenders (
 		  id, tenant_id, transaction_id, tender_sequence, tender_type_id,
 		  amount, currency, cash_back_amount, change_amount,
 		  card_token, card_last_4, card_brand, authorization_code,
@@ -110,7 +110,7 @@ func insertTender(ctx context.Context, tx pgx.Tx, t *types.TransactionTender) er
 
 func insertDiscount(ctx context.Context, tx pgx.Tx, d *types.TransactionDiscount) error {
 	const q = `
-		INSERT INTO t.transaction_discounts (
+		INSERT INTO transaction.transaction_discounts (
 		  id, tenant_id, transaction_id, discount_sequence, scope,
 		  line_item_id, discount_type, source_promotion_id,
 		  promotion_rule_id, amount, percentage, reason_code,
@@ -132,7 +132,7 @@ func insertDiscount(ctx context.Context, tx pgx.Tx, d *types.TransactionDiscount
 // insertCashDrawerEvent omits the GENERATED variance column.
 func insertCashDrawerEvent(ctx context.Context, tx pgx.Tx, e *types.CashDrawerEvent) error {
 	const q = `
-		INSERT INTO t.cash_drawer_events (
+		INSERT INTO transaction.cash_drawer_events (
 		  id, tenant_id, location_id, pos_terminal_id, cashier_employee_id,
 		  event_type, event_at, expected_amount, counted_amount,
 		  reason, paid_in_out_amount, reference, attributes
@@ -150,7 +150,7 @@ func insertCashDrawerEvent(ctx context.Context, tx pgx.Tx, e *types.CashDrawerEv
 
 func insertCashierAction(ctx context.Context, tx pgx.Tx, a *types.CashierAction) error {
 	const q = `
-		INSERT INTO t.cashier_actions (
+		INSERT INTO transaction.cashier_actions (
 		  id, tenant_id, transaction_id, location_id,
 		  cashier_employee_id, pos_terminal_id, action_type,
 		  performed_at, authorized_by_employee_id, details, attributes
@@ -169,7 +169,7 @@ func insertCashierAction(ctx context.Context, tx pgx.Tx, a *types.CashierAction)
 
 func insertLoyaltyEvent(ctx context.Context, tx pgx.Tx, l *types.LoyaltyEvent) error {
 	const q = `
-		INSERT INTO t.loyalty_events (
+		INSERT INTO transaction.loyalty_events (
 		  id, tenant_id, loyalty_membership_id, transaction_id,
 		  event_type, points_delta, amount_basis, reason, attributes
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -184,7 +184,7 @@ func insertLoyaltyEvent(ctx context.Context, tx pgx.Tx, l *types.LoyaltyEvent) e
 
 func insertGiftCardEvent(ctx context.Context, tx pgx.Tx, g *types.GiftCardEvent) error {
 	const q = `
-		INSERT INTO t.gift_card_events (
+		INSERT INTO transaction.gift_card_events (
 		  id, tenant_id, gift_card_id, transaction_id, event_type,
 		  amount_delta, balance_after, authorization_code, attributes
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)

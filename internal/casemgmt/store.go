@@ -1,6 +1,6 @@
 // internal/casemgmt/store.go
 //
-// pgxpool-backed access to q.cases / q.case_actions / q.case_evidence.
+// pgxpool-backed access to detection.cases / detection.case_actions / detection.case_evidence.
 // Spec: GRO-765 Phase B.1.
 
 package casemgmt
@@ -35,7 +35,7 @@ var (
 	ErrValidation = errors.New("casemgmt: validation failed")
 )
 
-// CreateCase inserts a new q.cases row + an optional initial
+// CreateCase inserts a new detection.cases row + an optional initial
 // detection link as a single transaction.
 func (s *Store) CreateCase(ctx context.Context, req CreateCaseRequest) (*Case, error) {
 	if req.TenantID == uuid.Nil {
@@ -62,7 +62,7 @@ func (s *Store) CreateCase(ctx context.Context, req CreateCaseRequest) (*Case, e
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	const insertQ = `
-		INSERT INTO q.cases (
+		INSERT INTO detection.cases (
 			tenant_id, case_number, case_type, title, description,
 			severity, status, primary_subject_id, primary_location_id,
 			assigned_to
@@ -81,7 +81,7 @@ func (s *Store) CreateCase(ctx context.Context, req CreateCaseRequest) (*Case, e
 
 	// Initial action: status_change to 'open'.
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO q.case_actions (tenant_id, case_id, action_type, performed_by, details)
+		INSERT INTO detection.case_actions (tenant_id, case_id, action_type, performed_by, details)
 		VALUES ($1, $2, 'status_change', $3, $4::jsonb)`,
 		req.TenantID, out.ID, req.AssignedTo, []byte(`{"to":"open","origin":"create"}`),
 	); err != nil {
@@ -97,7 +97,7 @@ func (s *Store) CreateCase(ctx context.Context, req CreateCaseRequest) (*Case, e
 // GetCase returns a case by id.
 func (s *Store) GetCase(ctx context.Context, tenantID, id uuid.UUID) (*Case, error) {
 	const q = `SELECT ` + caseSelectColumns +
-		` FROM q.cases WHERE tenant_id = $1 AND id = $2`
+		` FROM detection.cases WHERE tenant_id = $1 AND id = $2`
 	row := s.pool.QueryRow(ctx, q, tenantID, id)
 	out, err := scanCase(row)
 	if err != nil {
@@ -115,7 +115,7 @@ func (s *Store) ListCases(ctx context.Context, f ListFilters) ([]Case, error) {
 		f.Limit = 50
 	}
 	args := []any{f.TenantID}
-	q := `SELECT ` + caseSelectColumns + ` FROM q.cases WHERE tenant_id = $1`
+	q := `SELECT ` + caseSelectColumns + ` FROM detection.cases WHERE tenant_id = $1`
 	if f.Status != "" {
 		args = append(args, f.Status)
 		q += fmt.Sprintf(" AND status = $%d", len(args))
@@ -148,7 +148,7 @@ func (s *Store) ListCases(ctx context.Context, f ListFilters) ([]Case, error) {
 	return out, rows.Err()
 }
 
-// AppendAction appends a row to q.case_actions.
+// AppendAction appends a row to detection.case_actions.
 func (s *Store) AppendAction(ctx context.Context, tenantID, caseID uuid.UUID, req AppendActionRequest) (*CaseAction, error) {
 	if req.ActionType == "" {
 		return nil, fmt.Errorf("%w: action_type required", ErrValidation)
@@ -158,7 +158,7 @@ func (s *Store) AppendAction(ctx context.Context, tenantID, caseID uuid.UUID, re
 		return nil, fmt.Errorf("casemgmt: marshal details: %w", err)
 	}
 	const q = `
-		INSERT INTO q.case_actions (tenant_id, case_id, action_type, performed_by, details)
+		INSERT INTO detection.case_actions (tenant_id, case_id, action_type, performed_by, details)
 		VALUES ($1, $2, $3, $4, $5::jsonb)
 		RETURNING id, case_id, action_type, performed_by, performed_at, details`
 	row := s.pool.QueryRow(ctx, q, tenantID, caseID, req.ActionType, req.PerformedBy, details)
@@ -173,7 +173,7 @@ func (s *Store) AppendAction(ctx context.Context, tenantID, caseID uuid.UUID, re
 	return &a, nil
 }
 
-// AppendEvidence appends a row to q.case_evidence with hash chaining
+// AppendEvidence appends a row to detection.case_evidence with hash chaining
 // (prev_evidence_hash). Hashes are SHA-256 hex of the canonical JSON
 // payload for cheap content addressing.
 func (s *Store) AppendEvidence(ctx context.Context, tenantID, caseID uuid.UUID, req AppendEvidenceRequest) (*CaseEvidence, error) {
@@ -196,7 +196,7 @@ func (s *Store) AppendEvidence(ctx context.Context, tenantID, caseID uuid.UUID, 
 	// Get the prior evidence hash for chaining.
 	var prevHash *string
 	if err := tx.QueryRow(ctx, `
-		SELECT payload_hash FROM q.case_evidence
+		SELECT payload_hash FROM detection.case_evidence
 		 WHERE case_id = $1
 		 ORDER BY collected_at DESC, id DESC
 		 LIMIT 1`, caseID).Scan(&prevHash); err != nil {
@@ -207,7 +207,7 @@ func (s *Store) AppendEvidence(ctx context.Context, tenantID, caseID uuid.UUID, 
 	}
 
 	const insertQ = `
-		INSERT INTO q.case_evidence (
+		INSERT INTO detection.case_evidence (
 			tenant_id, case_id, evidence_type, source_entity_type,
 			source_entity_id, payload, payload_hash, prev_evidence_hash,
 			collected_by
@@ -250,7 +250,7 @@ func (s *Store) CloseCase(ctx context.Context, tenantID, caseID uuid.UUID, req C
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	const updateQ = `
-		UPDATE q.cases
+		UPDATE detection.cases
 		   SET status = 'closed', resolved_at = now(),
 		       resolution_type = $3, updated_at = now()
 		 WHERE tenant_id = $1 AND id = $2
@@ -269,7 +269,7 @@ func (s *Store) CloseCase(ctx context.Context, tenantID, caseID uuid.UUID, req C
 		"notes":           req.Notes,
 	})
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO q.case_actions (tenant_id, case_id, action_type, performed_by, details)
+		INSERT INTO detection.case_actions (tenant_id, case_id, action_type, performed_by, details)
 		VALUES ($1, $2, 'resolution', $3, $4::jsonb)`,
 		tenantID, caseID, req.ClosedBy, details,
 	); err != nil {
@@ -286,7 +286,7 @@ func (s *Store) CloseCase(ctx context.Context, tenantID, caseID uuid.UUID, req C
 func (s *Store) ListActions(ctx context.Context, caseID uuid.UUID) ([]CaseAction, error) {
 	const q = `
 		SELECT id, case_id, action_type, performed_by, performed_at, details
-		  FROM q.case_actions
+		  FROM detection.case_actions
 		 WHERE case_id = $1
 		 ORDER BY performed_at ASC, id ASC`
 	rows, err := s.pool.Query(ctx, q, caseID)
@@ -315,7 +315,7 @@ func (s *Store) ListEvidence(ctx context.Context, caseID uuid.UUID) ([]CaseEvide
 		SELECT id, case_id, evidence_type, source_entity_type,
 		       source_entity_id, payload_hash, prev_evidence_hash,
 		       blockchain_anchor_id, collected_by, collected_at
-		  FROM q.case_evidence
+		  FROM detection.case_evidence
 		 WHERE case_id = $1
 		 ORDER BY collected_at ASC, id ASC`
 	rows, err := s.pool.Query(ctx, q, caseID)
@@ -336,7 +336,7 @@ func (s *Store) ListEvidence(ctx context.Context, caseID uuid.UUID) ([]CaseEvide
 	return out, rows.Err()
 }
 
-// caseSelectColumns is the canonical column list for q.cases reads.
+// caseSelectColumns is the canonical column list for detection.cases reads.
 const caseSelectColumns = `id, tenant_id, case_number, case_type,
 title, description, severity, status,
 primary_subject_id, primary_location_id, assigned_to,

@@ -1,6 +1,6 @@
 -- internal/db/sqlc/transaction.sql
 --
--- Named queries for the t.transactions canonical write path. The store
+-- Named queries for the transaction.transactions canonical write path. The store
 -- in internal/transaction/store.go orchestrates these within a pgx.Tx
 -- for the multi-statement Create/Void/Return operations.
 --
@@ -11,7 +11,7 @@
 -- Spec: GRO-764 Phase B.1 + GRO-765 Phase D carry-forward B.3.
 
 -- name: InsertTransactionHeader :one
-INSERT INTO t.transactions (
+INSERT INTO transaction.transactions (
     tenant_id, transaction_number, transaction_type, parent_transaction_id,
     location_id, pos_terminal_id, cashier_employee_id, customer_id,
     loyalty_membership_id, business_date, started_at, ended_at, status,
@@ -36,7 +36,7 @@ RETURNING id, tenant_id, transaction_number, transaction_type,
           void_reason, created_at, updated_at;
 
 -- name: InsertLineItem :exec
-INSERT INTO t.transaction_line_items (
+INSERT INTO transaction.transaction_line_items (
     tenant_id, transaction_id, line_number, item_id, description,
     quantity, unit_of_measure, unit_price, unit_tax, attributes
 ) VALUES (
@@ -46,7 +46,7 @@ INSERT INTO t.transaction_line_items (
 );
 
 -- name: InsertTender :exec
-INSERT INTO t.transaction_tenders (
+INSERT INTO transaction.transaction_tenders (
     tenant_id, transaction_id, tender_sequence, tender_type_id,
     amount, currency, processor_reference, attributes
 ) VALUES (
@@ -55,7 +55,7 @@ INSERT INTO t.transaction_tenders (
 );
 
 -- name: InsertDiscount :exec
-INSERT INTO t.transaction_discounts (
+INSERT INTO transaction.transaction_discounts (
     tenant_id, transaction_id, discount_sequence, scope,
     discount_type, amount, reason_code, attributes
 ) VALUES (
@@ -73,7 +73,7 @@ SELECT id, tenant_id, transaction_number, transaction_type,
        discount_total::numeric, grand_total::numeric,
        currency, channel, is_training_mode, is_offline,
        void_reason, created_at, updated_at
-  FROM t.transactions
+  FROM transaction.transactions
  WHERE tenant_id = $1 AND id = $2;
 
 -- name: GetTransactionByReceiptNumber :one
@@ -86,14 +86,14 @@ SELECT id, tenant_id, transaction_number, transaction_type,
        discount_total::numeric, grand_total::numeric,
        currency, channel, is_training_mode, is_offline,
        void_reason, created_at, updated_at
-  FROM t.transactions
+  FROM transaction.transactions
  WHERE tenant_id = $1
    AND location_id = $2
    AND business_date = $3::date
    AND transaction_number = $4;
 
 -- name: UpdateTransactionVoided :exec
-UPDATE t.transactions
+UPDATE transaction.transactions
    SET status = 'voided', void_reason = $3, updated_at = now()
  WHERE tenant_id = $1 AND id = $2;
 
@@ -107,7 +107,7 @@ SELECT id, tenant_id, transaction_number, transaction_type,
        discount_total::numeric, grand_total::numeric,
        currency, channel, is_training_mode, is_offline,
        void_reason, created_at, updated_at
-  FROM t.transactions
+  FROM transaction.transactions
  WHERE tenant_id = $1
  ORDER BY started_at DESC
  LIMIT $2 OFFSET $3;
@@ -116,20 +116,20 @@ SELECT id, tenant_id, transaction_number, transaction_type,
 SELECT id, transaction_id, line_number, item_id, description,
        quantity::numeric, unit_price::numeric,
        line_total::numeric, extended_tax::numeric, created_at
-  FROM t.transaction_line_items
+  FROM transaction.transaction_line_items
  WHERE transaction_id = $1
  ORDER BY line_number;
 
 -- name: ListTendersByTransaction :many
 SELECT id, transaction_id, tender_type_id,
        amount::numeric, currency, processor_reference, created_at
-  FROM t.transaction_tenders
+  FROM transaction.transaction_tenders
  WHERE transaction_id = $1
  ORDER BY tender_sequence;
 
 -- name: ListDiscountsByTransaction :many
 SELECT id, transaction_id, discount_type,
        amount::numeric, reason_code, created_at
-  FROM t.transaction_discounts
+  FROM transaction.transaction_discounts
  WHERE transaction_id = $1
  ORDER BY discount_sequence;

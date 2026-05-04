@@ -1,8 +1,8 @@
 //go:build integration
 
 // Integration test for the pricing service. Exercises the real stack:
-// pgxpool → p.item_prices, p.promotions, p.promotion_rules, p.tax_classes,
-// p.tax_rates → handler end-to-end. Run with:
+// pgxpool → pricing.item_prices, pricing.promotions, pricing.promotion_rules, pricing.tax_classes,
+// pricing.tax_rates → handler end-to-end. Run with:
 //
 //	GATEWAY_TEST_DATABASE_URL=postgres://growdirect:growdirect_dev@localhost:5432/canary_go_test?sslmode=disable \
 //	GATEWAY_TEST_VALKEY_URL=redis://:valkey_dev@localhost:6379/2 \
@@ -75,9 +75,9 @@ func seedPricingFixtures(t *testing.T, ctx context.Context, pool *pgxpool.Pool) 
 		tenantID, orgID, "pricing-itest-"+suffix, "pricing-itest-"+suffix, "pricing_itest_"+suffix); err != nil {
 		t.Fatalf("seed tenant: %v", err)
 	}
-	// Location — depends on l.locations schema (03_l_s_locations.sql)
+	// Location — depends on location.locations schema (03_l_s_locations.sql)
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO l.locations (id, tenant_id, location_code, name, location_type, status)
+		`INSERT INTO location.locations (id, tenant_id, location_code, name, location_type, status)
 		 VALUES ($1, $2, $3, $4, 'store', 'active')`,
 		locationID, tenantID, "STORE-"+suffix, "Test Store"); err != nil {
 		t.Fatalf("seed location: %v", err)
@@ -85,7 +85,7 @@ func seedPricingFixtures(t *testing.T, ctx context.Context, pool *pgxpool.Pool) 
 	// Item with tax_class STD
 	taxClassCode := "STD"
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO m.items (id, tenant_id, sku, description, item_type, unit_of_measure,
+		`INSERT INTO catalog.items (id, tenant_id, sku, description, item_type, unit_of_measure,
 		                       uom_quantity, default_currency, tax_class, status)
 		 VALUES ($1, $2, $3, 'Test Widget', 'standard', 'EA', 1, 'USD', $4, 'active')`,
 		itemID, tenantID, "WIDGET-"+suffix, taxClassCode); err != nil {
@@ -93,7 +93,7 @@ func seedPricingFixtures(t *testing.T, ctx context.Context, pool *pgxpool.Pool) 
 	}
 	// Base price $20.00
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO p.item_prices (id, tenant_id, item_id, channel, price_type, amount,
+		`INSERT INTO pricing.item_prices (id, tenant_id, item_id, channel, price_type, amount,
 		                              currency, uom, effective_start, status)
 		 VALUES ($1, $2, $3, 'all', 'regular', 20.00, 'USD', 'EA', now() - interval '1 hour', 'active')`,
 		priceID, tenantID, itemID); err != nil {
@@ -101,7 +101,7 @@ func seedPricingFixtures(t *testing.T, ctx context.Context, pool *pgxpool.Pool) 
 	}
 	// Active 10%-off promotion targeting this item
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO p.promotions (id, tenant_id, promotion_code, name, promotion_type,
+		`INSERT INTO pricing.promotions (id, tenant_id, promotion_code, name, promotion_type,
 		                            scope_type, effective_start, effective_end, active_days,
 		                            stackable, status)
 		 VALUES ($1, $2, $3, 'Ten Off', 'percent_off', 'item',
@@ -113,7 +113,7 @@ func seedPricingFixtures(t *testing.T, ctx context.Context, pool *pgxpool.Pool) 
 	trig, _ := json.Marshal(map[string][]string{"item_ids": {itemID.String()}})
 	bene, _ := json.Marshal(map[string]string{"percent": "0.10"})
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO p.promotion_rules (id, tenant_id, promotion_id, rule_order,
+		`INSERT INTO pricing.promotion_rules (id, tenant_id, promotion_id, rule_order,
 		                                 trigger_type, trigger_qualifier,
 		                                 benefit_type, benefit_qualifier)
 		 VALUES ($1, $2, $3, 1, 'buy_quantity', $4, 'percent_off', $5)`,
@@ -122,13 +122,13 @@ func seedPricingFixtures(t *testing.T, ctx context.Context, pool *pgxpool.Pool) 
 	}
 	// Tax class STD at 8.25%
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO p.tax_classes (id, tenant_id, code, name, status)
+		`INSERT INTO pricing.tax_classes (id, tenant_id, code, name, status)
 		 VALUES ($1, $2, $3, 'Standard', 'active')`,
 		taxClassID, tenantID, taxClassCode); err != nil {
 		t.Fatalf("seed tax class: %v", err)
 	}
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO p.tax_rates (id, tenant_id, tax_class_id, rate_type, rate, effective_start)
+		`INSERT INTO pricing.tax_rates (id, tenant_id, tax_class_id, rate_type, rate, effective_start)
 		 VALUES ($1, $2, $3, 'percentage', 0.0825, CURRENT_DATE - 1)`,
 		taxRateID, tenantID, taxClassID); err != nil {
 		t.Fatalf("seed tax rate: %v", err)
@@ -136,13 +136,13 @@ func seedPricingFixtures(t *testing.T, ctx context.Context, pool *pgxpool.Pool) 
 
 	cleanup := func() {
 		// Best-effort, dependency order
-		_, _ = pool.Exec(ctx, `DELETE FROM p.tax_rates WHERE id = $1`, taxRateID)
-		_, _ = pool.Exec(ctx, `DELETE FROM p.tax_classes WHERE id = $1`, taxClassID)
-		_, _ = pool.Exec(ctx, `DELETE FROM p.promotion_rules WHERE id = $1`, ruleID)
-		_, _ = pool.Exec(ctx, `DELETE FROM p.promotions WHERE id = $1`, promoID)
-		_, _ = pool.Exec(ctx, `DELETE FROM p.item_prices WHERE id = $1`, priceID)
-		_, _ = pool.Exec(ctx, `DELETE FROM m.items WHERE id = $1`, itemID)
-		_, _ = pool.Exec(ctx, `DELETE FROM l.locations WHERE id = $1`, locationID)
+		_, _ = pool.Exec(ctx, `DELETE FROM pricing.tax_rates WHERE id = $1`, taxRateID)
+		_, _ = pool.Exec(ctx, `DELETE FROM pricing.tax_classes WHERE id = $1`, taxClassID)
+		_, _ = pool.Exec(ctx, `DELETE FROM pricing.promotion_rules WHERE id = $1`, ruleID)
+		_, _ = pool.Exec(ctx, `DELETE FROM pricing.promotions WHERE id = $1`, promoID)
+		_, _ = pool.Exec(ctx, `DELETE FROM pricing.item_prices WHERE id = $1`, priceID)
+		_, _ = pool.Exec(ctx, `DELETE FROM catalog.items WHERE id = $1`, itemID)
+		_, _ = pool.Exec(ctx, `DELETE FROM location.locations WHERE id = $1`, locationID)
 		_, _ = pool.Exec(ctx, `DELETE FROM app.tenants WHERE id = $1`, tenantID)
 		_, _ = pool.Exec(ctx, `DELETE FROM app.organizations WHERE id = $1`, orgID)
 	}

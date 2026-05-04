@@ -1,9 +1,9 @@
 // internal/asset/store.go
 //
-// pgx-backed asset store. Reads i.inventory_positions, i.inventory_lots,
-// i.inventory_movements, and m.items. The flag write creates an
-// i.inventory_movements row (adjustment); it does not update
-// i.inventory_positions — that is the job of the Bull ingest pipeline
+// pgx-backed asset store. Reads inventory.inventory_positions, inventory.inventory_lots,
+// inventory.inventory_movements, and catalog.items. The flag write creates an
+// inventory.inventory_movements row (adjustment); it does not update
+// inventory.inventory_positions — that is the job of the Bull ingest pipeline
 // which processes movements and reconciles SOH.
 //
 // Spec: GRO-766 Phase C.
@@ -46,8 +46,8 @@ func (s *Store) List(ctx context.Context, f ListFilters) ([]PositionRow, error) 
 		    p.on_order_quantity, p.in_transit_quantity,
 		    p.cost_basis, p.status,
 		    p.last_movement_at, p.last_count_at
-		FROM i.inventory_positions p
-		JOIN m.items mi ON mi.id = p.item_id
+		FROM inventory.inventory_positions p
+		JOIN catalog.items mi ON mi.id = p.item_id
 		WHERE p.tenant_id = $1`
 
 	if f.LocationID != nil {
@@ -93,7 +93,7 @@ func (s *Store) GetItem(ctx context.Context, tenantID, itemID uuid.UUID) (*ItemD
 	// Item header
 	const itemQ = `
 		SELECT id, sku, description, item_type, unit_of_measure, status
-		FROM m.items
+		FROM catalog.items
 		WHERE tenant_id = $1 AND id = $2`
 	row := s.pool.QueryRow(ctx, itemQ, tenantID, itemID)
 	var d ItemDetail
@@ -113,8 +113,8 @@ func (s *Store) GetItem(ctx context.Context, tenantID, itemID uuid.UUID) (*ItemD
 		    p.on_order_quantity, p.in_transit_quantity,
 		    p.cost_basis, p.status,
 		    p.last_movement_at, p.last_count_at
-		FROM i.inventory_positions p
-		JOIN m.items mi ON mi.id = p.item_id
+		FROM inventory.inventory_positions p
+		JOIN catalog.items mi ON mi.id = p.item_id
 		WHERE p.tenant_id = $1 AND p.item_id = $2
 		ORDER BY p.location_id`
 	posRows, err := s.pool.Query(ctx, posQ, tenantID, itemID)
@@ -143,7 +143,7 @@ func (s *Store) GetItem(ctx context.Context, tenantID, itemID uuid.UUID) (*ItemD
 	// Active lots
 	const lotQ = `
 		SELECT id, lot_number, lot_type, expiry_date, status
-		FROM i.inventory_lots
+		FROM inventory.inventory_lots
 		WHERE tenant_id = $1 AND item_id = $2 AND status IN ('active','quarantine')
 		ORDER BY COALESCE(expiry_date, '9999-12-31') ASC, lot_number ASC`
 	lotRows, err := s.pool.Query(ctx, lotQ, tenantID, itemID)
@@ -176,7 +176,7 @@ func (s *Store) ShrinkMovements(ctx context.Context, tenantID uuid.UUID, from, t
 		    COALESCE(m.reason_code, '') AS reason_code,
 		    COUNT(*) AS cnt,
 		    SUM(m.quantity_delta) AS total_delta
-		FROM i.inventory_movements m
+		FROM inventory.inventory_movements m
 		WHERE m.tenant_id = $1
 		  AND m.movement_at >= $2
 		  AND m.movement_at <= $3
@@ -205,7 +205,7 @@ func (s *Store) ShrinkMovements(ctx context.Context, tenantID uuid.UUID, from, t
 func (s *Store) Flag(ctx context.Context, tenantID, itemID uuid.UUID, req FlagRequest) (*FlagResponse, error) {
 	now := time.Now().UTC()
 	const q = `
-		INSERT INTO i.inventory_movements
+		INSERT INTO inventory.inventory_movements
 		    (tenant_id, item_id, location_id, movement_type, quantity_delta,
 		     movement_at, reason_code, reference, performed_by_user_id)
 		VALUES ($1, $2, $3, 'adjustment', $4, $5, $6, $7, $8)

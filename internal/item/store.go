@@ -10,10 +10,10 @@
 //     predicate to avoid cross-tenant reads even on indexed lookups.
 //   - The barcode resolve query (GetByBarcode) is the keystone POS-scan
 //     path. It hits idx_barcodes_lookup (a partial unique index on
-//     active barcodes), joins m.items once, returns in a single round
+//     active barcodes), joins catalog.items once, returns in a single round
 //     trip. No N+1, no extra fetches before the hot path returns.
 //   - Soft delete: DELETE flips status to 'inactive'. The dispatch said
-//     soft-delete unless the schema demands hard delete; m.items has a
+//     soft-delete unless the schema demands hard delete; catalog.items has a
 //     status column so soft is the right call.
 
 package item
@@ -56,14 +56,14 @@ type PgxStore struct {
 // NewPgxStore wires a *pgxpool.Pool into a Store.
 func NewPgxStore(pool *pgxpool.Pool) *PgxStore { return &PgxStore{pool: pool} }
 
-// itemColumns is the canonical SELECT list for m.items. Keep this in
+// itemColumns is the canonical SELECT list for catalog.items. Keep this in
 // lock-step with scanItem — the order matters.
 const itemColumns = `id, tenant_id, sku, description, short_description, item_type,
 		category_id, unit_of_measure, uom_quantity::text, default_price::text,
 		default_cost::text, default_currency, tax_class, food_stamp_eligible,
 		age_restriction, weighable, attributes, status, created_at, updated_at`
 
-// scanItem reads one m.items row from a Row interface (Row or RowsRow).
+// scanItem reads one catalog.items row from a Row interface (Row or RowsRow).
 // Numeric columns are cast to ::text in the SELECT so pgx delivers them
 // as Go strings — Wave 1 types use string for numerics until decimal
 // support lands in Loop 3.
@@ -79,7 +79,7 @@ func scanItem(row pgx.Row) (types.Item, error) {
 	return it, err
 }
 
-// barcodeColumns mirrors itemColumns for m.item_barcodes.
+// barcodeColumns mirrors itemColumns for catalog.item_barcodes.
 const barcodeColumns = `id, tenant_id, item_id, barcode, barcode_type,
 		uom_quantity::text, is_primary, attributes, status, created_at, updated_at`
 
@@ -98,7 +98,7 @@ func scanBarcode(row pgx.Row) (types.ItemBarcode, error) {
 // indexed query (idx_barcodes_item).
 func (s *PgxStore) fetchBarcodes(ctx context.Context, tenantID, itemID uuid.UUID) ([]types.ItemBarcode, error) {
 	q := `SELECT ` + barcodeColumns + `
-		FROM m.item_barcodes
+		FROM catalog.item_barcodes
 		WHERE tenant_id = $1 AND item_id = $2
 		ORDER BY is_primary DESC, created_at ASC`
 	rows, err := s.pool.Query(ctx, q, tenantID, itemID)
@@ -123,7 +123,7 @@ func (s *PgxStore) fetchBarcodes(ctx context.Context, tenantID, itemID uuid.UUID
 
 // GetByID looks up an item by primary key, scoped to tenant. Includes barcodes.
 func (s *PgxStore) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*Item, error) {
-	q := `SELECT ` + itemColumns + ` FROM m.items WHERE tenant_id = $1 AND id = $2`
+	q := `SELECT ` + itemColumns + ` FROM catalog.items WHERE tenant_id = $1 AND id = $2`
 	row := s.pool.QueryRow(ctx, q, tenantID, id)
 	it, err := scanItem(row)
 	if err != nil {
@@ -142,7 +142,7 @@ func (s *PgxStore) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*Item, 
 
 // GetBySKU looks up by (tenant_id, sku) — the schema-level UNIQUE.
 func (s *PgxStore) GetBySKU(ctx context.Context, tenantID uuid.UUID, sku string) (*Item, error) {
-	q := `SELECT ` + itemColumns + ` FROM m.items WHERE tenant_id = $1 AND sku = $2`
+	q := `SELECT ` + itemColumns + ` FROM catalog.items WHERE tenant_id = $1 AND sku = $2`
 	row := s.pool.QueryRow(ctx, q, tenantID, sku)
 	it, err := scanItem(row)
 	if err != nil {
@@ -160,18 +160,18 @@ func (s *PgxStore) GetBySKU(ctx context.Context, tenantID uuid.UUID, sku string)
 }
 
 // GetByBarcode is the keystone POS-scan path. Single round-trip:
-// JOIN m.item_barcodes (idx_barcodes_lookup) → m.items. Returns the
+// JOIN catalog.item_barcodes (idx_barcodes_lookup) → catalog.items. Returns the
 // item with all its barcodes hydrated (small extra query — POS callers
 // may want the primary code echoed).
 //
 // Latency design: idx_barcodes_lookup is `(tenant_id, barcode) WHERE
 // status = 'active'` — a partial unique. The join key is item_id which
-// is the PK of m.items. Both probes are O(log n). Sub-100ms is
+// is the PK of catalog.items. Both probes are O(log n). Sub-100ms is
 // achievable on commodity hardware up to multi-million-row catalogs.
 func (s *PgxStore) GetByBarcode(ctx context.Context, tenantID uuid.UUID, barcode string) (*Item, error) {
 	q := `SELECT ` + prefixCols("i.", itemColumns) + `
-		FROM m.item_barcodes b
-		JOIN m.items i ON i.id = b.item_id AND i.tenant_id = b.tenant_id
+		FROM catalog.item_barcodes b
+		JOIN catalog.items i ON i.id = b.item_id AND i.tenant_id = b.tenant_id
 		WHERE b.tenant_id = $1 AND b.barcode = $2 AND b.status = 'active'`
 	row := s.pool.QueryRow(ctx, q, tenantID, barcode)
 	it, err := scanItem(row)
@@ -246,7 +246,7 @@ func (s *PgxStore) Create(ctx context.Context, req CreateRequest) (*Item, error)
 		attrs = json.RawMessage(`{}`)
 	}
 
-	q := `INSERT INTO m.items
+	q := `INSERT INTO catalog.items
 		(id, tenant_id, sku, description, short_description, item_type, category_id,
 		 unit_of_measure, uom_quantity, default_price, default_cost, default_currency,
 		 tax_class, food_stamp_eligible, age_restriction, weighable, attributes, status)
@@ -270,7 +270,7 @@ func (s *PgxStore) Create(ctx context.Context, req CreateRequest) (*Item, error)
 		bcUOM := derefOr(b.UOMQuantity, "1")
 		bcPrim := derefBoolOr(b.IsPrimary, false)
 
-		bq := `INSERT INTO m.item_barcodes
+		bq := `INSERT INTO catalog.item_barcodes
 			(tenant_id, item_id, barcode, barcode_type, uom_quantity, is_primary)
 			VALUES ($1, $2, $3, $4, $5::numeric, $6)
 			RETURNING ` + barcodeColumns
@@ -360,7 +360,7 @@ func (s *PgxStore) Update(ctx context.Context, tenantID, id uuid.UUID, patch Pat
 	}
 	sets = append(sets, "updated_at = now()")
 
-	q := fmt.Sprintf(`UPDATE m.items SET %s
+	q := fmt.Sprintf(`UPDATE catalog.items SET %s
 		WHERE tenant_id = $1 AND id = $2
 		RETURNING %s`, strings.Join(sets, ", "), itemColumns)
 
@@ -381,7 +381,7 @@ func (s *PgxStore) Update(ctx context.Context, tenantID, id uuid.UUID, patch Pat
 }
 
 // Delete is a soft delete — flips status to 'inactive'. ON DELETE CASCADE
-// on m.item_barcodes / m.item_vendors would happen with hard delete; we
+// on catalog.item_barcodes / catalog.item_vendors would happen with hard delete; we
 // preserve them so audit-trail queries still resolve. Use a separate
 // purge dispatch if hard delete is ever needed.
 //
@@ -393,7 +393,7 @@ func (s *PgxStore) Update(ctx context.Context, tenantID, id uuid.UUID, patch Pat
 // 'discontinued' so the dispatch authors can audit the choice. Switch
 // trivially if 'discontinued' is preferred.
 func (s *PgxStore) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
-	q := `UPDATE m.items SET status = 'inactive', updated_at = now()
+	q := `UPDATE catalog.items SET status = 'inactive', updated_at = now()
 		WHERE tenant_id = $1 AND id = $2`
 	tag, err := s.pool.Exec(ctx, q, tenantID, id)
 	if err != nil {
@@ -422,11 +422,11 @@ func (s *PgxStore) List(ctx context.Context, f ListFilters) ([]Item, error) {
 		idx++
 	}
 	if f.VendorID != nil {
-		// Items linked to vendor via m.item_vendors. EXISTS keeps it cheap.
+		// Items linked to vendor via catalog.item_vendors. EXISTS keeps it cheap.
 		conds = append(conds, fmt.Sprintf(`EXISTS (
-			SELECT 1 FROM m.item_vendors iv
-			WHERE iv.tenant_id = m.items.tenant_id
-			  AND iv.item_id = m.items.id
+			SELECT 1 FROM catalog.item_vendors iv
+			WHERE iv.tenant_id = catalog.items.tenant_id
+			  AND iv.item_id = catalog.items.id
 			  AND iv.vendor_id = $%d)`, idx))
 		args = append(args, *f.VendorID)
 		idx++
@@ -438,7 +438,7 @@ func (s *PgxStore) List(ctx context.Context, f ListFilters) ([]Item, error) {
 	}
 	args = append(args, limit, f.Offset)
 
-	q := fmt.Sprintf(`SELECT %s FROM m.items WHERE %s
+	q := fmt.Sprintf(`SELECT %s FROM catalog.items WHERE %s
 		ORDER BY created_at DESC, id ASC
 		LIMIT $%d OFFSET $%d`,
 		itemColumns, strings.Join(conds, " AND "), idx, idx+1)
@@ -467,7 +467,7 @@ func (s *PgxStore) List(ctx context.Context, f ListFilters) ([]Item, error) {
 func (s *PgxStore) ListCategories(ctx context.Context, tenantID uuid.UUID) ([]Category, error) {
 	q := `SELECT id, tenant_id, parent_id, code, name, level, path::text,
 			attributes, status, created_at, updated_at
-		FROM m.product_categories
+		FROM catalog.product_categories
 		WHERE tenant_id = $1
 		ORDER BY level ASC, code ASC`
 	rows, err := s.pool.Query(ctx, q, tenantID)
@@ -496,7 +496,7 @@ func (s *PgxStore) ListVendors(ctx context.Context, tenantID uuid.UUID) ([]Vendo
 	q := `SELECT id, tenant_id, vendor_code, name, short_name, vendor_type,
 			primary_contact, address, payment_terms, currency, tax_id,
 			attributes, status, created_at, updated_at
-		FROM m.vendors
+		FROM catalog.vendors
 		WHERE tenant_id = $1
 		ORDER BY name ASC`
 	rows, err := s.pool.Query(ctx, q, tenantID)

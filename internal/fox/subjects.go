@@ -1,9 +1,9 @@
 // internal/fox/subjects.go
 //
-// q.subjects resolution — looks up or creates a subject row keyed on
+// detection.subjects resolution — looks up or creates a subject row keyed on
 // (tenant_id, related_<kind>_id). Closes the Loop 2 Fox SDD-bug:
 // subjectFromDetection returned cashier_employee_id directly into
-// q.cases.primary_subject_id, violating the FK on q.subjects(id) on
+// detection.cases.primary_subject_id, violating the FK on detection.subjects(id) on
 // every auto-escalated case.
 //
 // Per OQ Resolution Pack §A.1 OQ-1.5 (founder-approved 2026-05-03):
@@ -25,7 +25,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// SubjectKind enumerates the three q.subjects.related_*_id columns
+// SubjectKind enumerates the three detection.subjects.related_*_id columns
 // the resolver knows how to upsert against.
 type SubjectKind string
 
@@ -81,10 +81,10 @@ var _ SubjectResolver = (*Store)(nil)
 // is passed to Resolve.
 var ErrInvalidSubjectKind = errors.New("fox: invalid subject kind")
 
-// ResolveSubject upserts a q.subjects row keyed on
+// ResolveSubject upserts a detection.subjects row keyed on
 // (tenant_id, subject_code) where subject_code is a deterministic
 // derivation of (kind, refID): "emp:<uuid>", "cust:<uuid>",
-// "vend:<uuid>". Idempotent — the existing q.subjects unique index
+// "vend:<uuid>". Idempotent — the existing detection.subjects unique index
 // uq (tenant_id, subject_code) provides the upsert key.
 //
 // Returns the subject's id (existing or newly-minted) and nil. On
@@ -100,7 +100,7 @@ func (s *Store) ResolveSubject(ctx context.Context, tenantID uuid.UUID, kind Sub
 	// conflict (DO NOTHING would skip RETURNING for the conflicting
 	// row, requiring a follow-up SELECT).
 	q := fmt.Sprintf(`
-		INSERT INTO q.subjects (tenant_id, subject_code, subject_type, %s, display_name)
+		INSERT INTO detection.subjects (tenant_id, subject_code, subject_type, %s, display_name)
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (tenant_id, subject_code)
 		DO UPDATE SET updated_at = now()
@@ -112,7 +112,7 @@ func (s *Store) ResolveSubject(ctx context.Context, tenantID uuid.UUID, kind Sub
 	if err != nil {
 		// Not-found is impossible with this UPSERT shape; any error is
 		// a real DB or constraint failure (e.g., refID doesn't FK to
-		// the related table — q.subjects related_*_id columns are
+		// the related table — detection.subjects related_*_id columns are
 		// formal FKs in the schema).
 		if errors.Is(err, pgx.ErrNoRows) {
 			return uuid.Nil, fmt.Errorf("fox: ResolveSubject returned no row for tenant=%s kind=%s ref=%s", tenantID, kind, refID)
