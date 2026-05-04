@@ -70,9 +70,32 @@ func writeTestEvents(t *testing.T, pool *pgxpool.Pool, n int) []string {
 // provided event_hashes, calls WriteAnchor via StubInscriber, and
 // returns the AnchorResult. minBatch is set to 1 so single-event
 // batches are allowed in tests.
-func anchorTestBatch(t *testing.T, pool *pgxpool.Pool, _ []string) *sub3.AnchorResult {
+//
+// Before calling WriteAnchor it verifies that exactly len(hashes)
+// unanchored rows exist for the provided hashes. If the count does not
+// match — indicating dirty DB state from a prior test run — the test is
+// skipped so it does not produce a misleading anchor over the wrong set.
+func anchorTestBatch(t *testing.T, pool *pgxpool.Pool, hashes []string) *sub3.AnchorResult {
 	t.Helper()
 	ctx := context.Background()
+
+	// Guard: count unanchored evidence rows for the specific hashes only.
+	var count int
+	err := pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM protocol.evidence e
+		 WHERE e.event_hash = ANY($1)
+		   AND NOT EXISTS (
+		       SELECT 1 FROM protocol.evidence_anchors ea
+		       WHERE ea.event_hash = e.event_hash
+		   )`,
+		hashes,
+	).Scan(&count)
+	if err != nil {
+		t.Fatalf("anchorTestBatch: count unanchored: %v", err)
+	}
+	if count != len(hashes) {
+		t.Skipf("anchorTestBatch: expected %d unanchored hashes, found %d — dirty DB state", len(hashes), count)
+	}
 
 	store := sub3.NewStore(pool, "signet")
 	stub := &sub3.StubInscriber{}
@@ -150,6 +173,52 @@ type evidenceAnchorRow struct {
 	AnchorID    uuid.UUID
 	LeafIndex   int
 	MerkleProof []byte
+}
+
+// destroyAllLocal saves protocol.evidence, protocol.evidence_anchors, and
+// protocol.anchors — in that order, before any cascade can wipe them — then
+// truncates all three tables. Returns a restore function suitable for
+// t.Cleanup.
+//
+// Used by Scenario C only, where both the L1 and L2 tiers are destroyed.
+// Saving evidence_anchors MUST happen before truncating evidence, because
+// TRUNCATE evidence CASCADE wipes evidence_anchors.
+func destroyAllLocal(t *testing.T, pool *pgxpool.Pool) func() {
+	t.Helper()
+	ctx := context.Background()
+
+	// 1. Save evidence_anchors first — CASCADE from evidence will wipe them.
+	savedEA, err := fetchAllEvidenceAnchors(ctx, pool)
+	if err != nil {
+		t.Fatalf("destroyAllLocal: fetch evidence_anchors: %v", err)
+	}
+
+	// 2. Save anchors.
+	savedAnchors, err := fetchAllAnchors(ctx, pool)
+	if err != nil {
+		t.Fatalf("destroyAllLocal: fetch anchors: %v", err)
+	}
+
+	// 3. Save evidence.
+	savedEvidence, err := fetchAllEvidence(ctx, pool)
+	if err != nil {
+		t.Fatalf("destroyAllLocal: fetch evidence: %v", err)
+	}
+
+	// 4. Destroy: disable triggers, truncate evidence (cascades to evidence_anchors),
+	//    then truncate anchors.
+	disableAndTruncate(t, ctx, pool) // TRUNCATE evidence CASCADE + trigger management
+
+	if _, err := pool.Exec(ctx, "TRUNCATE protocol.anchors CASCADE"); err != nil {
+		t.Fatalf("destroyAllLocal: truncate anchors: %v", err)
+	}
+
+	// Return restore: evidence first (FK parent), then anchors, then evidence_anchors.
+	return func() {
+		restoreEvidence(t, ctx, pool, savedEvidence)
+		restoreAnchors(t, ctx, pool, savedAnchors)
+		restoreEvidenceAnchors(t, ctx, pool, savedEA)
+	}
 }
 
 // truncateEvidence disables the append-only triggers on

@@ -31,7 +31,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -254,21 +253,13 @@ func TestScenarioC_FullLocalLoss(t *testing.T) {
 	// comes from reading the S4 chain anchor — not from a local DB query.
 	merkleRoot := result.MerkleRoot
 
-	// Register evidence restore first (inner), then anchors restore (outer).
-	// Cleanup runs in LIFO order, so anchors are restored before evidence FK
-	// is required again.
-	t.Cleanup(truncateEvidence(t, pool))
-	t.Cleanup(truncateAnchors(t, pool))
-
-	// ── Destroy both local tiers ───────────────────────────────────────────
-	// Order: evidence first (cascades to evidence_anchors), then anchors.
-	// truncateEvidence disables append-only triggers; truncateAnchors operates
-	// directly on protocol.anchors (no such trigger there).
-	//
-	// Note: t.Cleanup above registered restores, but we execute the truncates
-	// now. The cleanup functions already captured the rows before we call them.
-	// Re-execute the truncates manually for Scenario C.
-	destroyAllLocal(t, pool)
+	// destroyAllLocal saves all three tables (evidence_anchors first, before
+	// CASCADE can wipe them) then truncates everything, and registers a
+	// combined restore for t.Cleanup. A single helper avoids the ordering
+	// hazard of registering truncateEvidence + truncateAnchors separately,
+	// where the first CASCADE wipes evidence_anchors before the second can
+	// save them.
+	t.Cleanup(destroyAllLocal(t, pool))
 
 	// Confirm all protocol tables are empty.
 	ctx := context.Background()
@@ -303,47 +294,3 @@ func TestScenarioC_FullLocalLoss(t *testing.T) {
 	t.Logf("Scenario C PASS: %d events verified via chain anchor + local proof; 0 DB rows required", len(hashes))
 }
 
-// destroyAllLocal is Scenario C's explicit destruction step. It operates
-// independently of the t.Cleanup restores already registered — those will
-// run after the test and restore state for subsequent tests.
-func destroyAllLocal(t *testing.T, p *pgxpool.Pool) {
-	t.Helper()
-	ctx := context.Background()
-
-	// Disable evidence append-only triggers before truncate.
-	triggerStmts := []string{
-		"ALTER TABLE protocol.evidence DISABLE TRIGGER evidence_no_delete",
-		"ALTER TABLE protocol.evidence DISABLE TRIGGER evidence_no_truncate",
-		"ALTER TABLE protocol.evidence DISABLE TRIGGER evidence_no_update",
-	}
-	for _, stmt := range triggerStmts {
-		if _, err := p.Exec(ctx, stmt); err != nil {
-			t.Fatalf("destroyAllLocal: %s: %v", stmt, err)
-		}
-	}
-
-	// TRUNCATE evidence (cascades to evidence_anchors via event_hash FK).
-	if _, err := p.Exec(ctx, "TRUNCATE protocol.evidence CASCADE"); err != nil {
-		t.Fatalf("destroyAllLocal: truncate evidence: %v", err)
-	}
-
-	// Re-enable evidence triggers.
-	enableStmts := []string{
-		"ALTER TABLE protocol.evidence ENABLE TRIGGER evidence_no_delete",
-		"ALTER TABLE protocol.evidence ENABLE TRIGGER evidence_no_truncate",
-		"ALTER TABLE protocol.evidence ENABLE TRIGGER evidence_no_update",
-	}
-	for _, stmt := range enableStmts {
-		if _, err := p.Exec(ctx, stmt); err != nil {
-			t.Fatalf("destroyAllLocal: %s: %v", stmt, err)
-		}
-	}
-
-	// TRUNCATE anchors (evidence_anchors already gone from CASCADE above).
-	if _, err := p.Exec(ctx, "TRUNCATE protocol.anchors CASCADE"); err != nil {
-		t.Fatalf("destroyAllLocal: truncate anchors: %v", err)
-	}
-
-	// Brief pause so Postgres cleans up before COUNT(*) assertions.
-	_ = time.Millisecond
-}
