@@ -86,3 +86,6 @@ build-edge-windows:
 
 lint:
 	go vet ./...
+
+test-cockroach:
+	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test -tags integration ./internal/protocol/cockroach/... -v -timeout 60s
