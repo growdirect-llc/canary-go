@@ -48,6 +48,7 @@ services:
       LNURL_STUB: "true"
       LNURL_SCHEME: http
       LNURL_HOST: localhost:8080
+      DEV_CONSOLE: "1"
     depends_on:
       canarygo-migrate:
         condition: service_completed_successfully

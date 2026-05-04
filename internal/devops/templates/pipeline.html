@@ -1,0 +1,214 @@
+{{template "base.html" .}}
+
+{{define "title"}}Pipeline — Canary Devops{{end}}
+
+{{define "content"}}
+<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:4px;">
+  <h1 class="page-title">Pipeline Monitor</h1>
+  <div class="refresh-indicator" id="refresh-indicator">
+    <div class="refresh-spinner" id="refresh-spinner"></div>
+    <span id="refresh-ts">—</span>
+  </div>
+</div>
+<p class="page-subtitle">Protocol event flow · auto-refreshes every 10s</p>
+
+<!-- Stat tiles -->
+<div class="ops-grid-4" id="stat-tiles">
+  <div class="stat-tile">
+    <div class="stat-value" id="stat-evidence">—</div>
+    <div class="stat-label">Evidence Sealed</div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-value blue" id="stat-stream">—</div>
+    <div class="stat-label">Stream Depth</div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-value" id="stat-dlq-pending">—</div>
+    <div class="stat-label">DLQ Pending</div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-value" id="stat-seq-gaps">—</div>
+    <div class="stat-label">Seq Gaps</div>
+  </div>
+</div>
+
+<div class="ops-grid-2">
+
+  <!-- Stream health -->
+  <div class="ops-card">
+    <div class="ops-section-title">Valkey Stream</div>
+    <div id="stream-panel">
+      <div class="stream-row">
+        <span class="stream-name">protocol:events</span>
+        <span class="stream-meta" id="stream-len">—</span>
+      </div>
+      <div id="consumer-groups"></div>
+    </div>
+  </div>
+
+  <!-- DLQ summary -->
+  <div class="ops-card">
+    <div class="ops-section-title">Dead-Letter Queue</div>
+    <div id="dlq-panel">
+      <div class="stream-row">
+        <span class="stream-name">pending</span>
+        <span class="stream-meta red" id="dlq-pending">—</span>
+      </div>
+      <div class="stream-row">
+        <span class="stream-name">abandoned</span>
+        <span class="stream-meta" id="dlq-abandoned">—</span>
+      </div>
+      <div class="stream-row">
+        <span class="stream-name">replayed</span>
+        <span class="stream-meta" id="dlq-replayed">—</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Recent evidence -->
+<div class="ops-card" style="margin-bottom:16px;">
+  <div class="ops-section-title">
+    Recent Evidence
+    <span class="ts" id="evidence-count-label"></span>
+  </div>
+  <div id="evidence-table-wrap">
+    <div class="empty-state">Loading…</div>
+  </div>
+</div>
+
+<!-- Sequence gaps -->
+<div class="ops-card">
+  <div class="ops-section-title">
+    Sequence Gap Log
+    <span class="ts" id="gaps-count-label"></span>
+  </div>
+  <div id="gaps-table-wrap">
+    <div class="empty-state">Loading…</div>
+  </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+const fmtNum  = n  => (n == null ? '—' : n.toLocaleString());
+const fmtHash = h  => h ? h.slice(0, 12) + '…' : '—';
+const fmtTime = ts => {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+};
+
+function setTile(id, val, colorClass) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = fmtNum(val);
+  if (colorClass) { el.className = 'stat-value ' + colorClass; }
+}
+
+function renderEvidenceTable(rows) {
+  const wrap = document.getElementById('evidence-table-wrap');
+  const label = document.getElementById('evidence-count-label');
+  if (!rows || rows.length === 0) {
+    wrap.innerHTML = '<div class="empty-state">No evidence records yet.</div>';
+    label.textContent = '';
+    return;
+  }
+  label.textContent = rows.length + ' shown';
+  const html = `<table class="ops-table">
+    <thead><tr>
+      <th>Event ID</th><th>Source</th><th>Event Hash</th><th>Chain Hash</th><th>Ingested</th>
+    </tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td class="hash">${r.event_id || '—'}</td>
+      <td><span class="badge badge-blue">${r.source_code || '—'}</span></td>
+      <td class="hash">${fmtHash(r.event_hash)}</td>
+      <td class="hash">${fmtHash(r.chain_hash)}</td>
+      <td class="ts">${fmtTime(r.ingested_at)}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+  wrap.innerHTML = html;
+}
+
+function renderGapsTable(rows) {
+  const wrap = document.getElementById('gaps-table-wrap');
+  const label = document.getElementById('gaps-count-label');
+  if (!rows || rows.length === 0) {
+    wrap.innerHTML = '<div class="empty-state">No sequence gaps detected. ✓</div>';
+    label.textContent = '';
+    return;
+  }
+  label.textContent = rows.length + ' gaps';
+  const html = `<table class="ops-table">
+    <thead><tr>
+      <th>Source</th><th>Sequence ID</th><th>Expected Prev</th><th>Event ID</th><th>Received</th>
+    </tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td><span class="badge badge-amber">${r.source_code || '—'}</span></td>
+      <td class="hash">${r.sequence_id || '—'}</td>
+      <td class="hash">${r.expected_prev_seq || '—'}</td>
+      <td class="hash">${r.event_id ? r.event_id.slice(0,12)+'…' : '—'}</td>
+      <td class="ts">${fmtTime(r.received_at)}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+  wrap.innerHTML = html;
+}
+
+function renderConsumerGroups(groups) {
+  const el = document.getElementById('consumer-groups');
+  if (!groups || groups.length === 0) {
+    el.innerHTML = '<div style="font-size:11px;color:var(--text-dim);padding:4px 0;">No consumer groups registered.</div>';
+    return;
+  }
+  el.innerHTML = groups.map(g => `
+    <div class="stream-row">
+      <span class="stream-name" style="font-size:11px;color:var(--text-muted)">${g.name}</span>
+      <span class="stream-meta">lag: ${fmtNum(g.lag)} · pending: ${fmtNum(g.pending)}</span>
+    </div>`).join('');
+}
+
+async function refresh() {
+  const spinner = document.getElementById('refresh-spinner');
+  const tsEl    = document.getElementById('refresh-ts');
+  spinner.style.display = 'block';
+  try {
+    const resp = await fetch('/devops/api/pipeline-state');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const d = await resp.json();
+
+    // Stat tiles
+    setTile('stat-evidence', d.evidence?.total, null);
+    setTile('stat-stream', d.stream?.length, 'blue');
+
+    const dlqPending = d.dlq?.pending ?? 0;
+    setTile('stat-dlq-pending', dlqPending, dlqPending > 0 ? 'red' : 'green');
+
+    const gaps = d.sequence?.gaps ?? 0;
+    setTile('stat-seq-gaps', gaps, gaps > 0 ? 'red' : 'green');
+
+    // Stream
+    document.getElementById('stream-len').textContent = fmtNum(d.stream?.length);
+    renderConsumerGroups(d.stream?.consumer_groups || []);
+
+    // DLQ
+    document.getElementById('dlq-pending').textContent   = fmtNum(d.dlq?.pending);
+    document.getElementById('dlq-abandoned').textContent = fmtNum(d.dlq?.abandoned);
+    document.getElementById('dlq-replayed').textContent  = fmtNum(d.dlq?.replayed);
+
+    // Tables
+    renderEvidenceTable(d.evidence?.recent || []);
+    renderGapsTable(d.sequence?.recent_gaps || []);
+
+    tsEl.textContent = 'updated ' + new Date().toLocaleTimeString();
+  } catch(e) {
+    tsEl.textContent = 'error: ' + e.message;
+  } finally {
+    spinner.style.display = 'none';
+  }
+}
+
+refresh();
+setInterval(refresh, 10000);
+</script>
+{{end}}

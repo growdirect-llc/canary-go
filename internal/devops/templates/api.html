@@ -1,0 +1,43 @@
+{{template "base.html" .}}
+
+{{define "title"}}API Explorer — Canary Devops{{end}}
+
+{{define "head"}}
+<style>
+  body { overflow: hidden; }
+  .main-content { padding: 0; display: flex; flex-direction: column; height: 100vh; }
+  .api-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-secondary);
+    flex-shrink: 0;
+  }
+  .api-toolbar h2 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .api-toolbar .badge { font-size: 10px; }
+  #redoc-frame {
+    flex: 1;
+    border: none;
+    width: 100%;
+    background: #060608;
+  }
+</style>
+{{end}}
+
+{{define "content"}}
+<div class="api-toolbar">
+  <h2>📖 API Explorer</h2>
+  <span class="badge badge-amber">Canary Protocol v1</span>
+  <span style="font-size:11px;color:var(--text-dim);margin-left:auto;">
+    Powered by Redoc · <a href="/devops/api/spec.yaml" style="color:var(--blue);">raw spec</a>
+  </span>
+</div>
+<iframe id="redoc-frame" src="/devops/api/redoc" title="Canary API Reference"></iframe>
+{{end}}
