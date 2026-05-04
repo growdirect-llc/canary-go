@@ -1,0 +1,96 @@
+{{template "base.html" .}}
+
+{{define "title"}}Case Analytics — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Case Analytics</h1>
+  <p class="page-subtitle">Loss prevention performance</p>
+</div>
+
+<!-- Stat tiles -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px;">
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:2rem;font-weight:700;color:var(--signal-yellow);">{{.OpenCount}}</div>
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-top:4px;">Open Cases</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:2rem;font-weight:700;color:var(--health-green);">{{.ClosedThisMonth}}</div>
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-top:4px;">Closed This Month</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:2rem;font-weight:700;color:var(--text-primary);">{{.AvgResolutionDays}}</div>
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-top:4px;">Avg Resolution Days</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:2rem;font-weight:700;color:var(--accent-blue);">{{.TotalEvidenceItems}}</div>
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-top:4px;">Total Evidence Items</div>
+  </div>
+</div>
+
+<!-- Chart placeholder -->
+<div class="ops-card" style="margin-bottom:24px;">
+  <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Resolution Time Trend</h3>
+  <div style="height:140px;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border-subtle);border-radius:6px;color:var(--text-muted);font-size:13px;">
+    Resolution time trend (chart coming soon)
+  </div>
+</div>
+
+<!-- Cases by rule -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+  <div class="ops-card">
+    <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Cases by Rule</h3>
+    {{if .ByRule}}
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <th style="text-align:left;padding:6px 12px 6px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Rule Name</th>
+          <th style="text-align:right;padding:6px 12px 6px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Cases</th>
+          <th style="text-align:right;padding:6px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">% of Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .ByRule}}
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <td style="padding:8px 12px 8px 0;color:var(--text-primary);">{{.RuleName}}</td>
+          <td style="padding:8px 12px 8px 0;text-align:right;color:var(--text-primary);">{{.CaseCount}}</td>
+          <td style="padding:8px 0;text-align:right;color:var(--text-muted);">{{.Pct}}%</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <div style="padding:16px 0;color:var(--text-muted);font-size:13px;text-align:center;">No rule data yet.</div>
+    {{end}}
+  </div>
+
+  <!-- Cases by store -->
+  <div class="ops-card">
+    <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Cases by Store</h3>
+    {{if .ByStore}}
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <th style="text-align:left;padding:6px 12px 6px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Store</th>
+          <th style="text-align:right;padding:6px 12px 6px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Open</th>
+          <th style="text-align:right;padding:6px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Closed</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .ByStore}}
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <td style="padding:8px 12px 8px 0;color:var(--text-primary);">{{.Store}}</td>
+          <td style="padding:8px 12px 8px 0;text-align:right;color:var(--signal-yellow);">{{.Open}}</td>
+          <td style="padding:8px 0;text-align:right;color:var(--health-green);">{{.Closed}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <div style="padding:16px 0;color:var(--text-muted);font-size:13px;text-align:center;">No store data yet.</div>
+    {{end}}
+  </div>
+</div>
+{{end}}
+{{end}}

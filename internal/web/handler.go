@@ -87,9 +87,29 @@ func New(logger *zap.Logger) *Handler {
 	h.mustParse("hawk_list", "templates/hawk/case_list.html")
 	h.mustParse("hawk_detail", "templates/hawk/case_detail.html")
 	h.mustParse("hawk_new", "templates/hawk/wizard_start.html")
+	h.mustParse("hawk_evidence", "templates/hawk/evidence_attach.html")
+	h.mustParse("hawk_analytics", "templates/hawk/case_analytics.html")
+	h.mustParse("hawk_patterns", "templates/hawk/cross_case_patterns.html")
+	h.mustParse("alert_detail", "templates/alert_detail.html")
+	h.mustParse("rule_detail", "templates/rule_detail.html")
+	h.mustParse("chirp_detail", "templates/chirp_detail.html")
 	h.mustParse("err403", "templates/errors/403.html")
 	h.mustParse("err404", "templates/errors/404.html")
 	h.mustParse("err500", "templates/errors/500.html")
+	h.mustParse("customers_list", "templates/customers/list.html")
+	h.mustParse("customers_detail", "templates/customers/detail.html")
+	h.mustParse("customers_risk", "templates/customers/risk.html")
+	h.mustParse("customers_context", "templates/customers/context.html")
+	h.mustParse("settings_allowlist_dead_count", "templates/settings/allowlist_dead_count.html")
+	h.mustParse("settings_allowlist_discounts", "templates/settings/allowlist_discounts.html")
+	h.mustParse("settings_allowlist_voids", "templates/settings/allowlist_voids.html")
+	h.mustParse("settings_allowlist_comps", "templates/settings/allowlist_comps.html")
+	h.mustParse("settings_training_mode", "templates/settings/training_mode.html")
+	h.mustParse("settings_alert_routing", "templates/settings/alert_routing.html")
+	h.mustParse("settings_store_drawer", "templates/settings/store_drawer.html")
+	h.mustParse("settings_store_discounts", "templates/settings/store_discounts.html")
+	h.mustParse("settings_store_void_reasons", "templates/settings/store_void_reasons.html")
+	h.mustParse("settings_store_comp_reasons", "templates/settings/store_comp_reasons.html")
 	return h
 }
 
@@ -134,8 +154,34 @@ func (h *Handler) Mount(r chi.Router) {
 	// Hawk case management
 	r.Get("/cases/hawk", h.page("cases", "hawk_list", stubHawkList))
 	r.Get("/cases/hawk/new", h.page("cases", "hawk_new", stubHawkNew))
+	r.Get("/cases/hawk/analytics", h.page("cases", "hawk_analytics", stubHawkAnalytics))
+	r.Get("/cases/hawk/patterns", h.page("cases", "hawk_patterns", stubHawkPatterns))
 	r.Get("/cases/hawk/{id}", h.hawkDetailPage)
+	r.Get("/cases/hawk/{id}/evidence", h.hawkEvidencePage)
 	r.Post("/cases/hawk", h.hawkCreateCase)
+
+	// Detail pages
+	r.Get("/alerts/{id}", h.alertDetailPage)
+	r.Get("/rules/{id}", h.ruleDetailPage)
+	r.Get("/chirps/{id}", h.chirpDetailPage)
+
+	// Customer investigator
+	r.Get("/customers", h.page("customers", "customers_list", stubCustomersList))
+	r.Get("/customers/{id}", h.customerDetailPage)
+	r.Get("/customers/{id}/risk", h.customerRiskPage)
+	r.Get("/customers/{id}/context", h.customerContextPage)
+
+	// Settings sub-pages
+	r.Get("/settings/allowlist/dead-count", h.page("settings", "settings_allowlist_dead_count", func(_ *http.Request) any { return map[string]any{"Entries": nil, "StoreID": "—"} }))
+	r.Get("/settings/allowlist/discounts", h.page("settings", "settings_allowlist_discounts", func(_ *http.Request) any { return map[string]any{"Entries": nil} }))
+	r.Get("/settings/allowlist/voids", h.page("settings", "settings_allowlist_voids", func(_ *http.Request) any { return map[string]any{"Entries": nil} }))
+	r.Get("/settings/allowlist/comps", h.page("settings", "settings_allowlist_comps", func(_ *http.Request) any { return map[string]any{"Entries": nil} }))
+	r.Get("/settings/training-mode", h.page("settings", "settings_training_mode", func(_ *http.Request) any { return map[string]any{"Enabled": false, "ActiveWindow": nil, "RecentWindows": nil} }))
+	r.Get("/settings/alert-routing", h.page("settings", "settings_alert_routing", func(_ *http.Request) any { return map[string]any{"Routes": nil} }))
+	r.Get("/settings/store/drawer", h.page("settings", "settings_store_drawer", func(_ *http.Request) any { return map[string]any{"Thresholds": nil} }))
+	r.Get("/settings/store/discounts", h.page("settings", "settings_store_discounts", func(_ *http.Request) any { return map[string]any{"Caps": nil} }))
+	r.Get("/settings/store/void-reasons", h.page("settings", "settings_store_void_reasons", func(_ *http.Request) any { return map[string]any{"Codes": nil} }))
+	r.Get("/settings/store/comp-reasons", h.page("settings", "settings_store_comp_reasons", func(_ *http.Request) any { return map[string]any{"Codes": nil} }))
 
 	// Error pages (also reachable programmatically via Render403/404/500)
 	r.Get("/errors/403", h.errPage(403))
@@ -212,6 +258,69 @@ func (h *Handler) hawkDetailPage(w http.ResponseWriter, r *http.Request) {
 		},
 		"Timeline":      nil,
 		"EvidenceCount": 0,
+	})
+}
+
+func (h *Handler) alertDetailPage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	shortID := id
+	if len(id) >= 8 {
+		shortID = id[:8]
+	}
+	h.render(w, r, "alert_detail", "alerts", map[string]any{
+		"Alert": map[string]any{
+			"ID": id, "ShortID": shortID,
+			"Title":         "Alert " + shortID,
+			"Severity":      "high",
+			"Status":        "open",
+			"StatusClass":   "",
+			"Description":   "—",
+			"RuleID":        "—",
+			"RuleName":      "—",
+			"StoreID":       "—",
+			"TransactionID": "—",
+			"CreatedAt":     "—",
+		},
+		"Timeline": nil,
+	})
+}
+
+func (h *Handler) ruleDetailPage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	h.render(w, r, "rule_detail", "rules", map[string]any{
+		"Rule": map[string]any{
+			"ID": id, "Name": "Rule " + id,
+			"Severity":      "high",
+			"Category":      "—",
+			"Description":   "—",
+			"Enabled":       false,
+			"FireCount":     0,
+			"FiresToday":    0,
+			"FiresThisWeek": 0,
+			"Parameters":    nil,
+		},
+	})
+}
+
+func (h *Handler) chirpDetailPage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	shortID := id
+	if len(id) >= 8 {
+		shortID = id[:8]
+	}
+	h.render(w, r, "chirp_detail", "chirps", map[string]any{
+		"Chirp": map[string]any{
+			"ID": id, "ShortID": shortID,
+			"EventType": "—",
+			"StoreID":   "—",
+			"CashierID": "—",
+			"Amount":    "—",
+			"SKUCount":  0,
+			"Hash":      "0000000000000000000000000000000000000000000000000000000000000000",
+			"CreatedAt": "—",
+			"CaseID":    "",
+		},
+		"Signals": nil,
 	})
 }
 
@@ -356,4 +465,98 @@ func stubHawkList(_ *http.Request) any {
 
 func stubHawkNew(_ *http.Request) any {
 	return map[string]any{"Alerts": nil}
+}
+
+func stubHawkAnalytics(_ *http.Request) any {
+	return map[string]any{
+		"OpenCount": 0, "ClosedThisMonth": 0,
+		"AvgResolutionDays": "—", "TotalEvidenceItems": 0,
+		"ByRule": nil, "ByStore": nil,
+	}
+}
+
+func stubHawkPatterns(_ *http.Request) any {
+	return map[string]any{
+		"TopSubjects": nil, "RulePairs": nil, "SubjectTimeline": nil,
+	}
+}
+
+func (h *Handler) hawkEvidencePage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	shortID := id
+	if len(id) >= 8 {
+		shortID = id[:8]
+	}
+	h.render(w, r, "hawk_evidence", "cases", map[string]any{
+		"Case": map[string]any{
+			"ID": id, "ShortID": shortID, "Title": "Case " + shortID,
+		},
+		"Evidence": nil,
+	})
+}
+
+func stubCustomersList(r *http.Request) any {
+	return map[string]any{
+		"Customers":  nil,
+		"TotalCount": 0,
+		"Query":      r.URL.Query().Get("q"),
+	}
+}
+
+func (h *Handler) customerDetailPage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	shortID := id
+	if len(id) >= 8 {
+		shortID = id[:8]
+	}
+	h.render(w, r, "customers_detail", "customers", map[string]any{
+		"Customer": map[string]any{
+			"ID":          id,
+			"ShortID":     shortID,
+			"Name":        "Customer " + shortID,
+			"RiskScore":   0,
+			"RiskTier":    "low",
+			"MemberSince": "—",
+			"CaseCount":   0,
+		},
+		"Purchases": nil,
+	})
+}
+
+func (h *Handler) customerRiskPage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	shortID := id
+	if len(id) >= 8 {
+		shortID = id[:8]
+	}
+	h.render(w, r, "customers_risk", "customers", map[string]any{
+		"Customer": map[string]any{
+			"ID":        id,
+			"ShortID":   shortID,
+			"Name":      "Customer " + shortID,
+			"RiskScore": 0,
+			"RiskTier":  "low",
+		},
+		"Signals":   nil,
+		"RuleFires": nil,
+	})
+}
+
+func (h *Handler) customerContextPage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	shortID := id
+	if len(id) >= 8 {
+		shortID = id[:8]
+	}
+	h.render(w, r, "customers_context", "customers", map[string]any{
+		"Customer": map[string]any{
+			"ID":        id,
+			"ShortID":   shortID,
+			"Name":      "Customer " + shortID,
+			"RiskScore": 0,
+			"RiskTier":  "low",
+		},
+		"Cases":  nil,
+		"Chirps": nil,
+	})
 }

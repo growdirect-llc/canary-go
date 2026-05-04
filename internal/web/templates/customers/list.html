@@ -1,0 +1,56 @@
+{{template "base.html" .}}
+
+{{define "title"}}Customers — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Customers</h1>
+  <p class="page-subtitle">{{.TotalCount}} total</p>
+</div>
+
+<div style="margin-bottom:20px;">
+  <form method="GET" action="/customers" style="display:flex;gap:8px;align-items:center;">
+    <input
+      type="text"
+      name="q"
+      value="{{.Query}}"
+      placeholder="Search by name or ID…"
+      style="flex:1;max-width:420px;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"
+    />
+    <button type="submit" style="padding:8px 16px;background:var(--signal-yellow);color:#000;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Search</button>
+  </form>
+</div>
+
+{{if .Query}}
+  {{if .Customers}}
+  <div class="ops-card">
+    {{range .Customers}}
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border-subtle);">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:12px;font-family:'Space Grotesk',monospace;color:var(--text-muted);">{{.ShortID}}</span>
+          <span style="font-size:13px;font-weight:600;color:var(--text-primary);">{{.Name}}</span>
+          <span class="badge">{{.RiskTier}}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">Last purchase: {{.LastPurchaseDate}}</div>
+      </div>
+      <a href="/customers/{{.ID}}" style="font-size:11px;color:var(--signal-yellow);white-space:nowrap;">View →</a>
+    </div>
+    {{end}}
+  </div>
+  {{else}}
+  <div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+    <p style="font-size:14px;">No customers found for this search.</p>
+  </div>
+  {{end}}
+{{else}}
+<div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+  <div style="font-size:3rem;margin-bottom:12px;opacity:0.3;">🔍</div>
+  <p style="font-size:14px;">Enter a name or customer ID to search.</p>
+  <p style="font-size:12px;margin-top:6px;">Search by full name, partial name, or customer ID prefix.</p>
+</div>
+{{end}}
+
+{{end}}
+{{end}}

@@ -40,22 +40,58 @@
     </div>
 
     <div class="sidebar-section">
-      <div class="sidebar-section-label">Fox</div>
+      <div class="sidebar-section-label">Fox (LP)</div>
+      <a href="/alerts" class="sidebar-item{{if eq .Page "alerts"}} active{{end}}" data-color="alerts">
+        <span class="nav-icon" style="background: var(--nav-audit);"></span>
+        Alerts
+      </a>
+      <a href="/rules" class="sidebar-item{{if eq .Page "rules"}} active{{end}}" data-color="rules">
+        <span class="nav-icon" style="background: var(--nav-reports);"></span>
+        Rules
+      </a>
       <a href="/cases" class="sidebar-item{{if eq .Page "cases"}} active{{end}}" data-color="cases">
         <span class="nav-icon" style="background: var(--nav-cases);"></span>
         Cases
       </a>
-      <a href="/employees" class="sidebar-item{{if eq .Page "employees"}} active{{end}}" data-color="employees">
+      <a href="/customers" class="sidebar-item{{if eq .Page "customers"}} active{{end}}" data-color="customers">
         <span class="nav-icon" style="background: var(--nav-employees);"></span>
-        Employees
+        Customers
+      </a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Ops</div>
+      <a href="/transfers" class="sidebar-item{{if eq .Page "transfers"}} active{{end}}" data-color="transfers">
+        <span class="nav-icon" style="background: var(--nav-transactions);"></span>
+        Transfers
+      </a>
+      <a href="/receiving" class="sidebar-item{{if eq .Page "receiving"}} active{{end}}" data-color="receiving">
+        <span class="nav-icon" style="background: var(--nav-chirps);"></span>
+        Receiving
+      </a>
+      <a href="/returns" class="sidebar-item{{if eq .Page "returns"}} active{{end}}" data-color="returns">
+        <span class="nav-icon" style="background: var(--nav-audit);"></span>
+        Returns
+      </a>
+      <a href="/items" class="sidebar-item{{if eq .Page "items"}} active{{end}}" data-color="items">
+        <span class="nav-icon" style="background: var(--nav-dashboard);"></span>
+        Items
+      </a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Reports</div>
+      <a href="/reports" class="sidebar-item{{if eq .Page "reports"}} active{{end}}" data-color="reports">
+        <span class="nav-icon" style="background: var(--nav-reports);"></span>
+        Reports
       </a>
     </div>
 
     <div class="sidebar-section">
       <div class="sidebar-section-label">System</div>
-      <a href="/reports" class="sidebar-item{{if eq .Page "reports"}} active{{end}}" data-color="reports">
-        <span class="nav-icon" style="background: var(--nav-reports);"></span>
-        Reports
+      <a href="/employees" class="sidebar-item{{if eq .Page "employees"}} active{{end}}" data-color="employees">
+        <span class="nav-icon" style="background: var(--nav-employees);"></span>
+        Employees
       </a>
       {{if .User.IsAdmin}}
       <a href="/settings" class="sidebar-item{{if eq .Page "settings"}} active{{end}}" data-color="settings">
@@ -63,17 +99,17 @@
         Settings
       </a>
       {{end}}
-    </div>
-
-    {{if .User.IsAdmin}}
-    <div class="sidebar-section">
-      <div class="sidebar-section-label">Operations</div>
+      <a href="/owl" class="sidebar-item{{if eq .Page "owl"}} active{{end}}" data-color="owl">
+        <span class="nav-icon" style="background: var(--nav-chirps);"></span>
+        Owl
+      </a>
+      {{if .User.IsAdmin}}
       <a href="/devops" class="sidebar-item{{if eq .Page "devops"}} active{{end}}" data-color="pipeline">
         <span class="nav-icon" style="background: var(--nav-audit);"></span>
         Ops Console
       </a>
+      {{end}}
     </div>
-    {{end}}
   </nav>
 
   <div class="sidebar-user">

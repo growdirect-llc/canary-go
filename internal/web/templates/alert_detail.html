@@ -1,0 +1,106 @@
+{{template "base.html" .}}
+
+{{define "title"}}Alert {{.Data.Alert.ShortID}} — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:20px;">
+  <a href="/alerts" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← Alerts</a>
+</div>
+
+<div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:24px;">
+  <div style="flex:1;min-width:0;">
+    <h1 style="font-size:1.3rem;">{{.Alert.Title}}</h1>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;">
+      <span class="badge" style="background:{{if eq .Alert.Severity "critical"}}var(--critical-red){{else if eq .Alert.Severity "high"}}var(--signal-yellow){{else if eq .Alert.Severity "medium"}}var(--accent-blue){{else}}var(--text-muted){{end}};color:#0d1117;">{{.Alert.Severity}}</span>
+      <span class="badge {{.Alert.StatusClass}}">{{.Alert.Status}}</span>
+      <span style="font-size:12px;color:var(--text-muted);">{{.Alert.CreatedAt}}</span>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 280px;gap:20px;align-items:start;">
+
+  <!-- Main -->
+  <div style="display:grid;gap:16px;">
+
+    <!-- Description -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Description</h3>
+      <p style="font-size:13px;color:var(--text-primary);line-height:1.6;">{{.Alert.Description}}</p>
+    </div>
+
+    <!-- Timeline -->
+    <div>
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Event Timeline</h3>
+      {{if .Timeline}}
+      <div style="display:grid;gap:2px;">
+        {{range .Timeline}}
+        <div style="display:flex;gap:12px;padding:12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px;">
+          <div style="font-size:10px;color:var(--text-muted);white-space:nowrap;padding-top:2px;">{{.Timestamp}}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;">{{.EventType}}</div>
+            <div style="font-size:13px;color:var(--text-primary);margin-top:2px;">{{.Detail}}</div>
+          </div>
+        </div>
+        {{end}}
+      </div>
+      {{else}}
+      <div style="padding:24px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px;text-align:center;color:var(--text-muted);font-size:13px;">
+        No timeline events yet.
+      </div>
+      {{end}}
+    </div>
+
+  </div>
+
+  <!-- Sidebar -->
+  <div style="display:grid;gap:12px;">
+
+    <!-- Metadata -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Alert Metadata</h3>
+      <div style="display:grid;gap:8px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text-muted);">Store</span>
+          <span style="color:var(--text-primary);">{{.Alert.StoreID}}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text-muted);">Rule</span>
+          <a href="/rules/{{.Alert.RuleID}}" style="color:var(--accent-blue);text-decoration:none;">{{.Alert.RuleName}}</a>
+        </div>
+        {{if .Alert.TransactionID}}
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text-muted);">Transaction</span>
+          <span style="color:var(--text-primary);font-family:'Space Grotesk',monospace;">{{.Alert.TransactionID}}</span>
+        </div>
+        {{end}}
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text-muted);">Alert ID</span>
+          <span style="color:var(--text-muted);font-family:'Space Grotesk',monospace;font-size:10px;">{{.Alert.ShortID}}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Actions</h3>
+      <div style="display:grid;gap:8px;">
+        <form method="POST" action="/alerts/{{.Alert.ID}}/acknowledge">
+          <button type="submit" style="width:100%;padding:8px 12px;background:var(--health-green);color:#0d1117;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
+            Acknowledge
+          </button>
+        </form>
+        <form method="POST" action="/alerts/{{.Alert.ID}}/escalate">
+          <button type="submit" style="width:100%;padding:8px 12px;background:transparent;color:var(--critical-red);border:1px solid var(--critical-red);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
+            Escalate
+          </button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+{{end}}
+{{end}}

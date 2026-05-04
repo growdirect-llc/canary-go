@@ -1,0 +1,81 @@
+{{template "base.html" .}}
+
+{{define "title"}}Attach Evidence — Case {{.Data.Case.ShortID}} — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:20px;">
+  <a href="/cases/hawk/{{.Case.ID}}" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← Case {{.Case.ShortID}}</a>
+</div>
+
+<div class="page-header">
+  <h1>Attach Evidence — Case {{.Case.ShortID}}</h1>
+  <p class="page-subtitle">{{.Case.Title}}</p>
+</div>
+
+<!-- Current Evidence -->
+<div class="ops-card" style="margin-bottom:24px;">
+  <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Attached Evidence</h3>
+  {{if .Evidence}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="border-bottom:1px solid var(--border-subtle);">
+        <th style="text-align:left;padding:8px 12px 8px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">ID</th>
+        <th style="text-align:left;padding:8px 12px 8px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Type</th>
+        <th style="text-align:left;padding:8px 12px 8px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Hash</th>
+        <th style="text-align:left;padding:8px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Attached</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Evidence}}
+      <tr style="border-bottom:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;color:var(--text-muted);font-family:'Space Grotesk',monospace;font-size:12px;">{{.ShortID}}</td>
+        <td style="padding:10px 12px 10px 0;color:var(--text-primary);">{{.Type}}</td>
+        <td style="padding:10px 12px 10px 0;color:var(--text-muted);font-family:'Space Grotesk',monospace;font-size:11px;">{{.Hash}}...</td>
+        <td style="padding:10px 0;color:var(--text-muted);font-size:12px;">{{.AttachedAt}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div style="padding:20px 0;color:var(--text-muted);font-size:13px;text-align:center;">
+    No evidence attached yet.
+  </div>
+  {{end}}
+</div>
+
+<!-- Attach Form -->
+<div class="ops-card">
+  <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:16px;">Attach New Evidence</h3>
+  <form action="#" method="POST" style="display:grid;gap:16px;">
+    <div>
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Evidence Type</label>
+      <select name="evidence_type" style="width:100%;max-width:320px;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;">
+        <option value="transaction_record">Transaction Record</option>
+        <option value="video_clip">Video Clip</option>
+        <option value="document">Document</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div>
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Description</label>
+      <input type="text" name="description" placeholder="Brief description of this evidence item"
+        style="width:100%;max-width:480px;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;box-sizing:border-box;" />
+    </div>
+    <div>
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">File Reference</label>
+      <input type="text" name="file_reference" placeholder="Path or external reference (e.g. s3://bucket/key or /mnt/evidence/clip.mp4)"
+        style="width:100%;max-width:480px;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;box-sizing:border-box;" />
+      <p style="margin-top:4px;font-size:11px;color:var(--text-muted);">Path or external reference — no file upload. Reference is stored as-is.</p>
+    </div>
+    <div>
+      <button type="submit"
+        style="padding:9px 20px;background:var(--signal-yellow);color:#000;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.3px;">
+        Attach Evidence
+      </button>
+    </div>
+  </form>
+  <p style="margin-top:16px;font-size:11px;color:var(--text-muted);">Evidence hash computed on submission — immutable record.</p>
+</div>
+{{end}}
+{{end}}

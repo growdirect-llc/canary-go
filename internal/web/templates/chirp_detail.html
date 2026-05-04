@@ -1,0 +1,111 @@
+{{template "base.html" .}}
+
+{{define "title"}}Chirp {{.Data.Chirp.ShortID}} — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:20px;">
+  <a href="/chirps" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← Chirps</a>
+</div>
+
+<div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:24px;">
+  <div style="flex:1;min-width:0;">
+    <h1 style="font-size:1.3rem;">{{.Chirp.EventType}}</h1>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;">
+      <span style="font-size:12px;color:var(--text-muted);">Store {{.Chirp.StoreID}}</span>
+      <span style="font-size:12px;color:var(--text-muted);">·</span>
+      <span style="font-size:12px;color:var(--text-muted);">{{.Chirp.CreatedAt}}</span>
+    </div>
+  </div>
+  {{if .Chirp.CaseID}}
+  <a href="/cases/hawk/{{.Chirp.CaseID}}" class="badge" style="background:var(--accent-blue);color:#0d1117;text-decoration:none;">→ Case</a>
+  {{end}}
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 280px;gap:20px;align-items:start;">
+
+  <!-- Main -->
+  <div style="display:grid;gap:16px;">
+
+    <!-- Evidence Hash -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Evidence Hash</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <code style="font-family:'Space Grotesk',monospace;font-size:11px;color:var(--text-primary);background:var(--bg-base);padding:8px 10px;border-radius:6px;border:1px solid var(--border-subtle);word-break:break-all;flex:1;">{{.Chirp.Hash}}</code>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">SHA-256 · copy to verify chain anchor</div>
+    </div>
+
+    <!-- Transaction Context -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Transaction Context</h3>
+      <div style="display:grid;gap:8px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text-muted);">Amount</span>
+          <span style="color:var(--text-primary);font-weight:600;">{{.Chirp.Amount}}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text-muted);">Cashier</span>
+          <span style="color:var(--text-primary);">{{.Chirp.CashierID}}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text-muted);">SKU count</span>
+          <span style="color:var(--text-primary);">{{.Chirp.SKUCount}}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detection Signals -->
+    <div>
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Detection Signals</h3>
+      {{if .Signals}}
+      <div style="display:grid;gap:2px;">
+        {{range .Signals}}
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px;">
+          <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:{{if eq .Severity "critical"}}var(--critical-red){{else if eq .Severity "high"}}var(--signal-yellow){{else}}var(--accent-blue){{end}};"></span>
+          <a href="/rules/{{.RuleID}}" style="font-size:13px;color:var(--text-primary);text-decoration:none;flex:1;">{{.RuleName}}</a>
+          <span style="font-size:11px;color:var(--text-muted);">{{.Severity}}</span>
+        </div>
+        {{end}}
+      </div>
+      {{else}}
+      <div style="padding:24px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px;text-align:center;color:var(--text-muted);font-size:13px;">
+        No detection signals on this chirp.
+      </div>
+      {{end}}
+    </div>
+
+  </div>
+
+  <!-- Sidebar -->
+  <div style="display:grid;gap:12px;">
+
+    <!-- Chirp metadata -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Chirp Info</h3>
+      <div style="display:grid;gap:8px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text-muted);">Event type</span>
+          <span style="color:var(--text-primary);">{{.Chirp.EventType}}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text-muted);">Store</span>
+          <span style="color:var(--text-primary);">{{.Chirp.StoreID}}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text-muted);">Chirp ID</span>
+          <span style="color:var(--text-muted);font-family:'Space Grotesk',monospace;font-size:10px;">{{.Chirp.ShortID}}</span>
+        </div>
+        {{if .Chirp.CaseID}}
+        <div style="padding-top:8px;border-top:1px solid var(--border-subtle);">
+          <a href="/cases/hawk/{{.Chirp.CaseID}}" style="font-size:12px;color:var(--accent-blue);text-decoration:none;">View associated case →</a>
+        </div>
+        {{end}}
+      </div>
+    </div>
+
+  </div>
+
+</div>
+{{end}}
+{{end}}
