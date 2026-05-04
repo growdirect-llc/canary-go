@@ -17,7 +17,7 @@ services:
       PGPASSWORD: growdirect_dev
 
   canarygo-migrate:
-    image: ghcr.io/golang-migrate/migrate:v4.18.1
+    image: migrate/migrate:v4.17.0
     networks: [growdirect]
     volumes:
       - ./migrations:/migrations
