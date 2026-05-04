@@ -11,8 +11,8 @@ Active milestone: M1 Foundation. See spec: `docs/superpowers/specs/2026-04-28-ca
 Go 1.22+ · Chi v5 · pgx/v5 · sqlc v2 · golang-migrate v4 · PostgreSQL 17 · Valkey 8
 
 ## Databases
-Primary: `canary_go` on growdirect_postgres :5432
-Test:    `canary_go_test` on growdirect_postgres :5432
+Primary: `canary_gcp` on growdirect_postgres :5432
+Test:    `canary_gcp_test` on growdirect_postgres :5432
 Valkey:  DB 2 on growdirect_valkey :6379
 
 ## Never

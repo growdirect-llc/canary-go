@@ -10,8 +10,8 @@ services:
     networks: [growdirect]
     entrypoint: >
       sh -c "
-        psql -h growdirect_postgres -U growdirect -c 'CREATE DATABASE canary_go;' || true &&
-        psql -h growdirect_postgres -U growdirect -c 'CREATE DATABASE canary_go_test;' || true
+        psql -h growdirect_postgres -U growdirect -c 'CREATE DATABASE canary_gcp;' || true &&
+        psql -h growdirect_postgres -U growdirect -c 'CREATE DATABASE canary_gcp_test;' || true
       "
     environment:
       PGPASSWORD: growdirect_dev
@@ -23,7 +23,7 @@ services:
       - ./migrations:/migrations
     command: >
       -path=/migrations
-      -database=postgres://growdirect:growdirect_dev@growdirect_postgres:5432/canary_go?sslmode=disable
+      -database=postgres://growdirect:growdirect_dev@growdirect_postgres:5432/canary_gcp?sslmode=disable
       up
     depends_on:
       canarygo-dbinit:
@@ -38,7 +38,7 @@ services:
     ports:
       - "9080:8080"
     environment:
-      DATABASE_URL: postgres://growdirect:growdirect_dev@growdirect_postgres:5432/canary_go?sslmode=disable
+      DATABASE_URL: postgres://growdirect:growdirect_dev@growdirect_postgres:5432/canary_gcp?sslmode=disable
       VALKEY_URL: redis://:valkey_dev@growdirect_valkey:6379/2
       INTERNAL_SERVICE_SECRET: dev-internal-secret
       SESSION_SECRET: dev-session-secret
@@ -62,7 +62,7 @@ services:
     ports:
       - "8086:8086"
     environment:
-      DATABASE_URL: postgres://growdirect:growdirect_dev@growdirect_postgres:5432/canary_go?sslmode=disable
+      DATABASE_URL: postgres://growdirect:growdirect_dev@growdirect_postgres:5432/canary_gcp?sslmode=disable
       VALKEY_URL: redis://:valkey_dev@growdirect_valkey:6379/2
       INTERNAL_SERVICE_SECRET: dev-internal-secret
       SESSION_SECRET: dev-session-secret
