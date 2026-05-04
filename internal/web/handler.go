@@ -29,12 +29,14 @@
 package web
 
 import (
+	"context"
 	"embed"
 	"html/template"
 	"io/fs"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -45,6 +47,7 @@ var embedFS embed.FS
 type Handler struct {
 	logger    *zap.Logger
 	templates map[string]*template.Template
+	deps      Deps
 }
 
 // PageData is the top-level template context passed to every app page.
@@ -64,13 +67,14 @@ type UserData struct {
 }
 
 // New constructs a Handler with all templates pre-parsed.
-func New(logger *zap.Logger) *Handler {
+func New(deps Deps, logger *zap.Logger) *Handler {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
 	h := &Handler{
 		logger:    logger,
 		templates: make(map[string]*template.Template),
+		deps:      deps,
 	}
 	h.mustParse("dashboard", "templates/dashboard.html")
 	h.mustParse("chirps", "templates/chirps.html")
@@ -921,4 +925,11 @@ func (h *Handler) casesRemediatePage(w http.ResponseWriter, r *http.Request) {
 		},
 		"Remediations": nil,
 	})
+}
+
+// tenantIDFromCtx extracts the tenant UUID from the request context.
+// Returns uuid.Nil until auth middleware (GRO-769) is wired.
+func tenantIDFromCtx(ctx context.Context) uuid.UUID {
+	// TODO(GRO-769): replace with identity.TenantIDFromCtx(ctx)
+	return uuid.Nil
 }
