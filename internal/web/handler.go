@@ -44,6 +44,7 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/alert"
 	"github.com/growdirect-llc/rapidpos/internal/casemgmt"
 	"github.com/growdirect-llc/rapidpos/internal/chirp"
+	"github.com/growdirect-llc/rapidpos/internal/customer"
 )
 
 //go:embed static templates
@@ -215,7 +216,7 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/chirps/{id}", h.chirpDetailPage)
 
 	// Customer investigator
-	r.Get("/customers", h.page("customers", "customers_list", stubCustomersList))
+	r.Get("/customers", h.customersListPage)
 	r.Get("/customers/{id}", h.customerDetailPage)
 	r.Get("/customers/{id}/risk", h.customerRiskPage)
 	r.Get("/customers/{id}/context", h.customerContextPage)
@@ -1040,28 +1041,104 @@ func (h *Handler) hawkEvidencePage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func stubCustomersList(r *http.Request) any {
-	return map[string]any{
-		"Customers":  nil,
-		"TotalCount": 0,
-		"Query":      r.URL.Query().Get("q"),
+// customersListPage is search-first: if no ?q param, renders the empty search
+// state. If ?q is provided and a CustomerStore is wired, runs a full-text
+// search against customer.customers.
+func (h *Handler) customersListPage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := r.URL.Query().Get("q")
+	tenantID := tenantIDFromCtx(ctx)
+
+	var customers []map[string]any
+	totalCount := 0
+
+	if h.deps.CustomerStore != nil && q != "" {
+		results, err := h.deps.CustomerStore.List(ctx, customer.ListFilters{
+			TenantID: tenantID,
+			Search:   q,
+			Limit:    50,
+		})
+		if err != nil {
+			h.logger.Error("customersListPage: list", zap.Error(err))
+		} else {
+			totalCount = len(results)
+			customers = make([]map[string]any, 0, len(results))
+			for _, c := range results {
+				name := customerDisplayName(c)
+				shortID := c.ID.String()[:8]
+				customers = append(customers, map[string]any{
+					"ID":              c.ID.String(),
+					"ShortID":         shortID,
+					"Name":            name,
+					"RiskTier":        "—",
+					"LastPurchaseDate": "—",
+				})
+			}
+		}
 	}
+
+	h.render(w, r, "customers_list", "customers", map[string]any{
+		"Customers":  customers,
+		"TotalCount": totalCount,
+		"Query":      q,
+	})
 }
 
 func (h *Handler) customerDetailPage(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	shortID := id
-	if len(id) >= 8 {
-		shortID = id[:8]
+	ctx := r.Context()
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		h.render(w, r, "err404", "customers", nil)
+		return
 	}
+
+	if h.deps.CustomerStore == nil {
+		// No store wired — fall through to stub.
+		shortID := idStr
+		if len(idStr) >= 8 {
+			shortID = idStr[:8]
+		}
+		h.render(w, r, "customers_detail", "customers", map[string]any{
+			"Customer": map[string]any{
+				"ID":          idStr,
+				"ShortID":     shortID,
+				"Name":        "Customer " + shortID,
+				"RiskScore":   0,
+				"RiskTier":    "low",
+				"MemberSince": "—",
+				"CaseCount":   0,
+			},
+			"Purchases": nil,
+		})
+		return
+	}
+
+	tenantID := tenantIDFromCtx(ctx)
+	c, err := h.deps.CustomerStore.GetByID(ctx, tenantID, id)
+	if err != nil {
+		if errors.Is(err, customer.ErrNotFound) {
+			w.WriteHeader(http.StatusNotFound)
+			h.render(w, r, "err404", "customers", nil)
+			return
+		}
+		h.logger.Error("customerDetailPage: get", zap.String("id", idStr), zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		h.render(w, r, "err500", "customers", nil)
+		return
+	}
+
+	name := customerDisplayName(*c)
+	shortID := c.ID.String()[:8]
 	h.render(w, r, "customers_detail", "customers", map[string]any{
 		"Customer": map[string]any{
-			"ID":          id,
+			"ID":          c.ID.String(),
 			"ShortID":     shortID,
-			"Name":        "Customer " + shortID,
+			"Name":        name,
 			"RiskScore":   0,
-			"RiskTier":    "low",
-			"MemberSince": "—",
+			"RiskTier":    "—",
+			"MemberSince": c.CreatedAt.Format("Jan 2006"),
 			"CaseCount":   0,
 		},
 		"Purchases": nil,
@@ -1069,18 +1146,57 @@ func (h *Handler) customerDetailPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) customerRiskPage(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	shortID := id
-	if len(id) >= 8 {
-		shortID = id[:8]
+	ctx := r.Context()
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		h.render(w, r, "err404", "customers", nil)
+		return
 	}
+
+	if h.deps.CustomerStore == nil {
+		shortID := idStr
+		if len(idStr) >= 8 {
+			shortID = idStr[:8]
+		}
+		h.render(w, r, "customers_risk", "customers", map[string]any{
+			"Customer": map[string]any{
+				"ID":        idStr,
+				"ShortID":   shortID,
+				"Name":      "Customer " + shortID,
+				"RiskScore": 0,
+				"RiskTier":  "low",
+			},
+			"Signals":   nil,
+			"RuleFires": nil,
+		})
+		return
+	}
+
+	tenantID := tenantIDFromCtx(ctx)
+	c, err := h.deps.CustomerStore.GetByID(ctx, tenantID, id)
+	if err != nil {
+		if errors.Is(err, customer.ErrNotFound) {
+			w.WriteHeader(http.StatusNotFound)
+			h.render(w, r, "err404", "customers", nil)
+			return
+		}
+		h.logger.Error("customerRiskPage: get", zap.String("id", idStr), zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		h.render(w, r, "err500", "customers", nil)
+		return
+	}
+
+	name := customerDisplayName(*c)
+	shortID := c.ID.String()[:8]
 	h.render(w, r, "customers_risk", "customers", map[string]any{
 		"Customer": map[string]any{
-			"ID":        id,
+			"ID":        c.ID.String(),
 			"ShortID":   shortID,
-			"Name":      "Customer " + shortID,
+			"Name":      name,
 			"RiskScore": 0,
-			"RiskTier":  "low",
+			"RiskTier":  "—",
 		},
 		"Signals":   nil,
 		"RuleFires": nil,
@@ -1088,22 +1204,86 @@ func (h *Handler) customerRiskPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) customerContextPage(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	shortID := id
-	if len(id) >= 8 {
-		shortID = id[:8]
+	ctx := r.Context()
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		h.render(w, r, "err404", "customers", nil)
+		return
 	}
+
+	if h.deps.CustomerStore == nil {
+		shortID := idStr
+		if len(idStr) >= 8 {
+			shortID = idStr[:8]
+		}
+		h.render(w, r, "customers_context", "customers", map[string]any{
+			"Customer": map[string]any{
+				"ID":        idStr,
+				"ShortID":   shortID,
+				"Name":      "Customer " + shortID,
+				"RiskScore": 0,
+				"RiskTier":  "low",
+			},
+			"Cases":  nil,
+			"Chirps": nil,
+		})
+		return
+	}
+
+	tenantID := tenantIDFromCtx(ctx)
+	c, err := h.deps.CustomerStore.GetByID(ctx, tenantID, id)
+	if err != nil {
+		if errors.Is(err, customer.ErrNotFound) {
+			w.WriteHeader(http.StatusNotFound)
+			h.render(w, r, "err404", "customers", nil)
+			return
+		}
+		h.logger.Error("customerContextPage: get", zap.String("id", idStr), zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		h.render(w, r, "err500", "customers", nil)
+		return
+	}
+
+	name := customerDisplayName(*c)
+	shortID := c.ID.String()[:8]
 	h.render(w, r, "customers_context", "customers", map[string]any{
 		"Customer": map[string]any{
-			"ID":        id,
+			"ID":        c.ID.String(),
 			"ShortID":   shortID,
-			"Name":      "Customer " + shortID,
+			"Name":      name,
 			"RiskScore": 0,
-			"RiskTier":  "low",
+			"RiskTier":  "—",
 		},
 		"Cases":  nil,
 		"Chirps": nil,
 	})
+}
+
+// customerDisplayName returns a human-readable name from a CustomerDTO.
+// Falls back through DisplayName → FirstName+LastName → CustomerCode → ID.
+func customerDisplayName(c customer.CustomerDTO) string {
+	if c.DisplayName != nil && *c.DisplayName != "" {
+		return *c.DisplayName
+	}
+	if c.FirstName != nil || c.LastName != nil {
+		first := ""
+		last := ""
+		if c.FirstName != nil {
+			first = *c.FirstName
+		}
+		if c.LastName != nil {
+			last = *c.LastName
+		}
+		if n := first + " " + last; n != " " {
+			return n
+		}
+	}
+	if c.CustomerCode != nil && *c.CustomerCode != "" {
+		return *c.CustomerCode
+	}
+	return c.ID.String()[:8]
 }
 
 func (h *Handler) exceptionDetailPage(w http.ResponseWriter, r *http.Request) {
