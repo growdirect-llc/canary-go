@@ -286,19 +286,28 @@ func truncateAnchors(t *testing.T, pool *pgxpool.Pool) func() {
 
 func disableAndTruncate(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Helper()
-	stmts := []string{
+	for _, stmt := range []string{
 		"ALTER TABLE protocol.evidence DISABLE TRIGGER evidence_no_delete",
 		"ALTER TABLE protocol.evidence DISABLE TRIGGER evidence_no_truncate",
 		"ALTER TABLE protocol.evidence DISABLE TRIGGER evidence_no_update",
-		"TRUNCATE protocol.evidence CASCADE",
-		"ALTER TABLE protocol.evidence ENABLE TRIGGER evidence_no_delete",
-		"ALTER TABLE protocol.evidence ENABLE TRIGGER evidence_no_truncate",
-		"ALTER TABLE protocol.evidence ENABLE TRIGGER evidence_no_update",
-	}
-	for _, stmt := range stmts {
+	} {
 		if _, err := pool.Exec(ctx, stmt); err != nil {
 			t.Fatalf("disableAndTruncate: %q: %v", stmt, err)
 		}
+	}
+	t.Cleanup(func() {
+		for _, stmt := range []string{
+			"ALTER TABLE protocol.evidence ENABLE TRIGGER evidence_no_delete",
+			"ALTER TABLE protocol.evidence ENABLE TRIGGER evidence_no_truncate",
+			"ALTER TABLE protocol.evidence ENABLE TRIGGER evidence_no_update",
+		} {
+			if _, err := pool.Exec(ctx, stmt); err != nil {
+				t.Errorf("disableAndTruncate re-enable: %q: %v", stmt, err)
+			}
+		}
+	})
+	if _, err := pool.Exec(ctx, "TRUNCATE protocol.evidence CASCADE"); err != nil {
+		t.Fatalf("disableAndTruncate: TRUNCATE: %v", err)
 	}
 }
 
