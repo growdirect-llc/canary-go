@@ -55,6 +55,9 @@ func (s *stubStore) ListRules(_ context.Context, _ uuid.UUID) ([]chirp.Rule, err
 func (s *stubStore) ListDetections(_ context.Context, _ chirp.DetectionQuery) ([]chirp.Detection, error) {
 	return s.insertedDet, nil
 }
+func (s *stubStore) GetRuleByID(_ context.Context, _, _ uuid.UUID) (*chirp.Rule, error) {
+	return nil, chirp.ErrRuleNotFound
+}
 func (s *stubStore) GetDetectionByID(_ context.Context, _, _ uuid.UUID) (*chirp.Detection, error) {
 	return nil, chirp.ErrDetectionNotFound
 }

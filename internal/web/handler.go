@@ -42,6 +42,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/growdirect-llc/rapidpos/internal/alert"
+	"github.com/growdirect-llc/rapidpos/internal/casemgmt"
 	"github.com/growdirect-llc/rapidpos/internal/chirp"
 )
 
@@ -195,12 +196,12 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/reports", h.page("reports", "reports", stubReports))
 	r.Get("/settings", h.page("settings", "settings", stubSettings))
 	r.Get("/owl", h.owlPage)
-	r.Get("/rules", h.page("rules", "rules", stubRules))
+	r.Get("/rules", h.rulesListPage)
 	r.Get("/connect", h.page("connect", "connect", stubConnect))
 	r.Get("/welcome", h.page("welcome", "welcome", nil))
 
 	// Hawk case management
-	r.Get("/cases/hawk", h.page("cases", "hawk_list", stubHawkList))
+	r.Get("/cases/hawk", h.hawkListPage)
 	r.Get("/cases/hawk/new", h.page("cases", "hawk_new", stubHawkNew))
 	r.Get("/cases/hawk/analytics", h.page("cases", "hawk_analytics", stubHawkAnalytics))
 	r.Get("/cases/hawk/patterns", h.page("cases", "hawk_patterns", stubHawkPatterns))
@@ -392,19 +393,45 @@ func (h *Handler) owlPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) hawkDetailPage(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	ctx := r.Context()
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		h.render(w, r, "err404", "cases", nil)
+		return
+	}
+	if h.deps.CaseStore == nil {
+		h.render(w, r, "hawk_detail", "cases", map[string]any{
+			"Case": map[string]any{
+				"ID": idStr, "ShortID": idStr[:8],
+				"Title": "Case " + idStr[:8], "Status": "open",
+				"StatusClass": "", "CreatedAt": "—", "Subjects": nil,
+			},
+			"Timeline": nil, "EvidenceCount": 0, "Evidence": nil,
+		})
+		return
+	}
+	tenantID := tenantIDFromCtx(ctx)
+	c, err := h.deps.CaseStore.GetCase(ctx, tenantID, id)
+	if err != nil {
+		if errors.Is(err, casemgmt.ErrNotFound) {
+			w.WriteHeader(http.StatusNotFound)
+			h.render(w, r, "err404", "cases", nil)
+			return
+		}
+		h.logger.Error("hawkDetailPage: get", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		h.render(w, r, "err500", "cases", nil)
+		return
+	}
+	timeline, _ := h.deps.CaseStore.ListActions(ctx, id)
+	evidence, _ := h.deps.CaseStore.ListEvidence(ctx, id)
 	h.render(w, r, "hawk_detail", "cases", map[string]any{
-		"Case": map[string]any{
-			"ID":          id,
-			"ShortID":     id[:8],
-			"Title":       "Case " + id[:8],
-			"Status":      "open",
-			"StatusClass": "",
-			"CreatedAt":   "—",
-			"Subjects":    nil,
-		},
-		"Timeline":      nil,
-		"EvidenceCount": 0,
+		"Case":          c,
+		"Timeline":      timeline,
+		"EvidenceCount": len(evidence),
+		"Evidence":      evidence,
 	})
 }
 
@@ -493,20 +520,105 @@ func (h *Handler) alertDetailPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// hawkListPage renders the Hawk case list from the real case store.
+func (h *Handler) hawkListPage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := tenantIDFromCtx(ctx)
+
+	type statusOpt struct {
+		Value string
+		Label string
+	}
+	statuses := []statusOpt{
+		{"open", "Open"}, {"investigating", "Investigating"},
+		{"closed", "Closed"}, {"", "All"},
+	}
+	statusFilter := r.URL.Query().Get("status")
+	if statusFilter == "" {
+		statusFilter = "open"
+	}
+
+	var cases []casemgmt.Case
+	if h.deps.CaseStore != nil {
+		var err error
+		cases, err = h.deps.CaseStore.ListCases(ctx, casemgmt.ListFilters{
+			TenantID: tenantID,
+			Status:   statusFilter,
+			Limit:    100,
+		})
+		if err != nil {
+			h.logger.Error("hawkListPage: list", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			h.render(w, r, "err500", "cases", nil)
+			return
+		}
+	}
+	h.render(w, r, "hawk_list", "cases", map[string]any{
+		"Cases":        cases,
+		"OpenCount":    0,
+		"StatusFilter": statusFilter,
+		"Statuses":     statuses,
+	})
+}
+
+// rulesListPage renders the detection rules list from the real chirp store.
+func (h *Handler) rulesListPage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := tenantIDFromCtx(ctx)
+
+	var rules []chirp.Rule
+	if h.deps.ChirpStore != nil {
+		var err error
+		rules, err = h.deps.ChirpStore.ListRules(ctx, tenantID)
+		if err != nil {
+			h.logger.Error("rulesListPage: list", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			h.render(w, r, "err500", "rules", nil)
+			return
+		}
+	}
+	h.render(w, r, "rules", "rules", map[string]any{
+		"Rules":       rules,
+		"ActiveCount": 0,
+		"TotalCount":  len(rules),
+	})
+}
+
 func (h *Handler) ruleDetailPage(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	ctx := r.Context()
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		h.render(w, r, "err404", "rules", nil)
+		return
+	}
+	if h.deps.ChirpStore == nil {
+		h.render(w, r, "rule_detail", "rules", map[string]any{
+			"Rule": map[string]any{
+				"ID": idStr, "Name": "Rule " + idStr,
+				"Severity": "high", "Category": "—", "Description": "—",
+				"Enabled": false, "FireCount": 0, "FiresToday": 0,
+				"FiresThisWeek": 0, "Parameters": nil,
+			},
+		})
+		return
+	}
+	tenantID := tenantIDFromCtx(ctx)
+	rule, err := h.deps.ChirpStore.GetRuleByID(ctx, tenantID, id)
+	if err != nil {
+		if errors.Is(err, chirp.ErrRuleNotFound) {
+			w.WriteHeader(http.StatusNotFound)
+			h.render(w, r, "err404", "rules", nil)
+			return
+		}
+		h.logger.Error("ruleDetailPage: get", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		h.render(w, r, "err500", "rules", nil)
+		return
+	}
 	h.render(w, r, "rule_detail", "rules", map[string]any{
-		"Rule": map[string]any{
-			"ID": id, "Name": "Rule " + id,
-			"Severity":      "high",
-			"Category":      "—",
-			"Description":   "—",
-			"Enabled":       false,
-			"FireCount":     0,
-			"FiresToday":    0,
-			"FiresThisWeek": 0,
-			"Parameters":    nil,
-		},
+		"Rule": rule,
 	})
 }
 
@@ -889,16 +1001,42 @@ func stubHawkPatterns(_ *http.Request) any {
 }
 
 func (h *Handler) hawkEvidencePage(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	shortID := id
-	if len(id) >= 8 {
-		shortID = id[:8]
+	ctx := r.Context()
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		h.render(w, r, "err404", "cases", nil)
+		return
 	}
+	if h.deps.CaseStore == nil {
+		shortID := idStr
+		if len(idStr) >= 8 {
+			shortID = idStr[:8]
+		}
+		h.render(w, r, "hawk_evidence", "cases", map[string]any{
+			"Case":     map[string]any{"ID": idStr, "ShortID": shortID, "Title": "Case " + shortID},
+			"Evidence": nil,
+		})
+		return
+	}
+	tenantID := tenantIDFromCtx(ctx)
+	c, err := h.deps.CaseStore.GetCase(ctx, tenantID, id)
+	if err != nil {
+		if errors.Is(err, casemgmt.ErrNotFound) {
+			w.WriteHeader(http.StatusNotFound)
+			h.render(w, r, "err404", "cases", nil)
+			return
+		}
+		h.logger.Error("hawkEvidencePage: get", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		h.render(w, r, "err500", "cases", nil)
+		return
+	}
+	evidence, _ := h.deps.CaseStore.ListEvidence(ctx, id)
 	h.render(w, r, "hawk_evidence", "cases", map[string]any{
-		"Case": map[string]any{
-			"ID": id, "ShortID": shortID, "Title": "Case " + shortID,
-		},
-		"Evidence": nil,
+		"Case":     c,
+		"Evidence": evidence,
 	})
 }
 
