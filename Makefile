@@ -1,6 +1,7 @@
 .PHONY: migrate-up migrate-down migrate-test-up sqlc-gen test \
         build-identity build-all build-edge-windows lint \
-        db-reset db-reset-test db-seed db-seed-test
+        db-reset db-reset-test db-seed db-seed-test \
+        dev dev-down dev-logs
 
 # Default DATABASE_URL — override on command line
 DATABASE_URL ?= postgres://growdirect:growdirect_dev@localhost:5432/canary_go?sslmode=disable
@@ -89,3 +90,20 @@ lint:
 
 test-cockroach:
 	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test -tags integration ./internal/protocol/cockroach/... -v -timeout 60s
+
+# ─────────────────────────────────────────────────────────────────────
+# dev — start shared infra + Canary Go stack in one command.
+# Run from CanaryGo/: make dev
+# ─────────────────────────────────────────────────────────────────────
+dev:
+	@echo "==> shared infra"
+	docker compose -f ../devops/docker-compose.yml up -d
+	@echo "==> canary go stack"
+	docker compose -f deploy/docker-compose.yml up -d --build
+
+dev-down:
+	docker compose -f deploy/docker-compose.yml down
+	docker compose -f ../devops/docker-compose.yml down
+
+dev-logs:
+	docker compose -f deploy/docker-compose.yml logs -f canarygo-gateway

@@ -29,6 +29,29 @@ services:
       canarygo-dbinit:
         condition: service_completed_successfully
 
+  canarygo-gateway:
+    image: canarygo-gateway
+    build:
+      context: ../
+      dockerfile: deploy/Dockerfile.gateway
+    networks: [growdirect]
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgres://growdirect:growdirect_dev@growdirect_postgres:5432/canary_go?sslmode=disable
+      VALKEY_URL: redis://:valkey_dev@growdirect_valkey:6379/2
+      INTERNAL_SERVICE_SECRET: dev-internal-secret
+      SESSION_SECRET: dev-session-secret
+      LOG_LEVEL: info
+      PORT: "8080"
+      SECRET_BACKEND: pgx
+      LNURL_STUB: "true"
+      LNURL_SCHEME: http
+      LNURL_HOST: localhost:8080
+    depends_on:
+      canarygo-migrate:
+        condition: service_completed_successfully
+
   canarygo-identity:
     image: canarygo-identity
     build:
