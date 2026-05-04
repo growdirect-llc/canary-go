@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/growdirect-llc/rapidpos/internal/chirp"
 	"github.com/growdirect-llc/rapidpos/internal/testutil"
 	"github.com/growdirect-llc/rapidpos/internal/web"
@@ -45,7 +46,8 @@ func TestChirpDetailPage_UnknownID_Returns404(t *testing.T) {
 	r := chi.NewRouter()
 	h.Mount(r)
 
-	req := httptest.NewRequest(http.MethodGet, "/chirps/00000000-0000-0000-0000-000000000000", nil)
+	nonexistentID := uuid.New().String()
+	req := httptest.NewRequest(http.MethodGet, "/chirps/"+nonexistentID, nil)
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 

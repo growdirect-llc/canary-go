@@ -110,7 +110,8 @@ func TestAlertDetailPage_UnknownID_Returns404(t *testing.T) {
 	r := chi.NewRouter()
 	h.Mount(r)
 
-	req := httptest.NewRequest(http.MethodGet, "/alerts/00000000-0000-0000-0000-000000000000", nil)
+	nonexistentID := uuid.New().String()
+	req := httptest.NewRequest(http.MethodGet, "/alerts/"+nonexistentID, nil)
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 

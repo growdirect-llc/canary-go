@@ -422,6 +422,7 @@ func (h *Handler) alertListPage(w http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			h.logger.Error("alertListPage: list", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
 			h.render(w, r, "err500", "alerts", nil)
 			return
 		}
@@ -452,7 +453,7 @@ func (h *Handler) alertDetailPage(w http.ResponseWriter, r *http.Request) {
 				"ID": idStr, "ShortID": shortID,
 				"Title": "Alert " + shortID, "Severity": "high",
 				"Status": "open", "StatusClass": "", "Description": "—",
-				"RuleID": "—", "RuleName": "—", "StoreID": "—",
+				"RuleID": "—", "RuleCode": "—", "StoreID": "—",
 				"TransactionID": "—", "CreatedAt": "—",
 			},
 			"Timeline": nil,
@@ -469,6 +470,7 @@ func (h *Handler) alertDetailPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.logger.Error("alertDetailPage: get", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
 		h.render(w, r, "err500", "alerts", nil)
 		return
 	}
@@ -482,7 +484,7 @@ func (h *Handler) alertDetailPage(w http.ResponseWriter, r *http.Request) {
 			"StatusClass":   "",
 			"Description":   "—",
 			"RuleID":        a.RuleID.String(),
-			"RuleName":      a.RuleCode,
+			"RuleCode":      a.RuleCode,
 			"StoreID":       "—",
 			"TransactionID": a.SourceEntityID.String(),
 			"CreatedAt":     a.CreatedAt.Format(time.RFC3339),
@@ -522,6 +524,7 @@ func (h *Handler) chirpListPage(w http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			h.logger.Error("chirpListPage: list", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
 			h.render(w, r, "err500", "chirps", nil)
 			return
 		}
@@ -569,6 +572,7 @@ func (h *Handler) chirpDetailPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.logger.Error("chirpDetailPage: get", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
 		h.render(w, r, "err500", "chirps", nil)
 		return
 	}
