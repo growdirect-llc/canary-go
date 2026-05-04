@@ -1,6 +1,6 @@
 module github.com/growdirect-llc/rapidpos
 
-go 1.25.0
+go 1.24.0
 
 require (
 	cloud.google.com/go/secretmanager v1.20.0

@@ -12,7 +12,7 @@
 
 # ---- Stage 1: builder ----
 # Pin to the Go version declared in go.mod (1.25).
-FROM golang:1.25-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 # Build-time hardening: no cgo, deterministic builds, strip symbols.
 ENV CGO_ENABLED=0 \
