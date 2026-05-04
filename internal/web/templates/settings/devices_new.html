@@ -1,0 +1,71 @@
+{{template "base.html" .}}
+
+{{define "title"}}Register Device — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:16px;">
+  <a href="/settings/devices" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← Devices</a>
+</div>
+
+<div class="page-header">
+  <h1>Register Device</h1>
+</div>
+
+<div class="ops-card" style="max-width:560px;">
+  <form action="#" method="POST" style="display:flex;flex-direction:column;gap:20px;">
+
+    <div>
+      <label style="display:block;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:6px;">Device ID</label>
+      <input
+        type="text"
+        name="device_id"
+        placeholder="e.g. POS-001"
+        required
+        style="width:100%;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;box-sizing:border-box;"
+      />
+    </div>
+
+    <div>
+      <label style="display:block;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:6px;">Type</label>
+      <select
+        name="type"
+        style="width:100%;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;box-sizing:border-box;"
+      >
+        <option value="pos_terminal">POS Terminal</option>
+        <option value="cash_drawer">Cash Drawer</option>
+        <option value="barcode_scanner">Barcode Scanner</option>
+        <option value="receipt_printer">Receipt Printer</option>
+        <option value="pinpad">Pinpad</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+
+    <div>
+      <label style="display:block;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:6px;">Store</label>
+      <input
+        type="text"
+        name="store"
+        placeholder="e.g. Store 01"
+        style="width:100%;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;box-sizing:border-box;"
+      />
+    </div>
+
+    <div>
+      <label style="display:block;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:6px;">Location Description</label>
+      <input
+        type="text"
+        name="location_description"
+        placeholder="e.g. Front checkout lane 1"
+        style="width:100%;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;box-sizing:border-box;"
+      />
+    </div>
+
+    <div style="padding-top:4px;">
+      <button type="submit" style="padding:9px 20px;background:var(--signal-yellow);color:#000;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Register Device</button>
+    </div>
+
+  </form>
+</div>
+{{end}}
+{{end}}

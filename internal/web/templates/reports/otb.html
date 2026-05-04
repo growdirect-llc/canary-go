@@ -1,0 +1,67 @@
+{{template "base.html" .}}
+
+{{define "title"}}Open-to-Buy — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Open-to-Buy</h1>
+  <p class="page-subtitle">Budget vs actual by period</p>
+</div>
+
+<!-- Summary tiles -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--health-green);">{{.OTBRemaining}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">OTB Remaining</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--signal-yellow);">{{.Committed}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Committed</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.Received}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Received</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-secondary);">{{.Variance}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Variance</div>
+  </div>
+</div>
+
+<!-- OTB by period table -->
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">OTB by Period</div>
+  {{if .Periods}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Period</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Budget</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Committed</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Received</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">OTB Remaining</th>
+        <th style="padding:6px 0;text-align:right;font-weight:500;">% Used</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Periods}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:12px 12px 12px 0;color:var(--text-primary);">{{.Period}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.Budget}}</td>
+        <td style="padding:12px;text-align:right;color:var(--signal-yellow);">{{.Committed}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.Received}}</td>
+        <td style="padding:12px;text-align:right;color:var(--health-green);">{{.OTBRemaining}}</td>
+        <td style="padding:12px 0;text-align:right;color:var(--text-secondary);">{{.PctUsed}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div style="text-align:center;padding:40px 0;color:var(--text-muted);">
+    <p style="font-size:13px;">No OTB data available.</p>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

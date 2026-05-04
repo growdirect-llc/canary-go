@@ -1,0 +1,53 @@
+{{template "base.html" .}}
+
+{{define "title"}}Transfers — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Transfers</h1>
+  <p class="page-subtitle">In-transit inventory movements &middot; {{.InTransitCount}} in transit &middot; {{.TotalCount}} total</p>
+</div>
+
+{{if .Transfers}}
+<div class="ops-card">
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:8px 12px 8px 0;text-align:left;font-weight:500;">Transfer ID</th>
+        <th style="padding:8px 12px;text-align:left;font-weight:500;">From</th>
+        <th style="padding:8px 12px;text-align:left;font-weight:500;">To</th>
+        <th style="padding:8px 12px;text-align:left;font-weight:500;">Status</th>
+        <th style="padding:8px 12px;text-align:right;font-weight:500;">Items</th>
+        <th style="padding:8px 12px;text-align:left;font-weight:500;">Initiated</th>
+        <th style="padding:8px 0;text-align:right;font-weight:500;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Transfers}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:12px 12px 12px 0;">
+          <span style="font-family:'Space Grotesk',monospace;font-size:12px;color:var(--text-muted);">{{.ShortID}}</span>
+        </td>
+        <td style="padding:12px;color:var(--text-primary);">{{.FromStore}}</td>
+        <td style="padding:12px;color:var(--text-primary);">{{.ToStore}}</td>
+        <td style="padding:12px;">
+          <span class="badge" style="{{if eq .Status "in-transit"}}color:var(--signal-yellow);{{else if eq .Status "received"}}color:var(--health-green);{{else if eq .Status "variance"}}color:var(--critical-red);{{end}}">{{.Status}}</span>
+        </td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.ItemCount}}</td>
+        <td style="padding:12px;color:var(--text-muted);font-size:12px;">{{.InitiatedAt}}</td>
+        <td style="padding:12px 0;text-align:right;">
+          <a href="/transfers/{{.ID}}" style="font-size:11px;color:var(--signal-yellow);white-space:nowrap;">View →</a>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+  <p style="font-size:14px;">No transfers found.</p>
+</div>
+{{end}}
+{{end}}
+{{end}}

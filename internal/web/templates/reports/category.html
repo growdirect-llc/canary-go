@@ -1,0 +1,65 @@
+{{template "base.html" .}}
+
+{{define "title"}}Category Performance — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Category Performance</h1>
+  <p class="page-subtitle">Margin and volume by category</p>
+</div>
+
+<!-- Summary tiles -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.TotalCategories}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Total Categories</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--health-green);">{{.TopCategory}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Top Margin Category</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.AvgMargin}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Avg Margin %</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.SKUsTracked}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">SKUs Tracked</div>
+  </div>
+</div>
+
+<!-- Category table -->
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Category Breakdown</div>
+  {{if .Categories}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Category</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">SKU Count</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Total Sales</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Avg Margin %</th>
+        <th style="padding:6px 0;text-align:right;font-weight:500;">Turn</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Categories}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:12px 12px 12px 0;font-weight:600;color:var(--text-primary);">{{.Name}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.SKUCount}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.TotalSales}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.AvgMargin}}</td>
+        <td style="padding:12px 0;text-align:right;color:var(--text-secondary);">{{.Turn}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div style="text-align:center;padding:40px 0;color:var(--text-muted);">
+    <p style="font-size:13px;">No category data available.</p>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

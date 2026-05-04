@@ -1,0 +1,65 @@
+{{template "base.html" .}}
+
+{{define "title"}}Distribution Report — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Distribution Report</h1>
+  <p class="page-subtitle">Variance by transfer lane</p>
+</div>
+
+<!-- Summary tiles -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.TotalTransfers}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Total Transfers</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--signal-yellow);">{{.InTransit}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">In Transit</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--critical-red);">{{.VarianceFlags}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Variance Flags</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--health-green);">{{.Resolved}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Resolved</div>
+  </div>
+</div>
+
+<!-- Lane variance table -->
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Lane Variance</div>
+  {{if .Lanes}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">From Store</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">To Store</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Transfers</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Variance Count</th>
+        <th style="padding:6px 0;text-align:right;font-weight:500;">Variance %</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Lanes}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:12px 12px 12px 0;color:var(--text-primary);">{{.FromStore}}</td>
+        <td style="padding:12px;color:var(--text-primary);">{{.ToStore}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.Transfers}}</td>
+        <td style="padding:12px;text-align:right;color:{{if gt .VarianceCount 0}}var(--critical-red){{else}}var(--text-secondary){{end}};font-weight:{{if gt .VarianceCount 0}}600{{else}}400{{end}};">{{.VarianceCount}}</td>
+        <td style="padding:12px 0;text-align:right;color:var(--text-secondary);">{{.VariancePct}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div style="text-align:center;padding:40px 0;color:var(--text-muted);">
+    <p style="font-size:13px;">No lane data available.</p>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

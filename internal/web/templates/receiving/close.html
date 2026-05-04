@@ -1,0 +1,73 @@
+{{template "base.html" .}}
+
+{{define "title"}}Close Receiving Session — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:16px;">
+  <a href="/receiving/{{.Session.ID}}" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← Session {{.Session.ShortID}}</a>
+</div>
+
+<div class="page-header">
+  <h1>Close Session — {{.Session.ShortID}}</h1>
+  <p class="page-subtitle">PO {{.Session.PONumber}} · {{.Session.Vendor}}</p>
+</div>
+
+<!-- Summary tiles -->
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;">
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.LineCount}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Lines</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.TotalReceived}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Total Qty Received</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:{{if .DiscrepancyCount}}var(--critical-red){{else}}var(--health-green){{end}};">{{.DiscrepancyCount}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Discrepancies</div>
+  </div>
+</div>
+
+<!-- Discrepancy list -->
+<div class="ops-card" style="margin-bottom:24px;">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Discrepancies</div>
+  {{if .Discrepancies}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">SKU</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Description</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">PO Qty</th>
+        <th style="padding:6px 0;text-align:right;font-weight:500;">Received Qty</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Discrepancies}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:12px 12px 12px 0;font-family:'Space Grotesk',monospace;font-size:12px;color:var(--text-muted);">{{.SKU}}</td>
+        <td style="padding:12px;color:var(--text-primary);">{{.Description}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.POQty}}</td>
+        <td style="padding:12px 0;text-align:right;color:var(--critical-red);font-weight:600;">{{.ReceivedQty}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);">No discrepancies.</p>
+  {{end}}
+</div>
+
+<!-- Confirm form -->
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Post to Inventory</div>
+  <form action="#" method="POST">
+    <div style="margin-bottom:16px;">
+      <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Notes</label>
+      <textarea name="notes" rows="3" style="width:100%;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:4px;color:var(--text-primary);font-size:13px;resize:vertical;box-sizing:border-box;"></textarea>
+    </div>
+    <button type="submit" style="padding:10px 20px;background:var(--signal-yellow);color:#000;font-size:12px;font-weight:600;border:none;border-radius:4px;cursor:pointer;">Post to Inventory</button>
+  </form>
+</div>
+{{end}}
+{{end}}

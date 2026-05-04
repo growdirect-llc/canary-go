@@ -1,0 +1,52 @@
+{{template "base.html" .}}
+
+{{define "title"}}Returns / RTV — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Returns / RTV</h1>
+  <p class="page-subtitle">Return to vendor tracking</p>
+</div>
+
+<div style="margin-bottom:24px;">
+  <span style="font-size:12px;color:var(--text-muted);">{{.PendingCount}} pending &nbsp;·&nbsp; {{.TotalCount}} total</span>
+</div>
+
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">RTVs</div>
+  {{if .Returns}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">RTV</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Vendor</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Status</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Items</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Initiated At</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Returns}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:12px 12px 12px 0;">
+          <a href="/returns/{{.ID}}" style="font-family:'Space Grotesk',monospace;font-size:12px;color:var(--accent-blue);text-decoration:none;">{{.ShortID}}</a>
+        </td>
+        <td style="padding:12px;color:var(--text-primary);">{{.Vendor}}</td>
+        <td style="padding:12px;">
+          <span class="badge">{{.Status}}</span>
+        </td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.ItemCount}}</td>
+        <td style="padding:12px 0;color:var(--text-muted);font-size:12px;">{{.InitiatedAt}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div style="text-align:center;padding:40px 0;color:var(--text-muted);">
+    <p style="font-size:13px;">No RTVs on record.</p>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

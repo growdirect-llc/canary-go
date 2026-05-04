@@ -1,0 +1,99 @@
+{{template "base.html" .}}
+
+{{define "title"}}Remediation — Case {{with .Data}}{{with .Case}}{{.ShortID}}{{end}}{{end}} — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:16px;">
+  <a href="/cases/{{with .Case}}{{.ID}}{{end}}" style="font-size:13px;color:var(--text-secondary);text-decoration:none;">&larr; Case {{with .Case}}{{.ShortID}}{{end}}</a>
+</div>
+
+<div class="page-header" style="margin-bottom:24px;">
+  <h1>Remediation — Case {{with .Case}}{{.ShortID}}{{end}}</h1>
+  <p class="page-subtitle">{{with .Case}}{{.Title}}{{end}}</p>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;">
+
+  <!-- Dispatch form -->
+  <div class="ops-card">
+    <h3 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;">Dispatch Remediation</h3>
+
+    <form action="#" method="POST">
+      <div style="margin-bottom:18px;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Target Module</label>
+        <select name="target_module"
+                style="width:100%;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;box-sizing:border-box;">
+          <option value="">Select target...</option>
+          <option value="lp_alert">LP Alert</option>
+          <option value="inventory_adjustment">Inventory Adjustment</option>
+          <option value="finance_review">Finance Review</option>
+          <option value="receiving_variance">Receiving Variance</option>
+          <option value="hr_action">HR Action</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Priority</label>
+        <select name="priority"
+                style="width:100%;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;box-sizing:border-box;">
+          <option value="">Select priority...</option>
+          <option value="urgent">Urgent</option>
+          <option value="high">High</option>
+          <option value="normal">Normal</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Instructions</label>
+        <textarea name="instructions" rows="4" placeholder="What action should the target module take?"
+                  style="width:100%;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;box-sizing:border-box;resize:vertical;"></textarea>
+      </div>
+
+      <div style="margin-bottom:24px;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Notify</label>
+        <input type="text" name="notify" placeholder="email1@example.com, email2@example.com"
+               style="width:100%;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;box-sizing:border-box;">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Comma-separated email addresses.</div>
+      </div>
+
+      <button type="submit"
+              style="padding:9px 20px;background:var(--accent-blue);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
+        Dispatch Remediation
+      </button>
+    </form>
+  </div>
+
+  <!-- Active remediations -->
+  <div class="ops-card">
+    <h3 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;">Active Remediations</h3>
+
+    {{if .Remediations}}
+    <div style="display:flex;flex-direction:column;gap:0;">
+      {{range .Remediations}}
+      <div style="padding:12px 0;border-bottom:1px solid var(--border-subtle);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span class="badge">{{.TargetModule}}</span>
+          <span class="badge">{{.Priority}}</span>
+          <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">{{.DispatchedAt}}</span>
+        </div>
+        <div style="font-size:13px;color:var(--text-secondary);">{{.Instructions}}</div>
+        {{if .Status}}
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Status: {{.Status}}</div>
+        {{end}}
+      </div>
+      {{end}}
+    </div>
+    {{else}}
+    <div style="text-align:center;padding:40px 20px;color:var(--text-muted);">
+      <p style="font-size:13px;">No remediations dispatched yet.</p>
+      <p style="font-size:12px;margin-top:4px;">Use the form to route this case to the appropriate module.</p>
+    </div>
+    {{end}}
+  </div>
+
+</div>
+{{end}}
+{{end}}

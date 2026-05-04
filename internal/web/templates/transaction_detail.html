@@ -1,0 +1,162 @@
+{{template "base.html" .}}
+
+{{define "title"}}Transaction {{.Data.Transaction.ShortID}} — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:20px;">
+  <a href="/transactions" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← Transactions</a>
+</div>
+
+<div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:24px;">
+  <div style="flex:1;min-width:0;">
+    <h1 class="page-header">Transaction {{.Transaction.ShortID}}</h1>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;">
+      <span class="badge">{{.Transaction.POSSource}}</span>
+      <span style="font-size:12px;color:var(--text-muted);">{{.Transaction.CreatedAt}}</span>
+      <span style="font-size:13px;font-weight:600;color:var(--text-primary);">{{.Transaction.Amount}}</span>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 280px;gap:20px;align-items:start;">
+
+  <!-- Main column -->
+  <div style="display:grid;gap:20px;">
+
+    <!-- Canonical Events -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Canonical Events</h3>
+      {{if .Events}}
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border-subtle);">
+            <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">Type</th>
+            <th style="text-align:right;padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">Amount</th>
+            <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">Cashier</th>
+            <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">Timestamp</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Events}}
+          <tr style="border-bottom:1px solid var(--border-subtle);">
+            <td style="padding:8px;color:var(--text-primary);">{{.Type}}</td>
+            <td style="padding:8px;text-align:right;color:var(--text-primary);">{{.Amount}}</td>
+            <td style="padding:8px;color:var(--text-secondary);">{{.Cashier}}</td>
+            <td style="padding:8px;color:var(--text-muted);font-size:12px;">{{.Timestamp}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+      {{else}}
+      <div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;border:1px dashed var(--border-subtle);border-radius:6px;">
+        No canonical events parsed for this transaction.
+      </div>
+      {{end}}
+    </div>
+
+    <!-- Line Items -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Line Items</h3>
+      {{if .LineItems}}
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border-subtle);">
+            <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">SKU</th>
+            <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">Description</th>
+            <th style="text-align:right;padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">Qty</th>
+            <th style="text-align:right;padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">Unit</th>
+            <th style="text-align:right;padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">Extended</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .LineItems}}
+          <tr style="border-bottom:1px solid var(--border-subtle);">
+            <td style="padding:8px;font-family:'Space Grotesk',monospace;font-size:12px;color:var(--text-muted);">{{.SKU}}</td>
+            <td style="padding:8px;color:var(--text-primary);">{{.Description}}</td>
+            <td style="padding:8px;text-align:right;color:var(--text-secondary);">{{.Qty}}</td>
+            <td style="padding:8px;text-align:right;color:var(--text-secondary);">{{.UnitPrice}}</td>
+            <td style="padding:8px;text-align:right;font-weight:600;color:var(--text-primary);">{{.Extended}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+      {{else}}
+      <div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;border:1px dashed var(--border-subtle);border-radius:6px;">
+        No line items available for this transaction.
+      </div>
+      {{end}}
+    </div>
+
+  </div>
+
+  <!-- Sidebar -->
+  <div style="display:grid;gap:12px;">
+
+    <!-- Integrity card -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Integrity</h3>
+      <div style="display:grid;gap:10px;">
+        <div>
+          <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Hash</div>
+          <div style="font-family:'Space Grotesk',monospace;font-size:10px;color:var(--text-secondary);word-break:break-all;line-height:1.5;">{{.Transaction.Hash}}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;color:var(--text-muted);">Seal</span>
+          {{if eq .Transaction.SealStatus "sealed"}}
+          <span class="badge" style="background:rgba(16,185,129,0.15);color:var(--health-green);border-color:var(--health-green);">sealed</span>
+          {{else}}
+          <span class="badge" style="background:rgba(234,179,8,0.12);color:var(--signal-yellow);border-color:var(--signal-yellow);">{{.Transaction.SealStatus}}</span>
+          {{end}}
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;color:var(--text-muted);">Parse</span>
+          {{if eq .Transaction.ParseStatus "ok"}}
+          <span class="badge" style="background:rgba(16,185,129,0.15);color:var(--health-green);border-color:var(--health-green);">ok</span>
+          {{else if eq .Transaction.ParseStatus "error"}}
+          <span class="badge" style="background:rgba(239,68,68,0.12);color:var(--critical-red);border-color:var(--critical-red);">error</span>
+          {{else}}
+          <span class="badge" style="background:rgba(234,179,8,0.12);color:var(--signal-yellow);border-color:var(--signal-yellow);">{{.Transaction.ParseStatus}}</span>
+          {{end}}
+        </div>
+      </div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border-subtle);">
+        <a href="/transactions/{{.Transaction.ID}}/proof" style="font-size:13px;color:var(--accent-blue);text-decoration:none;">View Audit Proof →</a>
+      </div>
+    </div>
+
+    <!-- Related alerts -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Related Alerts</h3>
+      {{if .AlertCount}}
+      <div style="font-size:22px;font-weight:700;color:var(--signal-yellow);">{{.AlertCount}}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">alert{{if gt .AlertCount 1}}s{{end}} linked to this transaction</div>
+      {{else}}
+      <div style="font-size:13px;color:var(--text-muted);">No alerts linked.</div>
+      {{end}}
+    </div>
+
+    <!-- Metadata -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Details</h3>
+      <div style="display:grid;gap:8px;font-size:13px;">
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--text-muted);">Cashier</span>
+          <span style="color:var(--text-primary);">{{.Transaction.Cashier}}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--text-muted);">Store</span>
+          <span style="color:var(--text-primary);">{{.Transaction.StoreID}}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--text-muted);">Source</span>
+          <span style="color:var(--text-primary);">{{.Transaction.POSSource}}</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+{{end}}
+{{end}}

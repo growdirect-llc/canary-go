@@ -93,6 +93,8 @@ func New(logger *zap.Logger) *Handler {
 	h.mustParse("alert_detail", "templates/alert_detail.html")
 	h.mustParse("rule_detail", "templates/rule_detail.html")
 	h.mustParse("chirp_detail", "templates/chirp_detail.html")
+	h.mustParse("transaction_detail", "templates/transaction_detail.html")
+	h.mustParse("transaction_proof", "templates/transaction_proof.html")
 	h.mustParse("err403", "templates/errors/403.html")
 	h.mustParse("err404", "templates/errors/404.html")
 	h.mustParse("err500", "templates/errors/500.html")
@@ -110,6 +112,41 @@ func New(logger *zap.Logger) *Handler {
 	h.mustParse("settings_store_discounts", "templates/settings/store_discounts.html")
 	h.mustParse("settings_store_void_reasons", "templates/settings/store_void_reasons.html")
 	h.mustParse("settings_store_comp_reasons", "templates/settings/store_comp_reasons.html")
+	h.mustParse("transfers_list", "templates/transfers/list.html")
+	h.mustParse("transfers_detail", "templates/transfers/detail.html")
+	h.mustParse("transfers_variance", "templates/transfers/variance.html")
+	h.mustParse("report_distribution", "templates/reports/distribution.html")
+	h.mustParse("report_inventory", "templates/reports/inventory.html")
+	h.mustParse("items_list", "templates/items/list.html")
+	h.mustParse("items_detail", "templates/items/detail.html")
+	h.mustParse("report_category", "templates/reports/category.html")
+	h.mustParse("settings_devices", "templates/settings/devices.html")
+	h.mustParse("settings_devices_new", "templates/settings/devices_new.html")
+	h.mustParse("settings_store_config", "templates/settings/store_config.html")
+	h.mustParse("report_finance", "templates/reports/finance.html")
+	h.mustParse("report_payments", "templates/reports/payments.html")
+	h.mustParse("report_tax", "templates/reports/tax.html")
+	h.mustParse("receiving_list", "templates/receiving/list.html")
+	h.mustParse("receiving_detail", "templates/receiving/detail.html")
+	h.mustParse("receiving_close", "templates/receiving/close.html")
+	h.mustParse("returns_list", "templates/returns/list.html")
+	h.mustParse("returns_detail", "templates/returns/detail.html")
+	h.mustParse("report_otb", "templates/reports/otb.html")
+	h.mustParse("report_suggested_orders", "templates/reports/suggested_orders.html")
+	h.mustParse("report_range", "templates/reports/range.html")
+	h.mustParse("promotions_calendar", "templates/promotions/calendar.html")
+	h.mustParse("report_pricing", "templates/reports/pricing.html")
+	h.mustParse("report_price_history", "templates/reports/price_history.html")
+	h.mustParse("report_markdowns", "templates/reports/markdowns.html")
+	h.mustParse("employees_detail", "templates/employees/detail.html")
+	h.mustParse("report_labor", "templates/reports/labor.html")
+	h.mustParse("exceptions_list", "templates/exceptions/list.html")
+	h.mustParse("exceptions_detail", "templates/exceptions/detail.html")
+	h.mustParse("cases_new", "templates/cases/new.html")
+	h.mustParse("cases_evidence", "templates/cases/evidence.html")
+	h.mustParse("cases_correlation", "templates/cases/correlation.html")
+	h.mustParse("cases_remediate", "templates/cases/remediate.html")
+	h.mustParse("report_cases", "templates/reports/cases.html")
 	return h
 }
 
@@ -141,6 +178,8 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/dashboard", h.page("dashboard", "dashboard", stubDashboard))
 	r.Get("/chirps", h.page("chirps", "chirps", stubChirps))
 	r.Get("/transactions", h.page("transactions", "transactions", stubTransactions))
+	r.Get("/transactions/{id}", h.transactionDetailPage)
+	r.Get("/transactions/{id}/proof", h.transactionProofPage)
 	r.Get("/alerts", h.page("alerts", "alerts", stubAlerts))
 	r.Get("/cases", h.page("cases", "cases", stubCases))
 	r.Get("/employees", h.page("employees", "employees", stubEmployees))
@@ -182,6 +221,105 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/settings/store/discounts", h.page("settings", "settings_store_discounts", func(_ *http.Request) any { return map[string]any{"Caps": nil} }))
 	r.Get("/settings/store/void-reasons", h.page("settings", "settings_store_void_reasons", func(_ *http.Request) any { return map[string]any{"Codes": nil} }))
 	r.Get("/settings/store/comp-reasons", h.page("settings", "settings_store_comp_reasons", func(_ *http.Request) any { return map[string]any{"Codes": nil} }))
+	r.Get("/settings/devices", h.page("settings", "settings_devices", func(_ *http.Request) any {
+		return map[string]any{"Online": 0, "Offline": 0, "Degraded": 0, "Devices": nil}
+	}))
+	r.Get("/settings/devices/new", h.page("settings", "settings_devices_new", func(_ *http.Request) any {
+		return map[string]any{}
+	}))
+	r.Get("/settings/store", h.page("settings", "settings_store_config", func(_ *http.Request) any {
+		return map[string]any{"StoreID": "—", "POSSource": "—", "LastSync": "—", "ActiveRuleCount": 0, "AllowListCount": 0, "TrainingMode": false}
+	}))
+
+	// Transfers
+	r.Get("/transfers", h.page("transfers", "transfers_list", func(_ *http.Request) any {
+		return map[string]any{"Transfers": nil, "InTransitCount": 0, "TotalCount": 0}
+	}))
+	r.Get("/transfers/{id}", h.transferDetailPage)
+	r.Get("/transfers/{id}/variance", h.transferVariancePage)
+
+	// Reports
+	r.Get("/reports/distribution", h.page("reports", "report_distribution", func(_ *http.Request) any {
+		return map[string]any{"TotalTransfers": 0, "InTransit": 0, "VarianceFlags": 0, "Resolved": 0, "Lanes": nil}
+	}))
+	r.Get("/reports/inventory", h.page("reports", "report_inventory", func(_ *http.Request) any {
+		return map[string]any{"TotalSKUs": 0, "Locations": 0, "VarianceItems": 0, "LastUpdated": "—", "Items": nil}
+	}))
+	r.Get("/reports/category", h.page("reports", "report_category", func(_ *http.Request) any {
+		return map[string]any{"TotalCategories": 0, "TopCategory": "—", "AvgMargin": "—", "SKUsTracked": 0, "Categories": nil}
+	}))
+
+	// Items
+	r.Get("/items", h.page("items", "items_list", func(r *http.Request) any {
+		return map[string]any{"Items": nil, "TotalCount": 0, "Query": r.URL.Query().Get("q")}
+	}))
+	r.Get("/items/{id}", h.itemDetailPage)
+
+	// Finance reports
+	r.Get("/reports/finance", h.page("reports", "report_finance", func(_ *http.Request) any {
+		return map[string]any{"GrossSales": "—", "NetSales": "—", "COGS": "—", "GrossMargin": "—", "TenderRows": nil}
+	}))
+	r.Get("/reports/payments", h.page("reports", "report_payments", func(_ *http.Request) any {
+		return map[string]any{"TotalTransactions": 0, "CashPct": "—", "CardPct": "—", "OtherPct": "—", "Tenders": nil, "SecurePayEnabled": false, "LastGatewaySync": "—"}
+	}))
+	r.Get("/reports/tax", h.page("reports", "report_tax", func(_ *http.Request) any {
+		return map[string]any{"TotalTax": "—", "AuthorityCount": 0, "NexusStates": 0, "FilingPeriod": "—", "Authorities": nil}
+	}))
+	r.Get("/reports/otb", h.page("reports", "report_otb", func(_ *http.Request) any {
+		return map[string]any{"OTBRemaining": "—", "Committed": "—", "Received": "—", "Variance": "—", "Periods": nil}
+	}))
+	r.Get("/orders/suggested", h.page("reports", "report_suggested_orders", func(_ *http.Request) any {
+		return map[string]any{"Orders": nil, "PendingCount": 0}
+	}))
+	r.Get("/reports/range", h.page("reports", "report_range", func(_ *http.Request) any {
+		return map[string]any{"ActiveRanges": 0, "AvgSellThrough": "—", "AvgTurn": "—", "AvgGMROI": "—", "Ranges": nil}
+	}))
+	r.Get("/promotions", h.page("promotions", "promotions_calendar", func(_ *http.Request) any {
+		return map[string]any{"Promotions": nil, "ActiveCount": 0, "UpcomingCount": 0}
+	}))
+	r.Get("/reports/pricing", h.page("reports", "report_pricing", func(_ *http.Request) any {
+		return map[string]any{"ItemsTracked": 0, "AboveMarket": 0, "AtMarket": 0, "BelowMarket": 0, "Items": nil}
+	}))
+	r.Get("/reports/price-history", h.page("reports", "report_price_history", func(_ *http.Request) any {
+		return map[string]any{"Changes": nil, "TotalCount": 0}
+	}))
+	r.Get("/reports/markdowns", h.page("reports", "report_markdowns", func(_ *http.Request) any {
+		return map[string]any{"ActiveMarkdowns": 0, "AvgDepth": "—", "UnitsMoved": 0, "RevenueRecovery": "—", "Items": nil}
+	}))
+	r.Get("/employees/{id}", h.employeeDetailPage)
+	r.Get("/reports/labor", h.page("reports", "report_labor", func(_ *http.Request) any {
+		return map[string]any{"ActiveEmployees": 0, "StoreAvgTxnHr": "—", "TopTxnHr": "—", "FlagRate": "—", "Employees": nil}
+	}))
+
+	// Receiving workflow
+	r.Get("/receiving", h.page("receiving", "receiving_list", func(_ *http.Request) any {
+		return map[string]any{"Sessions": nil, "OpenCount": 0, "TotalCount": 0}
+	}))
+	r.Get("/receiving/{id}", h.receivingDetailPage)
+	r.Get("/receiving/{id}/close", h.receivingClosePage)
+
+	// Returns / RTV workflow
+	r.Get("/returns", h.page("returns", "returns_list", func(_ *http.Request) any {
+		return map[string]any{"Returns": nil, "PendingCount": 0, "TotalCount": 0}
+	}))
+	r.Get("/returns/{id}", h.returnsDetailPage)
+
+	// Cross-domain exceptions
+	r.Get("/exceptions", h.page("exceptions", "exceptions_list", func(_ *http.Request) any {
+		return map[string]any{"Exceptions": nil, "OpenCount": 0, "TotalCount": 0, "DomainFilter": ""}
+	}))
+	r.Get("/exceptions/{id}", h.exceptionDetailPage)
+
+	// Cross-domain case management (registered after /cases/hawk/* to avoid conflicts)
+	r.Get("/cases/new", h.casesNewPage)
+	r.Get("/cases/{id}/evidence", h.casesEvidencePage)
+	r.Get("/cases/{id}/correlation", h.casesCorrelationPage)
+	r.Get("/cases/{id}/remediate", h.casesRemediatePage)
+
+	// Case analytics report
+	r.Get("/reports/cases", h.page("reports", "report_cases", func(_ *http.Request) any {
+		return map[string]any{"TotalCases": 0, "OpenCases": 0, "AvgResolutionDays": "—", "RemediationsDispatched": 0, "ByDomain": nil, "BySeverity": nil}
+	}))
 
 	// Error pages (also reachable programmatically via Render403/404/500)
 	r.Get("/errors/403", h.errPage(403))
@@ -321,6 +459,140 @@ func (h *Handler) chirpDetailPage(w http.ResponseWriter, r *http.Request) {
 			"CaseID":    "",
 		},
 		"Signals": nil,
+	})
+}
+
+func (h *Handler) transactionDetailPage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	shortID := id
+	if len(id) >= 8 {
+		shortID = id[:8]
+	}
+	h.render(w, r, "transaction_detail", "transactions", map[string]any{
+		"Transaction": map[string]any{
+			"ID": id, "ShortID": shortID, "POSSource": "—",
+			"Amount": "—", "Cashier": "—", "StoreID": "—",
+			"Hash":        "0000000000000000000000000000000000000000000000000000000000000000",
+			"SealStatus":  "pending",
+			"ParseStatus": "pending",
+			"CreatedAt":   "—",
+		},
+		"Events": nil, "LineItems": nil, "AlertCount": 0,
+	})
+}
+
+func (h *Handler) transactionProofPage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	shortID := id
+	if len(id) >= 8 {
+		shortID = id[:8]
+	}
+	h.render(w, r, "transaction_proof", "transactions", map[string]any{
+		"Transaction": map[string]any{
+			"ID": id, "ShortID": shortID,
+			"Hash":      "0000000000000000000000000000000000000000000000000000000000000000",
+			"CreatedAt": "—",
+		},
+		"ProofStatus": "pending",
+		"MerklePath":  nil,
+		"RootHash":    "—",
+		"AnchorRef":   "—",
+		"AnchoredAt":  "—",
+	})
+}
+
+func (h *Handler) transferDetailPage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	shortID := id
+	if len(id) >= 8 {
+		shortID = id[:8]
+	}
+	h.render(w, r, "transfers_detail", "transfers", map[string]any{
+		"Transfer": map[string]any{
+			"ID": id, "ShortID": shortID, "FromStore": "—", "ToStore": "—",
+			"Status": "in-transit", "StatusClass": "", "ItemCount": 0,
+			"InitiatedBy": "—", "InitiatedAt": "—", "ExpectedArrival": "—",
+		},
+		"Lines": nil,
+	})
+}
+
+func (h *Handler) transferVariancePage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	shortID := id
+	if len(id) >= 8 {
+		shortID = id[:8]
+	}
+	h.render(w, r, "transfers_variance", "transfers", map[string]any{
+		"Transfer": map[string]any{"ID": id, "ShortID": shortID, "FromStore": "—", "ToStore": "—"},
+		"ShippedTotal": 0, "ReceivedTotal": 0, "VarianceCount": 0, "ValueAtRisk": "—",
+		"Lines": nil,
+	})
+}
+
+func (h *Handler) itemDetailPage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	h.render(w, r, "items_detail", "items", map[string]any{
+		"Item": map[string]any{
+			"ID": id, "SKU": id, "Description": "—", "Category": "—",
+			"Status": "active", "Supplier": "—", "UnitCost": "—",
+			"UnitPrice": "—", "Margin": "—", "ReorderPoint": 0,
+			"LeadDays": 0, "DriftAlertCount": 0, "LastDriftAt": "—",
+		},
+	})
+}
+
+func (h *Handler) employeeDetailPage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	h.render(w, r, "employees_detail", "employees", map[string]any{
+		"Employee": map[string]any{
+			"ID": id, "Name": "Employee " + id, "Role": "cashier", "Store": "—",
+			"TxnPerHour": "—", "AvgTxnValue": "—", "VoidRate": "—",
+			"DiscountRate": "—", "CompRate": "—", "CaseCount": 0, "AlertCount": 0,
+		},
+	})
+}
+
+func (h *Handler) receivingDetailPage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	shortID := id
+	if len(id) >= 8 {
+		shortID = id[:8]
+	}
+	h.render(w, r, "receiving_detail", "receiving", map[string]any{
+		"Session": map[string]any{
+			"ID": id, "ShortID": shortID, "PONumber": "—", "Vendor": "—",
+			"Status": "open", "ReceivedBy": "—", "OpenedAt": "—",
+		},
+		"Lines": nil,
+	})
+}
+
+func (h *Handler) receivingClosePage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	shortID := id
+	if len(id) >= 8 {
+		shortID = id[:8]
+	}
+	h.render(w, r, "receiving_close", "receiving", map[string]any{
+		"Session": map[string]any{"ID": id, "ShortID": shortID, "PONumber": "—", "Vendor": "—"},
+		"LineCount": 0, "TotalReceived": 0, "DiscrepancyCount": 0, "Discrepancies": nil,
+	})
+}
+
+func (h *Handler) returnsDetailPage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	shortID := id
+	if len(id) >= 8 {
+		shortID = id[:8]
+	}
+	h.render(w, r, "returns_detail", "returns", map[string]any{
+		"Return": map[string]any{
+			"ID": id, "ShortID": shortID, "Vendor": "—", "Status": "pending",
+			"InitiatedBy": "—", "InitiatedAt": "—",
+			"CreditExpected": "—", "CreditReceived": "—", "Reconciled": false,
+		},
+		"Items": nil,
 	})
 }
 
@@ -558,5 +830,95 @@ func (h *Handler) customerContextPage(w http.ResponseWriter, r *http.Request) {
 		},
 		"Cases":  nil,
 		"Chirps": nil,
+	})
+}
+
+func (h *Handler) exceptionDetailPage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	shortID := id
+	if len(id) >= 8 {
+		shortID = id[:8]
+	}
+	h.render(w, r, "exceptions_detail", "exceptions", map[string]any{
+		"Exception": map[string]any{
+			"ID":             id,
+			"ShortID":        shortID,
+			"Domain":         "—",
+			"Type":           "—",
+			"Severity":       "high",
+			"Status":         "open",
+			"Store":          "—",
+			"DetectedAt":     "—",
+			"AssignedTo":     "—",
+			"TriggerRule":    "—",
+			"TriggerProcess": "—",
+			"SignalSummary":  "—",
+		},
+	})
+}
+
+func (h *Handler) casesNewPage(w http.ResponseWriter, r *http.Request) {
+	exceptionID := r.URL.Query().Get("exception")
+	preFillTitle := ""
+	if exceptionID != "" {
+		preFillTitle = "Exception " + exceptionID
+	}
+	h.render(w, r, "cases_new", "cases", map[string]any{
+		"ExceptionID":  exceptionID,
+		"PreFillTitle": preFillTitle,
+	})
+}
+
+func (h *Handler) casesEvidencePage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	shortID := id
+	if len(id) >= 8 {
+		shortID = id[:8]
+	}
+	h.render(w, r, "cases_evidence", "cases", map[string]any{
+		"Case": map[string]any{
+			"ID":      id,
+			"ShortID": shortID,
+			"Title":   "Case " + shortID,
+		},
+		"Evidence": nil,
+		"DomainCounts": map[string]int{
+			"lp":        0,
+			"inventory": 0,
+			"finance":   0,
+			"receiving": 0,
+		},
+	})
+}
+
+func (h *Handler) casesCorrelationPage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	shortID := id
+	if len(id) >= 8 {
+		shortID = id[:8]
+	}
+	h.render(w, r, "cases_correlation", "cases", map[string]any{
+		"Case": map[string]any{
+			"ID":      id,
+			"ShortID": shortID,
+		},
+		"Subjects": nil,
+		"Timeline": nil,
+	})
+}
+
+func (h *Handler) casesRemediatePage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	shortID := id
+	if len(id) >= 8 {
+		shortID = id[:8]
+	}
+	h.render(w, r, "cases_remediate", "cases", map[string]any{
+		"Case": map[string]any{
+			"ID":      id,
+			"ShortID": shortID,
+			"Title":   "Case " + shortID,
+		},
+		"Remediations": nil,
 	})
 }

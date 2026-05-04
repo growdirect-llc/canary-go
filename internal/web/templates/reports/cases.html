@@ -1,0 +1,96 @@
+{{template "base.html" .}}
+
+{{define "title"}}Case Analytics — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header" style="margin-bottom:24px;">
+  <h1>Case Analytics</h1>
+  <p class="page-subtitle">Cross-domain case performance</p>
+</div>
+
+<!-- Summary tiles -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:28px;font-weight:700;color:var(--text-primary);">{{.TotalCases}}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.05em;">Total Cases</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:28px;font-weight:700;color:var(--signal-yellow);">{{.OpenCases}}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.05em;">Open</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:28px;font-weight:700;color:var(--text-primary);">{{.AvgResolutionDays}}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.05em;">Avg Resolution Days</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:28px;font-weight:700;color:var(--accent-blue);">{{.RemediationsDispatched}}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.05em;">Remediations Dispatched</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+
+  <!-- Cases by domain -->
+  <div class="ops-card">
+    <h3 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;">Cases by Domain</h3>
+    {{if .ByDomain}}
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Domain</th>
+          <th style="text-align:right;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Total</th>
+          <th style="text-align:right;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Open</th>
+          <th style="text-align:right;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Avg Resolution Days</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .ByDomain}}
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <td style="padding:10px;"><span class="badge">{{.Domain}}</span></td>
+          <td style="padding:10px;text-align:right;color:var(--text-primary);font-weight:600;">{{.Total}}</td>
+          <td style="padding:10px;text-align:right;color:var(--signal-yellow);">{{.Open}}</td>
+          <td style="padding:10px;text-align:right;color:var(--text-secondary);">{{.AvgResolutionDays}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <div style="text-align:center;padding:40px 20px;color:var(--text-muted);">
+      <p style="font-size:13px;">No domain data available.</p>
+    </div>
+    {{end}}
+  </div>
+
+  <!-- Cases by severity -->
+  <div class="ops-card">
+    <h3 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;">Cases by Severity</h3>
+    {{if .BySeverity}}
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Severity</th>
+          <th style="text-align:right;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Count</th>
+          <th style="text-align:right;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">% of Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .BySeverity}}
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <td style="padding:10px;"><span class="badge">{{.Severity}}</span></td>
+          <td style="padding:10px;text-align:right;color:var(--text-primary);font-weight:600;">{{.Count}}</td>
+          <td style="padding:10px;text-align:right;color:var(--text-secondary);">{{.Pct}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <div style="text-align:center;padding:40px 20px;color:var(--text-muted);">
+      <p style="font-size:13px;">No severity data available.</p>
+    </div>
+    {{end}}
+  </div>
+
+</div>
+{{end}}
+{{end}}

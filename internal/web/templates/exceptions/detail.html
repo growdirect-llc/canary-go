@@ -1,0 +1,92 @@
+{{template "base.html" .}}
+
+{{define "title"}}Exception {{with .Data}}{{with .Exception}}{{.ShortID}}{{end}}{{end}} — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+{{with .Exception}}
+<div style="margin-bottom:16px;">
+  <a href="/exceptions" style="font-size:13px;color:var(--text-secondary);text-decoration:none;">&larr; Exceptions</a>
+</div>
+
+<div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+  <div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <h1 style="margin:0;">Exception {{.ShortID}}</h1>
+      <span class="badge">{{.Domain}}</span>
+      <span class="badge">{{.Severity}}</span>
+      <span class="badge">{{.Status}}</span>
+    </div>
+    <p class="page-subtitle">{{.Type}}</p>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:start;">
+
+  <!-- Main: detection context -->
+  <div>
+    <div class="ops-card" style="margin-bottom:16px;">
+      <h3 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;">Detection Context</h3>
+
+      <div style="margin-bottom:16px;">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Trigger Rule</div>
+        <div style="font-size:13px;color:var(--text-primary);font-family:monospace;">{{if .TriggerRule}}{{.TriggerRule}}{{else}}—{{end}}</div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Trigger Process</div>
+        <div style="font-size:13px;color:var(--text-primary);">{{if .TriggerProcess}}{{.TriggerProcess}}{{else}}—{{end}}</div>
+      </div>
+
+      <div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Signal Summary</div>
+        <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;padding:12px;">
+          {{if .SignalSummary}}{{.SignalSummary}}{{else}}—{{end}}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar: metadata + actions -->
+  <div>
+    <div class="ops-card" style="margin-bottom:16px;">
+      <h3 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;">Metadata</h3>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);">Domain</div>
+          <div style="font-size:13px;color:var(--text-primary);">{{.Domain}}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);">Store</div>
+          <div style="font-size:13px;color:var(--text-primary);">{{if .Store}}{{.Store}}{{else}}—{{end}}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);">Detected At</div>
+          <div style="font-size:13px;color:var(--text-primary);">{{if .DetectedAt}}{{.DetectedAt}}{{else}}—{{end}}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);">Assigned To</div>
+          <div style="font-size:13px;color:var(--text-primary);">{{if .AssignedTo}}{{.AssignedTo}}{{else}}—{{end}}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ops-card">
+      <h3 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;">Actions</h3>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <a href="/cases/new?exception={{.ID}}" style="display:block;text-align:center;padding:8px 16px;background:var(--accent-blue);color:#fff;border-radius:6px;font-size:13px;font-weight:500;text-decoration:none;">
+          Escalate to Case
+        </a>
+        <form action="/exceptions/{{.ID}}/dismiss" method="POST">
+          <button type="submit" style="width:100%;padding:8px 16px;background:transparent;border:1px solid var(--border-subtle);color:var(--text-secondary);border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">
+            Dismiss
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+{{end}}
+{{end}}
+{{end}}

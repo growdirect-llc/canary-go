@@ -1,0 +1,78 @@
+{{template "base.html" .}}
+
+{{define "title"}}Employee Detail — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+{{with .Employee}}
+<div style="margin-bottom:16px;">
+  <a href="/employees" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← Employees</a>
+</div>
+
+<div class="page-header">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <h1>{{.Name}}</h1>
+    <span class="badge" style="background:var(--bg-surface);color:var(--text-secondary);border:1px solid var(--border-subtle);">{{.Role}}</span>
+  </div>
+  <p class="page-subtitle">{{.Store}}</p>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;">
+
+  <!-- Main: productivity metrics -->
+  <div>
+    <div class="ops-card">
+      <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Productivity Metrics</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tbody>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:12px 12px 12px 0;color:var(--text-muted);">Transactions / Hour</td>
+            <td style="padding:12px 0;text-align:right;color:var(--text-primary);font-weight:600;">{{.TxnPerHour}}</td>
+          </tr>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:12px 12px 12px 0;color:var(--text-muted);">Avg Transaction Value</td>
+            <td style="padding:12px 0;text-align:right;color:var(--text-primary);font-weight:600;">{{.AvgTxnValue}}</td>
+          </tr>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:12px 12px 12px 0;color:var(--text-muted);">Void Rate</td>
+            <td style="padding:12px 0;text-align:right;color:var(--text-primary);font-weight:600;">{{.VoidRate}}</td>
+          </tr>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:12px 12px 12px 0;color:var(--text-muted);">Discount Rate</td>
+            <td style="padding:12px 0;text-align:right;color:var(--text-primary);font-weight:600;">{{.DiscountRate}}</td>
+          </tr>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:12px 12px 12px 0;color:var(--text-muted);">Comp Rate</td>
+            <td style="padding:12px 0;text-align:right;color:var(--text-primary);font-weight:600;">{{.CompRate}}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Sidebar: LP context -->
+  <div>
+    <div class="ops-card">
+      <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">LP Context</div>
+      <div style="margin-bottom:16px;">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Cases as Subject</div>
+        <div style="font-size:24px;font-weight:700;color:{{if gt .CaseCount 0}}var(--critical-red){{else}}var(--text-primary){{end}};">{{.CaseCount}}</div>
+      </div>
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Alert Appearances</div>
+        <div style="font-size:24px;font-weight:700;color:{{if gt .AlertCount 0}}var(--signal-yellow){{else}}var(--text-primary){{end}};">{{.AlertCount}}</div>
+      </div>
+      <div style="border-top:1px solid var(--border-subtle);padding-top:16px;">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Investigation Surface</div>
+        <div style="font-size:12px;color:var(--text-muted);">
+          Customer ID mapping: <span style="color:var(--text-secondary);">—</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">Employee-to-customer linkage available once POS sync establishes operator ID mapping.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{{end}}
+{{end}}
+{{end}}

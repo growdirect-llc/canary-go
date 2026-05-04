@@ -1,0 +1,70 @@
+{{template "base.html" .}}
+
+{{define "title"}}Promotions — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Promotions</h1>
+  <p class="page-subtitle">Active and upcoming promotion calendar</p>
+</div>
+
+<div class="ops-card" style="margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+  <span style="font-size:12px;color:var(--text-muted);">Read-only view. Promotions created in POS; Canary syncs on schedule.</span>
+</div>
+
+<!-- Summary tiles -->
+<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:24px;">
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--health-green);">{{.ActiveCount}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Active</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--accent-blue);">{{.UpcomingCount}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Upcoming</div>
+  </div>
+</div>
+
+<!-- Promotions table -->
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Promotion Schedule</div>
+  {{if .Promotions}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Promo Name</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Type</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Start</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">End</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Discount</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Stores</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Promotions}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:12px 12px 12px 0;color:var(--text-primary);">{{.Name}}</td>
+        <td style="padding:12px;"><span class="badge" style="background:var(--bg-surface);color:var(--text-secondary);border:1px solid var(--border-subtle);">{{.Type}}</span></td>
+        <td style="padding:12px;color:var(--text-secondary);">{{.Start}}</td>
+        <td style="padding:12px;color:var(--text-secondary);">{{.End}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.Discount}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.Stores}}</td>
+        <td style="padding:12px 0;">
+          {{if eq .Status "active"}}<span class="badge" style="background:var(--health-green);color:#000;">active</span>
+          {{else if eq .Status "upcoming"}}<span class="badge" style="background:var(--accent-blue);color:#fff;">upcoming</span>
+          {{else}}<span class="badge" style="background:var(--border-subtle);color:var(--text-muted);">ended</span>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div style="text-align:center;padding:40px 0;color:var(--text-muted);">
+    <p style="font-size:13px;">No promotions synced yet. Connect your POS to begin.</p>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

@@ -1,0 +1,192 @@
+{{template "base.html" .}}
+
+{{define "title"}}Store Configuration — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:12px;font-size:12px;color:var(--text-muted);">
+  <a href="/settings" style="color:var(--text-muted);text-decoration:none;">Settings</a>
+  <span style="margin:0 6px;">›</span>
+  <span>Store Configuration</span>
+</div>
+
+<div class="page-header">
+  <h1>Store Configuration</h1>
+  <p class="page-subtitle">Source-of-record store and POS configuration</p>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:12px;">
+
+  <!-- POS Connection -->
+  <details class="ops-card" style="padding:0;">
+    <summary style="padding:16px 20px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);list-style:none;display:flex;align-items:center;justify-content:space-between;">
+      <span>POS Connection</span>
+      <span style="font-size:11px;color:var(--text-muted);font-weight:400;">▾</span>
+    </summary>
+    <div style="padding:0 20px 20px;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tbody>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);width:40%;">Source System</td>
+            <td style="padding:10px 0;color:var(--text-primary);">{{.POSSource}}</td>
+          </tr>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Endpoint</td>
+            <td style="padding:10px 0;color:var(--text-primary);">—</td>
+          </tr>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Auth Method</td>
+            <td style="padding:10px 0;color:var(--text-primary);">—</td>
+          </tr>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Last Sync</td>
+            <td style="padding:10px 0;color:var(--text-primary);">{{.LastSync}}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <!-- Store Identity -->
+  <details class="ops-card" style="padding:0;">
+    <summary style="padding:16px 20px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);list-style:none;display:flex;align-items:center;justify-content:space-between;">
+      <span>Store Identity</span>
+      <span style="font-size:11px;color:var(--text-muted);font-weight:400;">▾</span>
+    </summary>
+    <div style="padding:0 20px 20px;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tbody>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);width:40%;">Store ID</td>
+            <td style="padding:10px 0;color:var(--text-primary);">{{.StoreID}}</td>
+          </tr>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Name</td>
+            <td style="padding:10px 0;color:var(--text-primary);">—</td>
+          </tr>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Address</td>
+            <td style="padding:10px 0;color:var(--text-primary);">—</td>
+          </tr>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Timezone</td>
+            <td style="padding:10px 0;color:var(--text-primary);">—</td>
+          </tr>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Locale</td>
+            <td style="padding:10px 0;color:var(--text-primary);">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <!-- Tax Configuration -->
+  <details class="ops-card" style="padding:0;">
+    <summary style="padding:16px 20px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);list-style:none;display:flex;align-items:center;justify-content:space-between;">
+      <span>Tax Configuration</span>
+      <span style="font-size:11px;color:var(--text-muted);font-weight:400;">▾</span>
+    </summary>
+    <div style="padding:0 20px 20px;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tbody>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);width:40%;">Tax Authority Count</td>
+            <td style="padding:10px 0;color:var(--text-primary);">—</td>
+          </tr>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Default Rate</td>
+            <td style="padding:10px 0;color:var(--text-primary);">—</td>
+          </tr>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Nexus States</td>
+            <td style="padding:10px 0;color:var(--text-primary);">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <!-- Payment Methods -->
+  <details class="ops-card" style="padding:0;">
+    <summary style="padding:16px 20px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);list-style:none;display:flex;align-items:center;justify-content:space-between;">
+      <span>Payment Methods</span>
+      <span style="font-size:11px;color:var(--text-muted);font-weight:400;">▾</span>
+    </summary>
+    <div style="padding:0 20px 20px;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tbody>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);width:40%;">Accepted Tenders</td>
+            <td style="padding:10px 0;color:var(--text-primary);">—</td>
+          </tr>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Secure Pay Enabled</td>
+            <td style="padding:10px 0;color:var(--text-primary);">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <!-- Inventory Settings -->
+  <details class="ops-card" style="padding:0;">
+    <summary style="padding:16px 20px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);list-style:none;display:flex;align-items:center;justify-content:space-between;">
+      <span>Inventory Settings</span>
+      <span style="font-size:11px;color:var(--text-muted);font-weight:400;">▾</span>
+    </summary>
+    <div style="padding:0 20px 20px;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tbody>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);width:40%;">Reorder Method</td>
+            <td style="padding:10px 0;color:var(--text-primary);">—</td>
+          </tr>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Auto-PO Enabled</td>
+            <td style="padding:10px 0;color:var(--text-primary);">—</td>
+          </tr>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Warehouse Links</td>
+            <td style="padding:10px 0;color:var(--text-primary);">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <!-- LP Settings -->
+  <details class="ops-card" style="padding:0;">
+    <summary style="padding:16px 20px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);list-style:none;display:flex;align-items:center;justify-content:space-between;">
+      <span>LP Settings</span>
+      <span style="font-size:11px;color:var(--text-muted);font-weight:400;">▾</span>
+    </summary>
+    <div style="padding:0 20px 20px;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tbody>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);width:40%;">Active Rule Count</td>
+            <td style="padding:10px 0;color:var(--text-primary);">{{.ActiveRuleCount}}</td>
+          </tr>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Allow-list Entries</td>
+            <td style="padding:10px 0;color:var(--text-primary);">{{.AllowListCount}}</td>
+          </tr>
+          <tr style="border-top:1px solid var(--border-subtle);">
+            <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Training Mode</td>
+            <td style="padding:10px 0;">
+              {{if .TrainingMode}}
+              <span class="badge" style="background:rgba(234,179,8,0.15);color:var(--signal-yellow);">enabled</span>
+              {{else}}
+              <span class="badge" style="background:rgba(107,114,128,0.15);color:var(--text-muted);">disabled</span>
+              {{end}}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+</div>
+{{end}}
+{{end}}
