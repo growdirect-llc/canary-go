@@ -1,0 +1,49 @@
+{{template "base.html" .}}
+
+{{define "title"}}Settings — Canary{{end}}
+
+{{define "content"}}
+<div class="page-header">
+  <h1>Settings</h1>
+  <p class="page-subtitle">Merchant and account configuration</p>
+</div>
+
+<div style="display:grid;gap:16px;max-width:640px;">
+
+  <div class="ops-card">
+    <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:16px;">Merchant</h3>
+    <div style="display:grid;gap:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border-subtle);">
+        <span style="font-size:13px;color:var(--text-secondary);">Merchant ID</span>
+        <span style="font-size:13px;font-weight:500;color:var(--text-primary);font-family:'Space Grotesk',sans-serif;">{{.MerchantID}}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border-subtle);">
+        <span style="font-size:13px;color:var(--text-secondary);">POS Source</span>
+        <span style="font-size:13px;font-weight:500;color:var(--text-primary);">{{.POSSource}}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;">
+        <span style="font-size:13px;color:var(--text-secondary);">Theme</span>
+        <span style="font-size:13px;font-weight:500;color:var(--text-primary);">{{.Theme}}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ops-card">
+    <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:16px;">Detection</h3>
+    <div style="display:grid;gap:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border-subtle);">
+        <span style="font-size:13px;color:var(--text-secondary);">Week starts on</span>
+        <span style="font-size:13px;font-weight:500;color:var(--text-primary);">{{.WeekStartDay}}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;">
+        <span style="font-size:13px;color:var(--text-secondary);">Active rules</span>
+        <span style="font-size:13px;font-weight:500;color:var(--text-primary);font-family:'Space Grotesk',sans-serif;">{{.ActiveRuleCount}}</span>
+      </div>
+    </div>
+    <div style="margin-top:16px;">
+      <a href="/rules" class="ops-btn" style="font-size:12px;">Manage Rules</a>
+    </div>
+  </div>
+
+</div>
+{{end}}

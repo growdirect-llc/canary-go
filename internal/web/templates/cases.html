@@ -1,0 +1,43 @@
+{{template "base.html" .}}
+
+{{define "title"}}Cases — Canary{{end}}
+
+{{define "content"}}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h1>Cases</h1>
+    <p class="page-subtitle">{{.OpenCount}} open &middot; {{.TotalCount}} total</p>
+  </div>
+  <a href="/cases/hawk/new" class="ops-btn ops-btn-primary" style="font-size:13px;">+ New Case</a>
+</div>
+
+{{if .Cases}}
+<div class="ops-card">
+  {{range .Cases}}
+  <div style="display:flex;align-items:flex-start;gap:12px;padding:14px 0;border-bottom:1px solid var(--border-subtle);">
+    <div style="flex:1;min-width:0;">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="font-size:13px;font-weight:600;color:var(--text-primary);">{{.Title}}</span>
+        <span class="badge {{.StatusClass}}">{{.Status}}</span>
+        <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">{{.CreatedAt}}</span>
+      </div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-top:3px;">{{.Summary}}</div>
+      {{if .Subjects}}
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;">
+        {{range .Subjects}}
+        <span style="font-size:10px;padding:2px 8px;border-radius:12px;background:var(--bg-elevated);color:var(--text-muted);">{{.}}</span>
+        {{end}}
+      </div>
+      {{end}}
+    </div>
+    <a href="/cases/hawk/{{.ID}}" style="font-size:11px;color:var(--signal-yellow);white-space:nowrap;">Open →</a>
+  </div>
+  {{end}}
+</div>
+{{else}}
+<div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+  <div style="font-size:3rem;margin-bottom:12px;opacity:0.3;">📋</div>
+  <p style="font-size:14px;">No cases open. When alerts are escalated they appear here.</p>
+</div>
+{{end}}
+{{end}}

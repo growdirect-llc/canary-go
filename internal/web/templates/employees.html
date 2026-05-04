@@ -1,0 +1,34 @@
+{{template "base.html" .}}
+
+{{define "title"}}Employees — Canary{{end}}
+
+{{define "content"}}
+<div class="page-header">
+  <h1>Employees</h1>
+  <p class="page-subtitle">{{.TotalCount}} on record</p>
+</div>
+
+{{if .Employees}}
+<div class="ops-card">
+  {{range .Employees}}
+  <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border-subtle);">
+    <div style="width:36px;height:36px;border-radius:50%;background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--text-primary);flex-shrink:0;">
+      {{if .Name}}{{slice .Name 0 1}}{{else}}?{{end}}
+    </div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:13px;font-weight:600;color:var(--text-primary);">{{.Name}}</div>
+      <div style="font-size:11px;color:var(--text-muted);">{{.Role}} &middot; {{.TxnCount}} transactions</div>
+    </div>
+    <div style="text-align:right;">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:{{if gt .RiskScore 70}}var(--critical-red){{else if gt .RiskScore 40}}var(--signal-yellow){{else}}var(--health-green){{end}};">{{.RiskScore}}</div>
+      <div style="font-size:10px;color:var(--text-muted);">risk score</div>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{else}}
+<div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+  <p style="font-size:14px;">No employee records yet. They appear once transactions are ingested.</p>
+</div>
+{{end}}
+{{end}}

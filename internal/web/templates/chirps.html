@@ -1,0 +1,35 @@
+{{template "base.html" .}}
+
+{{define "title"}}Chirps — Canary{{end}}
+
+{{define "content"}}
+<div class="page-header">
+  <h1>Chirps</h1>
+  <p class="page-subtitle">Detection rule alerts &middot; real-time</p>
+</div>
+
+{{if .Chirps}}
+<div class="ops-card">
+  {{range .Chirps}}
+  <div style="display:flex;align-items:flex-start;gap:12px;padding:14px 0;border-bottom:1px solid var(--border-subtle);">
+    <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px;background:{{if eq .Severity "critical"}}var(--critical-red){{else if eq .Severity "high"}}var(--signal-yellow){{else if eq .Severity "medium"}}var(--accent-blue){{else}}var(--health-green){{end}};"></span>
+    <div style="flex:1;min-width:0;">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="font-size:13px;font-weight:600;color:var(--text-primary);">{{.RuleName}}</span>
+        <span class="badge" style="font-size:10px;">{{.Severity}}</span>
+        <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">{{.FiredAt}}</span>
+      </div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-top:3px;">{{.Message}}</div>
+      {{if .Employee}}<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Employee: {{.Employee}}</div>{{end}}
+    </div>
+    <a href="/alerts/{{.AlertID}}" style="font-size:11px;color:var(--signal-yellow);white-space:nowrap;">View →</a>
+  </div>
+  {{end}}
+</div>
+{{else}}
+<div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+  <div style="font-size:3rem;margin-bottom:12px;opacity:0.3;">🐦</div>
+  <p style="font-size:14px;">No chirps yet. Detection rules are watching.</p>
+</div>
+{{end}}
+{{end}}

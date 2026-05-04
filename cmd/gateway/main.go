@@ -29,6 +29,7 @@ import (
 	assetPkg     "github.com/growdirect-llc/rapidpos/internal/asset"
 	customerPkg  "github.com/growdirect-llc/rapidpos/internal/customer"
 	"github.com/growdirect-llc/rapidpos/internal/devops"
+	"github.com/growdirect-llc/rapidpos/internal/web"
 	employeePkg  "github.com/growdirect-llc/rapidpos/internal/employee"
 	reportPkg    "github.com/growdirect-llc/rapidpos/internal/report"
 	returnsPkg   "github.com/growdirect-llc/rapidpos/internal/returns"
@@ -202,6 +203,9 @@ func main() {
 
 	// /devops — pipeline monitor + API explorer. Dev-only (DEV_CONSOLE=1).
 	devops.New(pool, rdb, logger).Mount(r)
+
+	// / — Canary application UI.
+	web.New(logger).Mount(r)
 
 	addr := ":" + cfg.Port
 	logger.Info("starting",

@@ -1,0 +1,16 @@
+{{template "base.html" .}}
+
+{{define "title"}}Server Error — Canary{{end}}
+
+{{define "content"}}
+<div style="text-align:center;padding:80px 20px;max-width:480px;margin:0 auto;">
+  <div style="font-size:4rem;margin-bottom:16px;opacity:0.3;">⚡</div>
+  <h2 style="font-family:'Space Grotesk',sans-serif;font-size:1.5rem;color:var(--text-primary);margin-bottom:12px;">Something Went Wrong</h2>
+  <p style="color:var(--text-secondary);font-size:0.95rem;line-height:1.6;margin-bottom:32px;">
+    An internal error occurred. Please try again in a moment.
+  </p>
+  <a href="/dashboard" style="display:inline-block;padding:10px 24px;background:var(--color-canary);color:#0d1117;border-radius:8px;text-decoration:none;font-weight:600;font-size:0.9rem;">
+    Back to Dashboard
+  </a>
+</div>
+{{end}}

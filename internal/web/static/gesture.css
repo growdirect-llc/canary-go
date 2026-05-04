@@ -1,0 +1,168 @@
+/* gesture.css — Swipe indicators, undo toast, long-press tooltip */
+
+:root {
+  --health-green: #3FB950;
+  --text-muted: #6B7280;
+  --bg-elevated: #21262D;
+  --border-subtle: #30363D;
+  --color-canary: #FBBF24;
+  --text-primary: #E6EDF3;
+  --text-secondary: #8B949E;
+}
+
+/* ----------------------------------------------------------------
+   Swipeable wrapper — positions the indicator behind the card
+   ---------------------------------------------------------------- */
+.swipeable-wrap {
+  position: relative;
+  overflow: visible;
+}
+
+/* ----------------------------------------------------------------
+   Gesture indicator — revealed behind card during swipe
+   ---------------------------------------------------------------- */
+.gesture-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.05s linear;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.gesture-indicator--right {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--health-green);
+}
+
+.gesture-indicator--right::before {
+  content: "Follow Up";
+}
+
+.gesture-indicator--left {
+  background: rgba(107, 114, 128, 0.15);
+  color: var(--text-muted);
+}
+
+.gesture-indicator--left::before {
+  content: "Ignore";
+}
+
+/* ----------------------------------------------------------------
+   Swipeable card — hardware-accelerated transforms
+   ---------------------------------------------------------------- */
+[data-swipeable="true"] {
+  will-change: transform, opacity;
+  touch-action: pan-y;
+  cursor: grab;
+  position: relative;
+  z-index: 1;
+}
+
+[data-swipeable="true"]:active {
+  cursor: grabbing;
+}
+
+/* ----------------------------------------------------------------
+   Undo toast — fixed bottom center notification
+   ---------------------------------------------------------------- */
+.gesture-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-primary);
+  font-size: 14px;
+  z-index: 9000;
+  animation: toast-in 0.3s ease forwards;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.gesture-toast button {
+  background: transparent;
+  border: 1px solid var(--color-canary);
+  color: var(--color-canary);
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.gesture-toast button:hover {
+  background: var(--color-canary);
+  color: var(--bg-elevated);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* ----------------------------------------------------------------
+   Long-press tooltip — appears above the card
+   ---------------------------------------------------------------- */
+.gesture-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 6px 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 100;
+  animation: tooltip-in 0.2s ease forwards;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.gesture-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--border-subtle);
+}
+
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}

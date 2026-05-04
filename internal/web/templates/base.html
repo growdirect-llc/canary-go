@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{block "title" .}}Canary{{end}}</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Canary Design System — theme tokens first, then component library -->
+  <link rel="stylesheet" href="/web/static/themes/{{.Theme}}.css">
+  <link rel="stylesheet" href="/web/static/canary.css">
+  <link rel="stylesheet" href="/web/static/responsive-shell.css">
+  <link rel="stylesheet" href="/web/static/mobile-panels.css">
+
+  {{block "head" .}}{{end}}
+</head>
+<body>
+  <!-- Skip to content -->
+  <a href="#main-content" class="skip-link" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:100;">Skip to main content</a>
+
+  <!-- Mobile Header -->
+  <header class="mobile-header">
+    <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Open navigation">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <div class="mobile-header-brand">
+      <svg class="mobile-header-bird" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="42" cy="33" r="18" fill="#FBBF24"/>
+        <ellipse cx="50" cy="58" rx="25" ry="19" fill="#FBBF24"/>
+        <path d="M36 47 Q16 56 26 74 Q38 66 48 54 Z" fill="#F59E0B"/>
+        <circle cx="48" cy="30" r="4" fill="#0d1117"/>
+        <circle cx="46.5" cy="28.8" r="1.5" fill="#FBBF24"/>
+        <path d="M58 30 L73 24 L63 34 Z" fill="#E8A317"/>
+        <path d="M28 66 Q12 78 18 88 Q28 80 36 72 Z" fill="#F59E0B"/>
+      </svg>
+      <span class="mobile-header-title">Canary</span>
+    </div>
+    <div class="mobile-header-badge">
+      <span class="live-badge">LIVE</span>
+    </div>
+  </header>
+
+  <div class="app-layout">
+    {{template "sidebar" .}}
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+    <div class="app-main">
+      <main id="main-content" role="main">
+        {{block "content" .}}{{end}}
+      </main>
+    </div>
+  </div>
+
+  {{block "scripts" .}}{{end}}
+
+  <!-- Mobile sidebar toggle -->
+  <script>
+  (function() {
+    var toggle = document.getElementById('sidebar-toggle');
+    var closeBtn = document.getElementById('sidebar-close');
+    var backdrop = document.getElementById('sidebar-backdrop');
+    var sidebar = document.querySelector('.sidebar');
+    if (!toggle || !sidebar) return;
+    function openNav() {
+      sidebar.classList.add('sidebar-open');
+      if (backdrop) backdrop.classList.add('active');
+      document.body.classList.add('nav-open');
+    }
+    function closeNav() {
+      sidebar.classList.remove('sidebar-open');
+      if (backdrop) backdrop.classList.remove('active');
+      document.body.classList.remove('nav-open');
+    }
+    toggle.addEventListener('click', openNav);
+    if (closeBtn) closeBtn.addEventListener('click', closeNav);
+    if (backdrop) backdrop.addEventListener('click', closeNav);
+    sidebar.querySelectorAll('.sidebar-item').forEach(function(item) {
+      item.addEventListener('click', closeNav);
+    });
+  })();
+  </script>
+</body>
+</html>
