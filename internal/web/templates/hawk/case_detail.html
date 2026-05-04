@@ -1,8 +1,9 @@
 {{template "base.html" .}}
 
-{{define "title"}}Case {{.Case.ShortID}} — Canary{{end}}
+{{define "title"}}Case {{.Data.Case.ShortID}} — Canary{{end}}
 
 {{define "content"}}
+{{with .Data}}
 <div style="margin-bottom:20px;">
   <a href="/cases/hawk" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← Cases</a>
 </div>
@@ -60,4 +61,5 @@
   </div>
 
 </div>
+{{end}}
 {{end}}

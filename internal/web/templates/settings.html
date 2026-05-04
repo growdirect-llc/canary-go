@@ -3,6 +3,7 @@
 {{define "title"}}Settings — Canary{{end}}
 
 {{define "content"}}
+{{with .Data}}
 <div class="page-header">
   <h1>Settings</h1>
   <p class="page-subtitle">Merchant and account configuration</p>
@@ -46,4 +47,5 @@
   </div>
 
 </div>
+{{end}}
 {{end}}

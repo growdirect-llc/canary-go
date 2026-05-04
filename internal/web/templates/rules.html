@@ -3,6 +3,7 @@
 {{define "title"}}Detection Rules — Canary{{end}}
 
 {{define "content"}}
+{{with .Data}}
 <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
   <div>
     <h1>Detection Rules</h1>
@@ -35,5 +36,6 @@
   <div style="font-size:3rem;margin-bottom:12px;opacity:0.3;">⚡</div>
   <p style="font-size:14px;">No detection rules configured.</p>
 </div>
+{{end}}
 {{end}}
 {{end}}

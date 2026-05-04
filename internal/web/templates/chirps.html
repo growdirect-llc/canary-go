@@ -3,6 +3,7 @@
 {{define "title"}}Chirps — Canary{{end}}
 
 {{define "content"}}
+{{with .Data}}
 <div class="page-header">
   <h1>Chirps</h1>
   <p class="page-subtitle">Detection rule alerts &middot; real-time</p>
@@ -31,5 +32,6 @@
   <div style="font-size:3rem;margin-bottom:12px;opacity:0.3;">🐦</div>
   <p style="font-size:14px;">No chirps yet. Detection rules are watching.</p>
 </div>
+{{end}}
 {{end}}
 {{end}}

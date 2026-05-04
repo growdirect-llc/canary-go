@@ -3,6 +3,8 @@
 {{define "title"}}Cases — Canary{{end}}
 
 {{define "content"}}
+{{with .Data}}
+{{$data := .}}
 <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
   <div>
     <h1>Cases</h1>
@@ -15,7 +17,7 @@
 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">
   {{range .Statuses}}
   <a href="/cases/hawk?status={{.Value}}"
-     style="padding:6px 12px;border-radius:20px;font-size:12px;font-weight:500;text-decoration:none;border:1px solid {{if eq $.StatusFilter .Value}}var(--signal-yellow){{else}}var(--border){{end}};color:{{if eq $.StatusFilter .Value}}var(--signal-yellow){{else}}var(--text-secondary){{end}};background:{{if eq $.StatusFilter .Value}}rgba(251,191,36,.08){{else}}transparent{{end}};">
+     style="padding:6px 12px;border-radius:20px;font-size:12px;font-weight:500;text-decoration:none;border:1px solid {{if eq $data.StatusFilter .Value}}var(--signal-yellow){{else}}var(--border){{end}};color:{{if eq $data.StatusFilter .Value}}var(--signal-yellow){{else}}var(--text-secondary){{end}};background:{{if eq $data.StatusFilter .Value}}rgba(251,191,36,.08){{else}}transparent{{end}};">
     {{.Label}}
   </a>
   {{end}}
@@ -49,5 +51,6 @@
   <div style="font-size:3rem;margin-bottom:12px;opacity:0.3;">📋</div>
   <p style="font-size:14px;">No cases match this filter.</p>
 </div>
+{{end}}
 {{end}}
 {{end}}

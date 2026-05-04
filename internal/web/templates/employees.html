@@ -3,6 +3,7 @@
 {{define "title"}}Employees — Canary{{end}}
 
 {{define "content"}}
+{{with .Data}}
 <div class="page-header">
   <h1>Employees</h1>
   <p class="page-subtitle">{{.TotalCount}} on record</p>
@@ -30,5 +31,6 @@
 <div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
   <p style="font-size:14px;">No employee records yet. They appear once transactions are ingested.</p>
 </div>
+{{end}}
 {{end}}
 {{end}}

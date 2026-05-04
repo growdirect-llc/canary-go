@@ -3,6 +3,7 @@
 {{define "title"}}Alerts — Canary{{end}}
 
 {{define "content"}}
+{{with .Data}}
 <div class="page-header">
   <h1>Alerts</h1>
   <p class="page-subtitle">{{.OpenCount}} open &middot; {{.TotalCount}} total</p>
@@ -30,5 +31,6 @@
   <div style="font-size:3rem;margin-bottom:12px;opacity:0.3;">✓</div>
   <p style="font-size:14px;">No open alerts.</p>
 </div>
+{{end}}
 {{end}}
 {{end}}
