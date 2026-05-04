@@ -31,13 +31,18 @@ package web
 import (
 	"context"
 	"embed"
+	"errors"
 	"html/template"
 	"io/fs"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+
+	"github.com/growdirect-llc/rapidpos/internal/alert"
+	"github.com/growdirect-llc/rapidpos/internal/chirp"
 )
 
 //go:embed static templates
@@ -180,11 +185,11 @@ func (h *Handler) Mount(r chi.Router) {
 
 	// App pages — auth guard will wrap these once identity middleware lands
 	r.Get("/dashboard", h.page("dashboard", "dashboard", stubDashboard))
-	r.Get("/chirps", h.page("chirps", "chirps", stubChirps))
+	r.Get("/chirps", h.chirpListPage)
 	r.Get("/transactions", h.page("transactions", "transactions", stubTransactions))
 	r.Get("/transactions/{id}", h.transactionDetailPage)
 	r.Get("/transactions/{id}/proof", h.transactionProofPage)
-	r.Get("/alerts", h.page("alerts", "alerts", stubAlerts))
+	r.Get("/alerts", h.alertListPage)
 	r.Get("/cases", h.page("cases", "cases", stubCases))
 	r.Get("/employees", h.page("employees", "employees", stubEmployees))
 	r.Get("/reports", h.page("reports", "reports", stubReports))
@@ -403,25 +408,84 @@ func (h *Handler) hawkDetailPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) alertDetailPage(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	shortID := id
-	if len(id) >= 8 {
-		shortID = id[:8]
+// alertListPage renders the alert list from the real alert store.
+func (h *Handler) alertListPage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := tenantIDFromCtx(ctx)
+
+	var alerts []alert.AlertDTO
+	if h.deps.AlertStore != nil {
+		var err error
+		alerts, err = h.deps.AlertStore.List(ctx, alert.ListFilters{
+			TenantID: tenantID,
+			Limit:    50,
+		})
+		if err != nil {
+			h.logger.Error("alertListPage: list", zap.Error(err))
+			h.render(w, r, "err500", "alerts", nil)
+			return
+		}
 	}
+	h.render(w, r, "alerts", "alerts", map[string]any{
+		"Alerts": alerts,
+	})
+}
+
+func (h *Handler) alertDetailPage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		h.render(w, r, "err404", "alerts", nil)
+		return
+	}
+
+	shortID := idStr
+	if len(idStr) >= 8 {
+		shortID = idStr[:8]
+	}
+
+	if h.deps.AlertStore == nil {
+		h.render(w, r, "alert_detail", "alerts", map[string]any{
+			"Alert": map[string]any{
+				"ID": idStr, "ShortID": shortID,
+				"Title": "Alert " + shortID, "Severity": "high",
+				"Status": "open", "StatusClass": "", "Description": "—",
+				"RuleID": "—", "RuleName": "—", "StoreID": "—",
+				"TransactionID": "—", "CreatedAt": "—",
+			},
+			"Timeline": nil,
+		})
+		return
+	}
+
+	tenantID := tenantIDFromCtx(ctx)
+	a, err := h.deps.AlertStore.GetByID(ctx, tenantID, id)
+	if err != nil {
+		if errors.Is(err, alert.ErrNotFound) {
+			w.WriteHeader(http.StatusNotFound)
+			h.render(w, r, "err404", "alerts", nil)
+			return
+		}
+		h.logger.Error("alertDetailPage: get", zap.Error(err))
+		h.render(w, r, "err500", "alerts", nil)
+		return
+	}
+
 	h.render(w, r, "alert_detail", "alerts", map[string]any{
 		"Alert": map[string]any{
-			"ID": id, "ShortID": shortID,
-			"Title":         "Alert " + shortID,
-			"Severity":      "high",
-			"Status":        "open",
+			"ID": a.ID.String(), "ShortID": a.ID.String()[:8],
+			"Title":         "Alert " + a.ID.String()[:8],
+			"Severity":      a.Severity,
+			"Status":        a.Status,
 			"StatusClass":   "",
 			"Description":   "—",
-			"RuleID":        "—",
-			"RuleName":      "—",
+			"RuleID":        a.RuleID.String(),
+			"RuleName":      a.RuleCode,
 			"StoreID":       "—",
-			"TransactionID": "—",
-			"CreatedAt":     "—",
+			"TransactionID": a.SourceEntityID.String(),
+			"CreatedAt":     a.CreatedAt.Format(time.RFC3339),
 		},
 		"Timeline": nil,
 	})
@@ -444,23 +508,86 @@ func (h *Handler) ruleDetailPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// chirpListPage renders the chirp (detection) list from the real chirp store.
+func (h *Handler) chirpListPage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := tenantIDFromCtx(ctx)
+
+	var detections []chirp.Detection
+	if h.deps.ChirpStore != nil {
+		var err error
+		detections, err = h.deps.ChirpStore.ListDetections(ctx, chirp.DetectionQuery{
+			TenantID: tenantID,
+			Limit:    50,
+		})
+		if err != nil {
+			h.logger.Error("chirpListPage: list", zap.Error(err))
+			h.render(w, r, "err500", "chirps", nil)
+			return
+		}
+	}
+	h.render(w, r, "chirps", "chirps", map[string]any{
+		"Chirps": detections,
+	})
+}
+
 func (h *Handler) chirpDetailPage(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	shortID := id
-	if len(id) >= 8 {
-		shortID = id[:8]
+	ctx := r.Context()
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		h.render(w, r, "err404", "chirps", nil)
+		return
+	}
+
+	shortID := idStr
+	if len(idStr) >= 8 {
+		shortID = idStr[:8]
+	}
+
+	if h.deps.ChirpStore == nil {
+		h.render(w, r, "chirp_detail", "chirps", map[string]any{
+			"Chirp": map[string]any{
+				"ID": idStr, "ShortID": shortID,
+				"EventType": "—", "StoreID": "—", "CashierID": "—",
+				"Amount": "—", "SKUCount": 0,
+				"Hash":      "0000000000000000000000000000000000000000000000000000000000000000",
+				"CreatedAt": "—", "CaseID": "",
+			},
+			"Signals": nil,
+		})
+		return
+	}
+
+	tenantID := tenantIDFromCtx(ctx)
+	d, err := h.deps.ChirpStore.GetDetectionByID(ctx, tenantID, id)
+	if err != nil {
+		if errors.Is(err, chirp.ErrDetectionNotFound) {
+			w.WriteHeader(http.StatusNotFound)
+			h.render(w, r, "err404", "chirps", nil)
+			return
+		}
+		h.logger.Error("chirpDetailPage: get", zap.Error(err))
+		h.render(w, r, "err500", "chirps", nil)
+		return
+	}
+
+	caseID := ""
+	if d.CaseID != nil {
+		caseID = d.CaseID.String()
 	}
 	h.render(w, r, "chirp_detail", "chirps", map[string]any{
 		"Chirp": map[string]any{
-			"ID": id, "ShortID": shortID,
-			"EventType": "—",
+			"ID": d.ID.String(), "ShortID": d.ID.String()[:8],
+			"EventType": d.SourceEntityType,
 			"StoreID":   "—",
 			"CashierID": "—",
 			"Amount":    "—",
 			"SKUCount":  0,
 			"Hash":      "0000000000000000000000000000000000000000000000000000000000000000",
-			"CreatedAt": "—",
-			"CaseID":    "",
+			"CreatedAt": d.CreatedAt.Format(time.RFC3339),
+			"CaseID":    caseID,
 		},
 		"Signals": nil,
 	})

@@ -18,6 +18,9 @@ import (
 // Loop 2 dispatch override: direct pgx + raw SQL. CanaryGo CLAUDE.md
 // requires sqlc; the Loop 2 dispatch explicitly waives that for this
 // wave. sqlc retrofit is Loop 3.
+// ErrDetectionNotFound is returned by GetDetectionByID when the row does not exist.
+var ErrDetectionNotFound = errors.New("chirp: detection not found")
+
 type Store interface {
 	LoadRules(ctx context.Context, tenantID uuid.UUID, frequency string) ([]Rule, error)
 	LoadTransaction(ctx context.Context, transactionID uuid.UUID) (*Transaction, error)
@@ -27,6 +30,7 @@ type Store interface {
 	ListTransactionsSince(ctx context.Context, tenantID uuid.UUID, since time.Time) ([]uuid.UUID, error)
 	ListRules(ctx context.Context, tenantID uuid.UUID) ([]Rule, error)
 	ListDetections(ctx context.Context, q DetectionQuery) ([]Detection, error)
+	GetDetectionByID(ctx context.Context, tenantID, id uuid.UUID) (*Detection, error)
 }
 
 // DetectionQuery is the filter set for the GET /v1/chirp/detections endpoint.
@@ -473,4 +477,34 @@ func (s *PgxStore) ListDetections(ctx context.Context, q DetectionQuery) ([]Dete
 		out = append(out, d)
 	}
 	return out, rows.Err()
+}
+
+const sqlGetDetectionByID = `
+SELECT id, tenant_id, rule_id, detected_at, source_entity_type, source_entity_id,
+       location_id, cashier_employee_id, customer_id, severity, signal_strength,
+       evidence, case_id, status, acknowledged_at, acknowledged_by,
+       attributes, created_at
+FROM   detection.detections
+WHERE  tenant_id = $1
+  AND  id        = $2
+LIMIT 1
+`
+
+// GetDetectionByID fetches a single detection by tenant + ID.
+// Returns ErrDetectionNotFound if no matching row exists.
+func (s *PgxStore) GetDetectionByID(ctx context.Context, tenantID, id uuid.UUID) (*Detection, error) {
+	var d Detection
+	err := s.pool.QueryRow(ctx, sqlGetDetectionByID, tenantID, id).Scan(
+		&d.ID, &d.TenantID, &d.RuleID, &d.DetectedAt, &d.SourceEntityType, &d.SourceEntityID,
+		&d.LocationID, &d.CashierEmployeeID, &d.CustomerID, &d.Severity, &d.SignalStrength,
+		&d.Evidence, &d.CaseID, &d.Status, &d.AcknowledgedAt, &d.AcknowledgedBy,
+		&d.Attributes, &d.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrDetectionNotFound
+		}
+		return nil, fmt.Errorf("get detection by id: %w", err)
+	}
+	return &d, nil
 }
