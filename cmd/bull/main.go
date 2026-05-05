@@ -1,12 +1,12 @@
 // cmd/bull/main.go
 //
-// Bull (Module B) — billing binary. L402-gated open-to-buy budgets +
-// satoshi cost rollup over ledger.ildwac_positions. Spec: GRO-765
-// Phase A (folds GRO-643).
+// Bull — directed-work task queue + L402-gated billing (Module B).
 //
-// On boot, Bull registers the L402 charge cycle workflow against
-// Wave A's app.workflow_definitions substrate. Endpoints under
-// /v1/billing/* are gated by the API-key middleware.
+// Task queue (GRO-800): POST /v1/tasks, GET /v1/tasks/next, PATCH status,
+// exception, skip — three task types: receiving, replenishment, cycle_count.
+//
+// Billing (GRO-765): L402 charge cycle + satoshi cost rollup under
+// /v1/billing/* (API-key gated).
 package main
 
 import (
@@ -22,6 +22,7 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/config"
 	"github.com/growdirect-llc/rapidpos/internal/db"
 	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/growdirect-llc/rapidpos/internal/task"
 	"github.com/growdirect-llc/rapidpos/internal/workflow"
 )
 
@@ -54,9 +55,16 @@ func main() {
 	store := billing.NewStore(pool)
 	h := billing.New(store, logger)
 
+	taskStore := task.NewStore(pool)
+	taskHandler := task.NewHandler(taskStore, logger)
+
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP, middleware.Recoverer)
 	r.Get("/health", health(cfg))
+
+	// Task queue routes — internal service-to-service auth via
+	// X-Canary-Internal header (same pattern as gateway internal routes).
+	taskHandler.Mount(r)
 
 	r.Group(func(r chi.Router) {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
