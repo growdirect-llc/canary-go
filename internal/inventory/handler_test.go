@@ -360,3 +360,67 @@ func TestValidateAppendRequest_TableDriven(t *testing.T) {
 		})
 	}
 }
+
+func TestAppendAdjustment_HappyPath(t *testing.T) {
+	merchantID := uuid.New()
+	itemID := uuid.New()
+	locationID := uuid.New()
+	movID := uuid.New()
+
+	stub := &stubStore{
+		appendMovement: func(_ context.Context, req AppendMovementRequest, _ time.Time) (*MovementDTO, *PositionDTO, error) {
+			if req.MovementType != "cycle_count_correction" {
+				t.Errorf("expected cycle_count_correction, got %q", req.MovementType)
+			}
+			mov := &MovementDTO{ID: movID, TenantID: merchantID, ItemID: itemID, LocationID: locationID, MovementType: req.MovementType, QuantityDelta: req.Quantity, MovementAt: time.Now()}
+			pos := &PositionDTO{ID: uuid.New(), TenantID: merchantID, ItemID: itemID, LocationID: locationID, OnHandQuantity: "5", ReservedQuantity: "0", OnOrderQuantity: "0", InTransitQuantity: "0", Status: "active", CreatedAt: time.Now(), UpdatedAt: time.Now()}
+			return mov, pos, nil
+		},
+		listMovements: func(_ context.Context, _ uuid.UUID, _, _ uuid.UUID, _, _ *time.Time, _, _ int) ([]MovementDTO, error) {
+			return nil, nil
+		},
+	}
+
+	h := New(stub, stub, nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	body, _ := json.Marshal(AdjustmentRequest{
+		MerchantID: merchantID,
+		ItemID:     itemID,
+		LocationID: locationID,
+		Quantity:   "-3",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/v1/inventory/adjustments", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp AppendMovementResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Movement.ID != movID {
+		t.Errorf("movement id mismatch")
+	}
+}
+
+func TestIsZeroOrNegative(t *testing.T) {
+	cases := []struct{ qty string; want bool }{
+		{"0", true},
+		{"0.0000", true},
+		{"-1", true},
+		{"-0.0001", true},
+		{"1", false},
+		{"0.0001", false},
+		{"", true},
+	}
+	for _, tc := range cases {
+		if got := isZeroOrNegative(tc.qty); got != tc.want {
+			t.Errorf("isZeroOrNegative(%q) = %v, want %v", tc.qty, got, tc.want)
+		}
+	}
+}

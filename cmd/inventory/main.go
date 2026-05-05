@@ -1,19 +1,24 @@
 // cmd/inventory/main.go
 //
-// Inventory service binary — Loop 2 Wave 2 (GRO-761). Position read +
-// movement append over the canonical i.inventory_positions and
-// i.inventory_movements tables.
+// Inventory service — GRO-798 (Loop 4). SOH read/write + sale event consumer.
 //
-// See internal/inventory for the package doc — this main.go is the wiring.
+// Two goroutines run concurrently:
+//  1. HTTP server — position reads, movement appends, cycle-count adjustments
+//  2. SaleConsumer — polls transaction_line_items for unlinked sale lines,
+//     applies inventory movements, emits replenish signals to Valkey
 package main
 
 import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	"github.com/growdirect-llc/rapidpos/internal/config"
@@ -29,7 +34,8 @@ func main() {
 	logger, _ := zap.NewProduction()
 	defer func() { _ = logger.Sync() }()
 
-	ctx := context.Background()
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 
 	pool, err := db.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {
@@ -37,8 +43,23 @@ func main() {
 	}
 	defer pool.Close()
 
+	opt, err := redis.ParseURL(cfg.ValkeyURL)
+	if err != nil {
+		logger.Fatal("valkey url parse", zap.Error(err))
+	}
+	valkeyClient := redis.NewClient(opt)
+	defer func() { _ = valkeyClient.Close() }()
+
 	store := inventory.NewStore(pool)
 	handler := inventory.New(store, store, logger)
+
+	// Background sale consumer: unlinked transaction lines → SOH movements.
+	consumer := inventory.NewSaleConsumer(pool, store, valkeyClient, logger, 0)
+	go func() {
+		if err := consumer.Run(ctx); err != nil && err != context.Canceled {
+			logger.Error("sale consumer exited", zap.Error(err))
+		}
+	}()
 
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP, middleware.Recoverer)

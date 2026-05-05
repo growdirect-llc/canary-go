@@ -58,6 +58,7 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/v1/inventory/positions", h.listPositions)
 	r.Post("/v1/inventory/movements", h.appendMovement)
 	r.Get("/v1/inventory/movements", h.listMovements)
+	r.Post("/v1/inventory/adjustments", h.appendAdjustment)
 }
 
 // getPosition handles GET /v1/inventory/positions/{item_id}/{location_id}.
@@ -225,6 +226,63 @@ func (h *Handler) listMovements(w http.ResponseWriter, r *http.Request) {
 		Items: rows,
 		Page:  page,
 		Size:  size,
+	})
+}
+
+// AdjustmentRequest is the POST body for /v1/inventory/adjustments.
+// Quantity may be positive (gain) or negative (loss). The movement type
+// is always cycle_count_correction — use POST /movements directly for
+// other types.
+type AdjustmentRequest struct {
+	MerchantID  uuid.UUID  `json:"merchant_id"`
+	ItemID      uuid.UUID  `json:"item_id"`
+	LocationID  uuid.UUID  `json:"location_id"`
+	Quantity    string     `json:"quantity"`
+	ReasonCode  *string    `json:"reason_code,omitempty"`
+	CostBasis   *string    `json:"cost_basis,omitempty"`
+}
+
+// appendAdjustment handles POST /v1/inventory/adjustments.
+// Forces movement_type = cycle_count_correction so callers don't need
+// to know the canonical enum value.
+func (h *Handler) appendAdjustment(w http.ResponseWriter, r *http.Request) {
+	var req AdjustmentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+
+	movReq := AppendMovementRequest{
+		MerchantID:   req.MerchantID,
+		ItemID:       req.ItemID,
+		LocationID:   req.LocationID,
+		MovementType: "cycle_count_correction",
+		Quantity:     req.Quantity,
+		ReasonCode:   req.ReasonCode,
+		CostBasis:    req.CostBasis,
+	}
+	clean, err := ValidateAppendRequest(movReq)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrInvalidQuantity):
+			writeError(w, http.StatusBadRequest, "invalid_quantity", err.Error())
+		case errors.Is(err, ErrMissingField):
+			writeError(w, http.StatusBadRequest, "missing_field", err.Error())
+		default:
+			writeError(w, http.StatusBadRequest, "validation_failed", err.Error())
+		}
+		return
+	}
+
+	mov, pos, err := h.Writer.AppendMovement(r.Context(), clean, h.Now())
+	if err != nil {
+		h.Logger.Error("append adjustment", zap.Error(err))
+		writeError(w, http.StatusInternalServerError, "store_error", "")
+		return
+	}
+	writeJSON(w, http.StatusOK, AppendMovementResponse{
+		Movement: *mov,
+		Position: *pos,
 	})
 }
 
