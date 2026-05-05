@@ -51,6 +51,7 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/protocol/secrets"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/sub3"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/webhook"
+	"github.com/growdirect-llc/rapidpos/internal/squareauth"
 	domainwebhook "github.com/growdirect-llc/rapidpos/internal/webhook"
 )
 
@@ -126,6 +127,12 @@ func main() {
 	// (CI/signet mode).
 	lnurlHandler := buildLNURLHandler(pool, logger)
 
+	// Square OAuth demo flow (GRO-802). Anthropic-facing demo:
+	// connect Square sandbox, see merchant data live. Routes /, /auth/square,
+	// /auth/square/callback, /dashboard, /auth/square/disconnect.
+	// Requires SQUARE_APPLICATION_ID, SQUARE_APPLICATION_SECRET, SQUARE_REDIRECT_URI.
+	squareSvc := squareauth.New(pool, logger)
+
 	// /v1/webhooks/* — admin endpoints under API-key auth.
 	// GRO-764 Phase A.3 (folds part of GRO-642).
 	dlq := domainwebhook.NewDLQ(pool)
@@ -169,6 +176,10 @@ func main() {
 	// Mounted outside audit group; Lightning wallet calls are read-only
 	// from an audit perspective until the session is established. GRO-753.
 	lnurlHandler.Mount(r)
+
+	// Square OAuth demo (GRO-802). Mounted outside audit group; OAuth
+	// state is the auth mechanism, no API-key gating.
+	squareSvc.Mount(r)
 
 	// Audit middleware records every state-mutating protocol invocation
 	// into app.audit_log. Scoped to webhook routes so /health and
