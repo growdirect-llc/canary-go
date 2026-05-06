@@ -276,8 +276,14 @@ var landingTmpl = template.Must(template.New("landing").Funcs(tmplFuncs).Parse(`
     </p>
   {{end}}
 
-  <div class="mt-16 pt-4 border-t border-gray-200 text-gray-400 text-sm">
-    growdirect.io · GrowDirect LLC · sandbox demo · token storage encrypted at rest
+  <div class="mt-16 pt-4 border-t border-gray-200 text-gray-400 text-sm space-x-3">
+    <a href="https://canary.growdirect.io" class="hover:text-gray-600 no-underline">Architecture →</a>
+    <span>·</span>
+    <a href="https://canary.growdirect.io/sdds/" class="hover:text-gray-600 no-underline">SDDs</a>
+    <span>·</span>
+    <a href="https://github.com/growdirect-llc/canary-go" class="hover:text-gray-600 no-underline">GitHub</a>
+    <span>·</span>
+    <span>GrowDirect LLC · sandbox · token storage encrypted at rest</span>
   </div>
 </body>
 </html>`))
@@ -383,8 +389,14 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(tmplFuncs).Par
     </form>
   </p>
 
-  <div class="mt-16 pt-4 border-t border-gray-200 text-gray-400 text-xs">
-    growdirect.io · sandbox demo · data pulled live from Square Connect API
+  <div class="mt-16 pt-4 border-t border-gray-200 text-gray-400 text-xs space-x-3">
+    <a href="https://canary.growdirect.io" class="hover:text-gray-600 no-underline">Architecture →</a>
+    <span>·</span>
+    <a href="https://canary.growdirect.io/sdds/" class="hover:text-gray-600 no-underline">SDDs</a>
+    <span>·</span>
+    <a href="https://github.com/growdirect-llc/canary-go" class="hover:text-gray-600 no-underline">GitHub</a>
+    <span>·</span>
+    <span>sandbox · data pulled live from Square Connect API</span>
   </div>
 </body>
 </html>`))
