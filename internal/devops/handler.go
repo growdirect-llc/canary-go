@@ -34,6 +34,12 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/squareauth"
 )
 
+// Pages documented in Mount():
+//   GET /devops/releases           → pending LangGraph approvals (HTML)
+//   GET /devops/releases/state     → releases state JSON
+//   POST /devops/releases/{id}/approve  → approve an interrupted thread
+//   POST /devops/releases/{id}/reject   → reject an interrupted thread
+
 //go:embed static templates
 var embedFS embed.FS
 
@@ -44,6 +50,7 @@ type Handler struct {
 	logger    *zap.Logger
 	tmpl      *template.Template
 	squareSvc *squareauth.Service
+	lgClient  *LangGraphClient // nil = LangGraph server offline/disabled
 }
 
 // New constructs a Handler. squareSvc may be nil (Square panel shows unconfigured state).
@@ -56,8 +63,20 @@ func New(pool *pgxpool.Pool, rdb *redis.Client, logger *zap.Logger, squareSvc *s
 		"templates/pipeline.html",
 		"templates/api.html",
 		"templates/square.html",
+		"templates/releases.html",
 	))
-	return &Handler{pool: pool, rdb: rdb, logger: logger, tmpl: tmpl, squareSvc: squareSvc}
+	lgURL := os.Getenv("LANGGRAPH_URL")
+	if lgURL == "" {
+		lgURL = "http://localhost:2024"
+	}
+	return &Handler{
+		pool:      pool,
+		rdb:       rdb,
+		logger:    logger,
+		tmpl:      tmpl,
+		squareSvc: squareSvc,
+		lgClient:  NewLangGraphClient(lgURL),
+	}
 }
 
 // Mount registers all devops routes under /devops on r.
@@ -79,6 +98,10 @@ func (h *Handler) Mount(r chi.Router) {
 		r.Get("/api/redoc", h.redocPage)
 		r.Get("/api/spec.yaml", h.apiSpec)
 		r.Get("/api/pipeline-state", h.pipelineState)
+		r.Get("/releases", h.releasesPage)
+		r.Get("/releases/state", h.releasesState)
+		r.Post("/releases/{id}/approve", h.approveRelease)
+		r.Post("/releases/{id}/reject", h.rejectRelease)
 		r.Handle("/static/*", http.StripPrefix("/devops/static/",
 			http.FileServer(http.FS(staticFS))))
 	})
@@ -544,4 +567,77 @@ func (h *Handler) queryStream(ctx context.Context) streamSnap {
 		})
 	}
 	return snap
+}
+
+// ── Releases panel ────────────────────────────────────────────────────
+
+type releasesStateResp struct {
+	Pending []Thread `json:"pending"`
+	Server  string   `json:"server"`
+	Online  bool     `json:"online"`
+}
+
+func (h *Handler) releasesPage(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := h.tmpl.ExecuteTemplate(w, "base.html", map[string]any{
+		"Page": "releases",
+	}); err != nil {
+		h.logger.Error("releases template", zap.Error(err))
+	}
+}
+
+func (h *Handler) releasesState(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	resp := releasesStateResp{
+		Server:  h.lgClient.baseURL,
+		Pending: []Thread{},
+		Online:  false,
+	}
+	threads, err := h.lgClient.PendingReleases(ctx)
+	if err != nil {
+		h.logger.Debug("langgraph offline", zap.Error(err))
+	} else {
+		resp.Online = true
+		resp.Pending = threads
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func (h *Handler) approveRelease(w http.ResponseWriter, r *http.Request) {
+	h.resumeRelease(w, r, "approved")
+}
+
+func (h *Handler) rejectRelease(w http.ResponseWriter, r *http.Request) {
+	h.resumeRelease(w, r, "rejected")
+}
+
+func (h *Handler) resumeRelease(w http.ResponseWriter, r *http.Request, decision string) {
+	threadID := chi.URLParam(r, "id")
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, `{"error":"bad request"}`, http.StatusBadRequest)
+		return
+	}
+	assistantID := r.FormValue("assistant_id")
+	if assistantID == "" {
+		assistantID = "codegen"
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	if err := h.lgClient.Resume(ctx, threadID, assistantID, decision); err != nil {
+		h.logger.Error("langgraph resume", zap.Error(err))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "decision": decision})
 }
