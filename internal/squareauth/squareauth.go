@@ -193,6 +193,46 @@ func (s *Service) ExchangeCode(ctx context.Context, code string) (*TokenResponse
 	return &tr, nil
 }
 
+// RefreshToken exchanges a refresh token for a new access + refresh token pair.
+// Square revokes the old refresh token on success — the caller must persist
+// the returned TokenResponse immediately via StoreToken.
+func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (*TokenResponse, error) {
+	body := map[string]any{
+		"client_id":     s.cfg.ApplicationID,
+		"client_secret": s.cfg.ApplicationSecret,
+		"grant_type":    "refresh_token",
+		"refresh_token": refreshToken,
+	}
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("squareauth: marshal refresh request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		s.connectBaseURL()+"/oauth2/token", bytes.NewReader(encoded))
+	if err != nil {
+		return nil, fmt.Errorf("squareauth: build refresh request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Square-Version", "2024-09-19")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("squareauth: refresh http: %w", err)
+	}
+	defer resp.Body.Close()
+
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("squareauth: refresh status %d: %s",
+			resp.StatusCode, string(raw))
+	}
+	var tr TokenResponse
+	if err := json.Unmarshal(raw, &tr); err != nil {
+		return nil, fmt.Errorf("squareauth: parse refresh response: %w", err)
+	}
+	return &tr, nil
+}
+
 // ─── Token storage (app.pos_tenant_credentials) ────────────────────────────
 
 // StoredCredentials is what we write into the credentials_enc column as
@@ -294,6 +334,17 @@ func (s *Service) DeleteToken(ctx context.Context, internalMerchantID uuid.UUID)
 
 // ErrTokenNotFound is returned when no stored credentials match.
 var ErrTokenNotFound = errors.New("squareauth: token not found")
+
+// IsExpiring returns true when the access token expires within threshold.
+// A zero ExpiresAt is treated as non-expiring (Square sandbox tokens have
+// a 30-day expiry so they will always carry a non-zero value after the
+// initial code exchange).
+func (c *StoredCredentials) IsExpiring(threshold time.Duration) bool {
+	if c.ExpiresAt.IsZero() {
+		return false
+	}
+	return time.Until(c.ExpiresAt) < threshold
+}
 
 // deriveDemoMerchantID generates a stable UUIDv5 from a Square merchant_id
 // for demo purposes. Production onboarding would create a real app.merchants
