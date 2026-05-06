@@ -1,12 +1,15 @@
 // Package devops serves the Canary Go devops console at /devops.
 //
 // Pages:
-//   GET /devops                  → pipeline monitor (HTML)
-//   GET /devops/api              → API explorer shell (HTML, iframe)
-//   GET /devops/api/redoc        → Redoc standalone page (served in iframe)
-//   GET /devops/api/spec.yaml    → raw OpenAPI YAML
+//   GET /devops                    → pipeline monitor (HTML)
+//   GET /devops/square             → Square connection panel (HTML)
+//   GET /devops/api                → API explorer shell (HTML, iframe)
+//   GET /devops/api/redoc          → Redoc standalone page (served in iframe)
+//   GET /devops/api/spec.yaml      → raw OpenAPI YAML
 //   GET /devops/api/pipeline-state → pipeline state JSON
-//   GET /devops/static/*         → embedded CSS / assets
+//   GET /devops/square/state       → Square connection state JSON
+//   POST /devops/square/test       → test Square connection for a merchant
+//   GET /devops/static/*           → embedded CSS / assets
 //
 // Auth: dev-only guard via DEV_CONSOLE env var (any non-empty value enables).
 // In production set DEV_CONSOLE="" to disable the entire route group.
@@ -23,9 +26,12 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
+
+	"github.com/growdirect-llc/rapidpos/internal/squareauth"
 )
 
 //go:embed static templates
@@ -33,14 +39,15 @@ var embedFS embed.FS
 
 // Handler is the devops console handler.
 type Handler struct {
-	pool   *pgxpool.Pool
-	rdb    *redis.Client
-	logger *zap.Logger
-	tmpl   *template.Template
+	pool      *pgxpool.Pool
+	rdb       *redis.Client
+	logger    *zap.Logger
+	tmpl      *template.Template
+	squareSvc *squareauth.Service
 }
 
-// New constructs a Handler. Logger may be nil.
-func New(pool *pgxpool.Pool, rdb *redis.Client, logger *zap.Logger) *Handler {
+// New constructs a Handler. squareSvc may be nil (Square panel shows unconfigured state).
+func New(pool *pgxpool.Pool, rdb *redis.Client, logger *zap.Logger, squareSvc *squareauth.Service) *Handler {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -48,8 +55,9 @@ func New(pool *pgxpool.Pool, rdb *redis.Client, logger *zap.Logger) *Handler {
 		"templates/base.html",
 		"templates/pipeline.html",
 		"templates/api.html",
+		"templates/square.html",
 	))
-	return &Handler{pool: pool, rdb: rdb, logger: logger, tmpl: tmpl}
+	return &Handler{pool: pool, rdb: rdb, logger: logger, tmpl: tmpl, squareSvc: squareSvc}
 }
 
 // Mount registers all devops routes under /devops on r.
@@ -64,6 +72,9 @@ func (h *Handler) Mount(r chi.Router) {
 
 	r.Route("/devops", func(r chi.Router) {
 		r.Get("/", h.pipelinePage)
+		r.Get("/square", h.squarePage)
+		r.Get("/square/state", h.squareState)
+		r.Post("/square/test", h.squareTest)
 		r.Get("/api", h.apiExplorerPage)
 		r.Get("/api/redoc", h.redocPage)
 		r.Get("/api/spec.yaml", h.apiSpec)
@@ -289,6 +300,150 @@ func (h *Handler) querySequence(ctx context.Context) seqSnap {
 		}
 	}
 	return snap
+}
+
+// ── Square panel ──────────────────────────────────────────────────────
+
+type squareConnection struct {
+	MerchantID   string     `json:"merchant_id"`
+	Status       string     `json:"status"`
+	ExpiresAt    *time.Time `json:"expires_at"`
+	LastTestedAt *time.Time `json:"last_tested_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	ExpiringSoon bool       `json:"expiring_soon"`
+	Expired      bool       `json:"expired"`
+}
+
+type auditRow struct {
+	Action     string    `json:"action"`
+	Resource   string    `json:"resource"`
+	StatusCode int       `json:"status_code"`
+	LatencyMS  int       `json:"latency_ms"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+type squareStateResp struct {
+	Timestamp   time.Time          `json:"timestamp"`
+	Connections []squareConnection  `json:"connections"`
+	AuditTail   []auditRow         `json:"audit_tail"`
+}
+
+func (h *Handler) squarePage(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := h.tmpl.ExecuteTemplate(w, "base.html", map[string]any{
+		"Page": "square",
+	}); err != nil {
+		h.logger.Error("square template", zap.Error(err))
+	}
+}
+
+func (h *Handler) squareState(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	resp := squareStateResp{
+		Timestamp:   time.Now().UTC(),
+		Connections: []squareConnection{},
+		AuditTail:   []auditRow{},
+	}
+
+	rows, err := h.pool.Query(ctx, `
+		SELECT merchant_id::text, status, expires_at, last_tested_at, updated_at
+		FROM app.pos_tenant_credentials
+		WHERE source_code = 'square'
+		ORDER BY updated_at DESC
+	`)
+	if err != nil {
+		h.logger.Warn("square connections query", zap.Error(err))
+	} else {
+		defer rows.Close()
+		now := time.Now()
+		for rows.Next() {
+			var c squareConnection
+			if err := rows.Scan(&c.MerchantID, &c.Status, &c.ExpiresAt, &c.LastTestedAt, &c.UpdatedAt); err == nil {
+				if c.ExpiresAt != nil {
+					c.Expired = c.ExpiresAt.Before(now)
+					c.ExpiringSoon = !c.Expired && c.ExpiresAt.Before(now.Add(5*24*time.Hour))
+				}
+				resp.Connections = append(resp.Connections, c)
+			}
+		}
+	}
+
+	auditRows, err := h.pool.Query(ctx, `
+		SELECT COALESCE(action,''), COALESCE(resource,''), COALESCE(status_code,0), COALESCE(latency_ms,0), created_at
+		FROM app.audit_log
+		WHERE source_code = 'square'
+		ORDER BY created_at DESC
+		LIMIT 50
+	`)
+	if err != nil {
+		h.logger.Warn("square audit query", zap.Error(err))
+	} else {
+		defer auditRows.Close()
+		for auditRows.Next() {
+			var a auditRow
+			if err := auditRows.Scan(&a.Action, &a.Resource, &a.StatusCode, &a.LatencyMS, &a.CreatedAt); err == nil {
+				resp.AuditTail = append(resp.AuditTail, a)
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func (h *Handler) squareTest(w http.ResponseWriter, r *http.Request) {
+	if h.squareSvc == nil {
+		http.Error(w, `{"error":"Square service not configured"}`, http.StatusServiceUnavailable)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, `{"error":"bad request"}`, http.StatusBadRequest)
+		return
+	}
+	merchantIDStr := r.FormValue("merchant_id")
+	merchantID, err := uuid.Parse(merchantIDStr)
+	if err != nil {
+		http.Error(w, `{"error":"invalid merchant_id"}`, http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	creds, err := h.squareSvc.LoadToken(ctx, merchantID)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+
+	merchant, err := h.squareSvc.GetMerchant(ctx, creds.AccessToken, creds.MerchantIDSquare)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+
+	// Update last_tested_at on success.
+	_, _ = h.pool.Exec(ctx, `
+		UPDATE app.pos_tenant_credentials
+		SET last_tested_at = NOW(), updated_at = NOW()
+		WHERE merchant_id = $1 AND source_code = 'square'
+	`, merchantID)
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":            true,
+		"business_name": merchant.BusinessName,
+		"status":        merchant.Status,
+		"country":       merchant.Country,
+	})
 }
 
 func (h *Handler) queryStream(ctx context.Context) streamSnap {

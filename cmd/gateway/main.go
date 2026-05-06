@@ -216,7 +216,7 @@ func main() {
 	})
 
 	// /devops — pipeline monitor + API explorer. Dev-only (DEV_CONSOLE=1).
-	devops.New(pool, rdb, logger).Mount(r)
+	devops.New(pool, rdb, logger, squareSvc).Mount(r)
 
 	// / — Canary application UI.
 	webDeps := web.Deps{
