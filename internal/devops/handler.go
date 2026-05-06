@@ -322,9 +322,27 @@ type auditRow struct {
 	CreatedAt  time.Time `json:"created_at"`
 }
 
+// webhookEvent is one inbound Square event from protocol.evidence.
+type webhookEvent struct {
+	EventID    string    `json:"event_id"`
+	EventType  string    `json:"event_type"`
+	MerchantID string    `json:"merchant_id"`
+	EventHash  string    `json:"event_hash"`
+	IngestedAt time.Time `json:"ingested_at"`
+}
+
+// rateLimitSnap tracks Square API outbound call rate against the sandbox limit.
+type rateLimitSnap struct {
+	CallsLast60s int `json:"calls_last_60s"`
+	LimitPerMin  int `json:"limit_per_min"`
+	HeadroomPct  int `json:"headroom_pct"`
+}
+
 type squareStateResp struct {
 	Timestamp   time.Time          `json:"timestamp"`
 	Connections []squareConnection  `json:"connections"`
+	WebhookFeed []webhookEvent     `json:"webhook_feed"`
+	RateLimit   rateLimitSnap      `json:"rate_limit"`
 	AuditTail   []auditRow         `json:"audit_tail"`
 }
 
@@ -345,6 +363,7 @@ func (h *Handler) squareState(w http.ResponseWriter, r *http.Request) {
 	resp := squareStateResp{
 		Timestamp:   time.Now().UTC(),
 		Connections: []squareConnection{},
+		WebhookFeed: []webhookEvent{},
 		AuditTail:   []auditRow{},
 	}
 
@@ -370,6 +389,9 @@ func (h *Handler) squareState(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+
+	resp.WebhookFeed = h.querySquareWebhooks(ctx)
+	resp.RateLimit = h.querySquareRateLimit(ctx)
 
 	auditRows, err := h.pool.Query(ctx, `
 		SELECT COALESCE(action,''), COALESCE(resource,''), COALESCE(status_code,0), COALESCE(latency_ms,0), created_at
@@ -444,6 +466,59 @@ func (h *Handler) squareTest(w http.ResponseWriter, r *http.Request) {
 		"status":        merchant.Status,
 		"country":       merchant.Country,
 	})
+}
+
+// querySquareWebhooks returns the 20 most recent inbound Square events from
+// protocol.evidence. The event type is extracted from raw_payload->>'type'.
+func (h *Handler) querySquareWebhooks(ctx context.Context) []webhookEvent {
+	rows, err := h.pool.Query(ctx, `
+		SELECT event_id::text,
+		       COALESCE(raw_payload->>'type', '—'),
+		       merchant_id::text,
+		       event_hash,
+		       ingested_at
+		FROM protocol.evidence
+		WHERE source_code = 'square'
+		ORDER BY ingested_at DESC
+		LIMIT 20
+	`)
+	if err != nil {
+		h.logger.Warn("square webhooks query", zap.Error(err))
+		return []webhookEvent{}
+	}
+	defer rows.Close()
+	var out []webhookEvent
+	for rows.Next() {
+		var e webhookEvent
+		if err := rows.Scan(&e.EventID, &e.EventType, &e.MerchantID, &e.EventHash, &e.IngestedAt); err == nil {
+			out = append(out, e)
+		}
+	}
+	if out == nil {
+		return []webhookEvent{}
+	}
+	return out
+}
+
+const squareSandboxLimitPerMin = 500 // Square sandbox: 500 req/min
+
+// querySquareRateLimit counts Canary's outbound Square API calls in the last
+// 60 seconds (from app.audit_log) and computes headroom against the sandbox
+// rate limit.
+func (h *Handler) querySquareRateLimit(ctx context.Context) rateLimitSnap {
+	snap := rateLimitSnap{LimitPerMin: squareSandboxLimitPerMin}
+	row := h.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM app.audit_log
+		WHERE source_code = 'square'
+		  AND created_at > NOW() - INTERVAL '60 seconds'
+	`)
+	_ = row.Scan(&snap.CallsLast60s)
+	if snap.CallsLast60s > snap.LimitPerMin {
+		snap.CallsLast60s = snap.LimitPerMin // cap for display
+	}
+	snap.HeadroomPct = 100 - (snap.CallsLast60s*100)/snap.LimitPerMin
+	return snap
 }
 
 func (h *Handler) queryStream(ctx context.Context) streamSnap {
