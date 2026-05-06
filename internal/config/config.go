@@ -14,6 +14,7 @@ type Config struct {
 	LogLevel              string
 	Port                  string
 	ServiceName           string
+	PublicURL             string // base URL for discovery doc (e.g. https://demo.growdirect.io)
 }
 
 // Load reads required environment variables and panics on missing ones.
@@ -27,6 +28,7 @@ func Load(serviceName string) *Config {
 		LogLevel:              getOr("LOG_LEVEL", "info"),
 		Port:                  getOr("PORT", "8080"),
 		ServiceName:           serviceName,
+		PublicURL:             getOr("PUBLIC_URL", ""),
 	}
 	return cfg
 }

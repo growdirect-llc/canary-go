@@ -154,6 +154,7 @@ func main() {
 	r.Use(requestLogger(logger))
 
 	r.Get("/health", healthHandler(cfg))
+	r.Get("/.well-known/mcp.json", discoveryHandler(cfg))
 
 	// Bilateral verification APIs — read-only, mounted outside the
 	// audit group. Reads don't need state-mutation audit semantics.
@@ -237,6 +238,58 @@ func main() {
 	)
 	if err := http.ListenAndServe(addr, r); err != nil {
 		logger.Fatal("listen", zap.Error(err))
+	}
+}
+
+// discoveryHandler serves GET /.well-known/mcp.json — a public document that
+// lets any MCP client (Claude Code, a partner service, an agent) discover the
+// tool surface, endpoint, and auth scheme without reading docs.
+//
+// PUBLIC_URL env var sets the base URL (e.g. https://demo.growdirect.io).
+// If unset, the handler derives it from the incoming request Host header.
+// GRO-802 Day 5.
+func discoveryHandler(cfg *config.Config) http.HandlerFunc {
+	const (
+		mcpVersion  = "2025-03-26"
+		toolsCount  = 28
+		openAPIRepo = "https://raw.githubusercontent.com/growdirect-llc/canary-go/main/services/canary-protocol/openapi/openapi.yaml"
+	)
+	modules := []string{"alert", "analytics", "asset", "customer", "employee", "returns", "report"}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		base := cfg.PublicURL
+		if base == "" {
+			scheme := "https"
+			if r.TLS == nil && r.Header.Get("X-Forwarded-Proto") != "https" {
+				scheme = "http"
+			}
+			base = scheme + "://" + r.Host
+		}
+
+		doc := map[string]any{
+			"mcp_version": mcpVersion,
+			"name":        "Canary Retail Ops",
+			"description": "Store operations platform for independent retailers. " +
+				"28 tools across 7 domain modules (alert, analytics, asset, customer, employee, returns, report).",
+			"endpoint":  base + "/mcp",
+			"transport": "http-post",
+			"auth": map[string]any{
+				"type":        "api_key",
+				"header":      "X-API-Key",
+				"description": "Tenant-scoped API key. Contact the platform operator to obtain one.",
+			},
+			"modules":     modules,
+			"tools_count": toolsCount,
+			"openapi":     openAPIRepo,
+			"links": map[string]string{
+				"vault": "https://canary.growdirect.io",
+				"sdds":  "https://canary.growdirect.io/sdds/",
+			},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "public, max-age=300")
+		_ = json.NewEncoder(w).Encode(doc)
 	}
 }
 
