@@ -165,6 +165,21 @@ func (s *Service) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Auto-refresh when token expires within 5 minutes. Square revokes the
+	// old refresh token on success, so we must persist the new pair immediately.
+	if creds.IsExpiring(5 * time.Minute) {
+		if newTR, err := s.RefreshToken(r.Context(), creds.RefreshToken); err == nil {
+			if _, storeErr := s.StoreToken(r.Context(), newTR); storeErr == nil {
+				creds.AccessToken = newTR.AccessToken
+				s.logger.Info("squareauth token refreshed", zap.String("merchant_id", mID.String()))
+			} else {
+				s.logger.Warn("squareauth refresh store failed", zap.Error(storeErr))
+			}
+		} else {
+			s.logger.Warn("squareauth refresh failed — proceeding with stored token", zap.Error(err))
+		}
+	}
+
 	merchant, err := s.GetMerchant(r.Context(), creds.AccessToken, creds.MerchantIDSquare)
 	if err != nil {
 		s.logger.Error("squareauth get merchant", zap.Error(err))
@@ -241,27 +256,27 @@ var landingTmpl = template.Must(template.New("landing").Funcs(tmplFuncs).Parse(`
   <meta charset="utf-8" />
   <title>Canary — Live Demo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    body { font-family: system-ui, -apple-system, sans-serif; max-width: 640px; margin: 4em auto; padding: 0 1.5em; color: #111; line-height: 1.55; }
-    h1 { font-size: 1.6em; margin-bottom: 0.3em; }
-    .sub { color: #666; margin-bottom: 2em; }
-    a.btn { display: inline-block; padding: 0.7em 1.2em; background: #006aff; color: white; text-decoration: none; border-radius: 6px; font-weight: 600; }
-    a.btn:hover { background: #0050c8; }
-    .env { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.85em; background: #fef3c7; color: #92400e; }
-    .footer { margin-top: 4em; padding-top: 1em; border-top: 1px solid #eee; color: #999; font-size: 0.85em; }
-  </style>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <h1>Canary — running on GCP <span class="env">{{.Environment}}</span></h1>
-  <p class="sub">Multi-POS retail platform. Connect your Square sandbox account to see your data.</p>
+<body class="max-w-xl mx-auto mt-16 px-6 text-gray-900 leading-relaxed">
+  <h1 class="text-2xl font-semibold mb-1">
+    Canary — running on GCP
+    <span class="inline-block px-2 py-0.5 rounded text-sm bg-amber-100 text-amber-800 font-normal ml-1">{{.Environment}}</span>
+  </h1>
+  <p class="text-gray-500 mb-8">Multi-POS retail platform. Connect your Square sandbox account to see your data.</p>
 
   {{if .Connected}}
-    <p>You're connected. <a href="/dashboard">Open dashboard →</a></p>
+    <p>You're connected. <a href="/dashboard" class="text-blue-600 underline">Open dashboard →</a></p>
   {{else}}
-    <p><a class="btn" href="/auth/square">Connect Square</a></p>
+    <p>
+      <a href="/auth/square"
+         class="inline-block px-5 py-2 bg-blue-600 text-white rounded-md font-semibold no-underline hover:bg-blue-700 transition-colors">
+        Connect Square
+      </a>
+    </p>
   {{end}}
 
-  <div class="footer">
+  <div class="mt-16 pt-4 border-t border-gray-200 text-gray-400 text-sm">
     growdirect.io · GrowDirect LLC · sandbox demo · token storage encrypted at rest
   </div>
 </body>
@@ -273,79 +288,102 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(tmplFuncs).Par
   <meta charset="utf-8" />
   <title>Canary Dashboard — {{if .Merchant}}{{.Merchant.BusinessName}}{{end}}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    body { font-family: system-ui, -apple-system, sans-serif; max-width: 960px; margin: 2em auto; padding: 0 1.5em; color: #111; line-height: 1.5; }
-    h1 { font-size: 1.5em; margin-bottom: 0.2em; }
-    h2 { font-size: 1.1em; margin-top: 2em; color: #444; border-bottom: 1px solid #ddd; padding-bottom: 0.3em; }
-    .meta { color: #666; font-size: 0.95em; margin-bottom: 1.5em; }
-    .pill { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.85em; margin-right: 0.4em; }
-    .pill.env { background: #fef3c7; color: #92400e; }
-    .pill.status-active { background: #d1fae5; color: #065f46; }
-    .pill.status-other { background: #e5e7eb; color: #374151; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 1em; font-size: 0.95em; }
-    th, td { text-align: left; padding: 0.5em 0.6em; border-bottom: 1px solid #eee; }
-    th { color: #555; font-weight: 600; font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.04em; }
-    .footer { margin-top: 4em; padding-top: 1em; border-top: 1px solid #eee; color: #999; font-size: 0.85em; }
-    form.inline { display: inline; }
-    button.link { background: none; border: none; color: #006aff; cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
-  </style>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
+<body class="max-w-5xl mx-auto mt-8 px-6 text-gray-900 leading-normal">
+
   {{if .Merchant}}
-  <h1>{{.Merchant.BusinessName}}</h1>
-  <p class="meta">
-    <span class="pill env">{{.Environment}}</span>
-    <span class="pill status-{{if eq .Merchant.Status "ACTIVE"}}active{{else}}other{{end}}">{{.Merchant.Status}}</span>
-    {{.Merchant.Country}} · {{.Merchant.Currency}} · {{.Merchant.LanguageCode}}
+  <h1 class="text-2xl font-semibold mb-1">{{.Merchant.BusinessName}}</h1>
+  <p class="text-gray-500 text-sm mb-6 space-x-1">
+    <span class="inline-block px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-800">{{.Environment}}</span>
+    {{if eq .Merchant.Status "ACTIVE"}}
+    <span class="inline-block px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-800">{{.Merchant.Status}}</span>
+    {{else}}
+    <span class="inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700">{{.Merchant.Status}}</span>
+    {{end}}
+    <span>{{.Merchant.Country}} · {{.Merchant.Currency}} · {{.Merchant.LanguageCode}}</span>
   </p>
-  <p class="meta">Square ID: <code>{{.SquareID}}</code> · Internal ID: <code>{{.InternalID}}</code></p>
+  <p class="text-gray-400 text-xs mb-6">
+    Square ID: <code class="font-mono">{{.SquareID}}</code> ·
+    Internal ID: <code class="font-mono">{{.InternalID}}</code>
+  </p>
   {{end}}
 
-  <h2>Locations ({{.LocationsCount}})</h2>
+  <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500 border-b border-gray-200 pb-1 mt-8">
+    Locations ({{.LocationsCount}})
+  </h2>
   {{if .Locations}}
-  <table>
-    <tr><th>Name</th><th>Status</th><th>Type</th><th>City</th><th>Region</th><th>Country</th></tr>
-    {{range .Locations}}
-    <tr>
-      <td>{{.Name}}</td>
-      <td>{{.Status}}</td>
-      <td>{{.Type}}</td>
-      <td>{{.Address.Locality}}</td>
-      <td>{{.Address.Region}}</td>
-      <td>{{.Country}}</td>
-    </tr>
-    {{end}}
+  <table class="w-full border-collapse text-sm mt-2 mb-6">
+    <thead>
+      <tr>
+        <th class="text-left px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">Name</th>
+        <th class="text-left px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">Status</th>
+        <th class="text-left px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">Type</th>
+        <th class="text-left px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">City</th>
+        <th class="text-left px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">Region</th>
+        <th class="text-left px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">Country</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Locations}}
+      <tr class="hover:bg-gray-50">
+        <td class="px-2 py-2 border-b border-gray-100">{{.Name}}</td>
+        <td class="px-2 py-2 border-b border-gray-100">{{.Status}}</td>
+        <td class="px-2 py-2 border-b border-gray-100">{{.Type}}</td>
+        <td class="px-2 py-2 border-b border-gray-100">{{.Address.Locality}}</td>
+        <td class="px-2 py-2 border-b border-gray-100">{{.Address.Region}}</td>
+        <td class="px-2 py-2 border-b border-gray-100">{{.Country}}</td>
+      </tr>
+      {{end}}
+    </tbody>
   </table>
   {{else}}
-  <p>No locations.</p>
+  <p class="text-gray-400 text-sm mt-2 mb-6">No locations.</p>
   {{end}}
 
-  <h2>Recent payments ({{.PaymentsCount}})</h2>
+  <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500 border-b border-gray-200 pb-1 mt-8">
+    Recent payments ({{.PaymentsCount}})
+  </h2>
   {{if .Payments}}
-  <table>
-    <tr><th>When</th><th>Amount</th><th>Status</th><th>Card</th><th>Source</th><th>Location</th></tr>
-    {{range .Payments}}
-    <tr>
-      <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
-      <td>{{formatAmount .Amount.Amount .Amount.Currency}}</td>
-      <td>{{.Status}}</td>
-      <td>{{if .CardDetails.Card.CardBrand}}{{.CardDetails.Card.CardBrand}} ····{{.CardDetails.Card.Last4}}{{else}}—{{end}}</td>
-      <td>{{.SourceType}}</td>
-      <td>{{.LocationID}}</td>
-    </tr>
-    {{end}}
+  <table class="w-full border-collapse text-sm mt-2 mb-6">
+    <thead>
+      <tr>
+        <th class="text-left px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">When</th>
+        <th class="text-left px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">Amount</th>
+        <th class="text-left px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">Status</th>
+        <th class="text-left px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">Card</th>
+        <th class="text-left px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">Source</th>
+        <th class="text-left px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">Location</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Payments}}
+      <tr class="hover:bg-gray-50">
+        <td class="px-2 py-2 border-b border-gray-100 tabular-nums">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+        <td class="px-2 py-2 border-b border-gray-100 tabular-nums font-medium">{{formatAmount .Amount.Amount .Amount.Currency}}</td>
+        <td class="px-2 py-2 border-b border-gray-100">{{.Status}}</td>
+        <td class="px-2 py-2 border-b border-gray-100 font-mono text-xs">
+          {{if .CardDetails.Card.CardBrand}}{{.CardDetails.Card.CardBrand}} ····{{.CardDetails.Card.Last4}}{{else}}—{{end}}
+        </td>
+        <td class="px-2 py-2 border-b border-gray-100">{{.SourceType}}</td>
+        <td class="px-2 py-2 border-b border-gray-100 font-mono text-xs">{{.LocationID}}</td>
+      </tr>
+      {{end}}
+    </tbody>
   </table>
   {{else}}
-  <p>No payments yet. Run a sandbox transaction in Square Dashboard to see one here.</p>
+  <p class="text-gray-400 text-sm mt-2 mb-6">No payments yet. Run a sandbox transaction in Square Dashboard to see one here.</p>
   {{end}}
 
-  <p style="margin-top: 2em;">
+  <p class="mt-8">
     <form class="inline" method="post" action="/auth/square/disconnect">
-      <button class="link" type="submit">Disconnect</button>
+      <button type="submit" class="text-blue-600 underline bg-transparent border-0 cursor-pointer p-0 text-sm">
+        Disconnect
+      </button>
     </form>
   </p>
 
-  <div class="footer">
+  <div class="mt-16 pt-4 border-t border-gray-200 text-gray-400 text-xs">
     growdirect.io · sandbox demo · data pulled live from Square Connect API
   </div>
 </body>
