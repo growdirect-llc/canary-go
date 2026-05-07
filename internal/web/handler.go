@@ -39,6 +39,7 @@ import (
 	"io/fs"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -50,6 +51,7 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/chirp"
 	"github.com/growdirect-llc/rapidpos/internal/customer"
 	"github.com/growdirect-llc/rapidpos/internal/inventory"
+	"github.com/growdirect-llc/rapidpos/internal/item"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
 	"github.com/growdirect-llc/rapidpos/internal/transaction"
 )
@@ -250,14 +252,13 @@ func (h *Handler) Mount(r chi.Router) {
 
 	r.Get("/reports/distribution", h.reportDistributionPage)
 	r.Get("/reports/inventory", h.reportInventoryPage)
+	r.Get("/reports/category", h.reportCategoryPage)
 	r.Get("/reports/category", h.page("reports", "report_category", func(_ *http.Request) any {
 		return map[string]any{"TotalCategories": 0, "TopCategory": "—", "AvgMargin": "—", "SKUsTracked": 0, "Categories": nil}
 	}))
 
-	// Items
-	r.Get("/items", h.page("items", "items_list", func(r *http.Request) any {
-		return map[string]any{"Items": nil, "TotalCount": 0, "Query": r.URL.Query().Get("q")}
-	}))
+	// Items + category report — wired W2c / GRO-817.
+	r.Get("/items", h.itemListPage)
 	r.Get("/items/{id}", h.itemDetailPage)
 
 	// Finance reports
@@ -1355,16 +1356,262 @@ func (h *Handler) reportInventoryPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// itemListPage renders the catalog search results.
+// Wired W2c / GRO-817.
+func (h *Handler) itemListPage(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+	if h.deps.ItemStore == nil {
+		h.render(w, r, "items_list", "items", map[string]any{
+			"Items": nil, "TotalCount": 0, "Query": query,
+		})
+		return
+	}
+	ctx := r.Context()
+	tenantID := tenantIDFromCtx(ctx)
+	items, err := h.deps.ItemStore.List(ctx, item.ListFilters{
+		TenantID: tenantID,
+		Limit:    100,
+	})
+	if err != nil {
+		h.logger.Error("itemListPage: list", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		h.render(w, r, "err500", "items", nil)
+		return
+	}
+
+	// Resolve category names once via a single ListCategories lookup.
+	catNames := h.categoryNameMap(ctx, tenantID)
+
+	rows := make([]map[string]any, 0, len(items))
+	for _, it := range items {
+		// In-memory filter when q is set.
+		if query != "" && !containsIgnoreCase(it.SKU, query) && !containsIgnoreCase(it.Description, query) {
+			continue
+		}
+		catName := "—"
+		if it.CategoryID != nil {
+			if name, ok := catNames[*it.CategoryID]; ok {
+				catName = name
+			}
+		}
+		rows = append(rows, map[string]any{
+			"ID":          it.ID.String(),
+			"SKU":         it.SKU,
+			"Description": it.Description,
+			"Category":    catName,
+			"UnitPrice":   strDeref(it.DefaultPrice, "—"),
+			"Margin":      computeMarginPct(it.DefaultPrice, it.DefaultCost),
+			"Status":      it.Status,
+		})
+	}
+
+	h.render(w, r, "items_list", "items", map[string]any{
+		"Items":      rows,
+		"TotalCount": len(rows),
+		"Query":      query,
+	})
+}
+
+// itemDetailPage renders one catalog item with attributes, supplier, and
+// margin. Wired W2c / GRO-817.
 func (h *Handler) itemDetailPage(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		h.render(w, r, "err404", "items", nil)
+		return
+	}
+
+	if h.deps.ItemStore == nil {
+		h.render(w, r, "items_detail", "items", map[string]any{
+			"Item": map[string]any{
+				"ID": idStr, "SKU": idStr, "Description": "—", "Category": "—",
+				"Status": "active", "Supplier": "—", "UnitCost": "—",
+				"UnitPrice": "—", "Margin": "—", "ReorderPoint": 0,
+				"LeadDays": 0, "DriftAlertCount": 0, "LastDriftAt": "—",
+			},
+		})
+		return
+	}
+
+	ctx := r.Context()
+	tenantID := tenantIDFromCtx(ctx)
+	it, err := h.deps.ItemStore.GetByID(ctx, tenantID, id)
+	if err != nil {
+		if errors.Is(err, item.ErrNotFound) {
+			w.WriteHeader(http.StatusNotFound)
+			h.render(w, r, "err404", "items", nil)
+			return
+		}
+		h.logger.Error("itemDetailPage: get", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		h.render(w, r, "err500", "items", nil)
+		return
+	}
+
+	catName := "—"
+	if it.CategoryID != nil {
+		names := h.categoryNameMap(ctx, tenantID)
+		if name, ok := names[*it.CategoryID]; ok {
+			catName = name
+		}
+	}
+
 	h.render(w, r, "items_detail", "items", map[string]any{
 		"Item": map[string]any{
-			"ID": id, "SKU": id, "Description": "—", "Category": "—",
-			"Status": "active", "Supplier": "—", "UnitCost": "—",
-			"UnitPrice": "—", "Margin": "—", "ReorderPoint": 0,
-			"LeadDays": 0, "DriftAlertCount": 0, "LastDriftAt": "—",
+			"ID":              it.ID.String(),
+			"SKU":             it.SKU,
+			"Description":     it.Description,
+			"Category":        catName,
+			"Status":          it.Status,
+			"Supplier":        "—", // populated when item→vendor join lands
+			"UnitCost":        strDeref(it.DefaultCost, "—"),
+			"UnitPrice":       strDeref(it.DefaultPrice, "—"),
+			"Margin":          computeMarginPct(it.DefaultPrice, it.DefaultCost),
+			"ReorderPoint":    0, // wires when inventory_thresholds surface lands
+			"LeadDays":        0,
+			"DriftAlertCount": 0, // wires after S.5.1 drift detection lands
+			"LastDriftAt":     "—",
 		},
 	})
+}
+
+// reportCategoryPage renders margin + volume by category.
+// Wired W2c / GRO-817.
+func (h *Handler) reportCategoryPage(w http.ResponseWriter, r *http.Request) {
+	if h.deps.ItemStore == nil {
+		h.render(w, r, "report_category", "reports", map[string]any{
+			"TotalCategories": 0, "TopCategory": "—", "AvgMargin": "—", "SKUsTracked": 0, "Categories": nil,
+		})
+		return
+	}
+	ctx := r.Context()
+	tenantID := tenantIDFromCtx(ctx)
+
+	cats, err := h.deps.ItemStore.ListCategories(ctx, tenantID)
+	if err != nil {
+		h.logger.Error("reportCategoryPage: list categories", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		h.render(w, r, "err500", "reports", nil)
+		return
+	}
+	items, err := h.deps.ItemStore.List(ctx, item.ListFilters{TenantID: tenantID, Limit: 500})
+	if err != nil {
+		h.logger.Error("reportCategoryPage: list items", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		h.render(w, r, "err500", "reports", nil)
+		return
+	}
+
+	// Bucket items by category and compute per-bucket aggregate margin.
+	type bucket struct {
+		count     int
+		marginSum float64
+	}
+	buckets := map[uuid.UUID]*bucket{}
+	for _, it := range items {
+		if it.CategoryID == nil {
+			continue
+		}
+		b, ok := buckets[*it.CategoryID]
+		if !ok {
+			b = &bucket{}
+			buckets[*it.CategoryID] = b
+		}
+		b.count++
+		if margin := marginPct(it.DefaultPrice, it.DefaultCost); margin >= 0 {
+			b.marginSum += margin
+		}
+	}
+
+	rows := make([]map[string]any, 0, len(cats))
+	totalMargin := 0.0
+	totalSKUs := 0
+	topName := "—"
+	topCount := 0
+	for _, c := range cats {
+		b := buckets[c.ID]
+		count := 0
+		avgMargin := "—"
+		if b != nil {
+			count = b.count
+			if count > 0 {
+				avg := b.marginSum / float64(count)
+				avgMargin = strconv.FormatFloat(avg, 'f', 1, 64) + "%"
+				totalMargin += avg
+			}
+		}
+		if count > topCount {
+			topCount = count
+			topName = c.Name
+		}
+		totalSKUs += count
+		rows = append(rows, map[string]any{
+			"Name":       c.Name,
+			"SKUCount":   count,
+			"TotalSales": "—", // wires when sales aggregation per category lands
+			"AvgMargin":  avgMargin,
+			"Turn":       "—",
+		})
+	}
+	avgMarginAll := "—"
+	if len(rows) > 0 {
+		avgMarginAll = strconv.FormatFloat(totalMargin/float64(len(rows)), 'f', 1, 64) + "%"
+	}
+
+	h.render(w, r, "report_category", "reports", map[string]any{
+		"TotalCategories": len(cats),
+		"TopCategory":     topName,
+		"AvgMargin":       avgMarginAll,
+		"SKUsTracked":     totalSKUs,
+		"Categories":      rows,
+	})
+}
+
+// categoryNameMap fetches all category names for the tenant once for cheap
+// in-memory lookup. Returns an empty map on store error.
+func (h *Handler) categoryNameMap(ctx context.Context, tenantID uuid.UUID) map[uuid.UUID]string {
+	if h.deps.ItemStore == nil {
+		return nil
+	}
+	cats, err := h.deps.ItemStore.ListCategories(ctx, tenantID)
+	if err != nil {
+		return nil
+	}
+	out := make(map[uuid.UUID]string, len(cats))
+	for _, c := range cats {
+		out[c.ID] = c.Name
+	}
+	return out
+}
+
+func strDeref(s *string, fallback string) string {
+	if s == nil || *s == "" {
+		return fallback
+	}
+	return *s
+}
+
+func containsIgnoreCase(haystack, needle string) bool {
+	return strings.Contains(strings.ToLower(haystack), strings.ToLower(needle))
+}
+
+func computeMarginPct(price, cost *string) string {
+	m := marginPct(price, cost)
+	if m < 0 {
+		return "—"
+	}
+	return strconv.FormatFloat(m, 'f', 1, 64) + "%"
+}
+
+func marginPct(price, cost *string) float64 {
+	p := strToFloat(price)
+	c := strToFloat(cost)
+	if p == 0 {
+		return -1
+	}
+	return ((p - c) / p) * 100
 }
 
 func (h *Handler) employeeDetailPage(w http.ResponseWriter, r *http.Request) {
