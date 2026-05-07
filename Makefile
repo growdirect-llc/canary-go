@@ -1,5 +1,6 @@
 .PHONY: migrate-up migrate-down migrate-test-up sqlc-gen test test-integration \
         build-identity build-all build-edge-windows lint vulncheck \
+        check-no-dev-secrets \
         db-reset db-reset-test db-seed db-seed-test \
         dev dev-down dev-logs
 
@@ -104,6 +105,20 @@ lint:
 vulncheck:
 	@command -v govulncheck >/dev/null 2>&1 || go install golang.org/x/vuln/cmd/govulncheck@latest
 	@govulncheck ./...
+
+# check-no-dev-secrets — fail the build if a known dev-secret literal
+# leaks into source-controlled files. The seed file ships placeholders
+# (e.g. __SEED_HMAC_PLACEHOLDER__) which deploy/scripts/seed-dev-secrets.sh
+# substitutes at apply time. This guard catches a regression where a
+# real-looking secret is committed back into deploy/. GRO-859 / Sprint 2 T-W.
+check-no-dev-secrets:
+	@echo "==> checking for dev-secret literals committed to deploy/"
+	@if grep -rE "dev-only-do-not-ship-this-secret-[0-9a-f]+" deploy/ >/dev/null 2>&1; then \
+	  echo "FAIL: dev-secret literal found in deploy/ — replace with __SEED_HMAC_PLACEHOLDER__"; \
+	  grep -rnE "dev-only-do-not-ship-this-secret-[0-9a-f]+" deploy/; \
+	  exit 1; \
+	fi
+	@echo "==> ok"
 
 test-cockroach:
 	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test -tags integration ./internal/protocol/cockroach/... -v -timeout 60s
