@@ -45,7 +45,22 @@ type Store interface {
 	Delete(ctx context.Context, tenantID, id uuid.UUID) error
 	List(ctx context.Context, f ListFilters) ([]Item, error)
 	ListCategories(ctx context.Context, tenantID uuid.UUID) ([]Category, error)
+	AggregateByCategory(ctx context.Context, tenantID uuid.UUID) ([]CategoryAggregate, error)
 	ListVendors(ctx context.Context, tenantID uuid.UUID) ([]Vendor, error)
+}
+
+// CategoryAggregate is the per-category report row produced by
+// AggregateByCategory. AvgMarginPct is the average of
+// ((default_price - default_cost) / default_price) * 100 across items
+// where default_price > 0; HasMargin is false when no priced items
+// exist (callers render "—"). Categories with zero items still appear,
+// with SKUCount=0 and HasMargin=false. GRO-857 / Sprint 2 T-N.
+type CategoryAggregate struct {
+	CategoryID   uuid.UUID
+	Name         string
+	SKUCount     int
+	AvgMarginPct float64
+	HasMargin    bool
 }
 
 // PgxStore is the production Store. Construct with NewPgxStore(pool).
@@ -487,6 +502,60 @@ func (s *PgxStore) ListCategories(ctx context.Context, tenantID uuid.UUID) ([]Ca
 			return nil, fmt.Errorf("item: scan category: %w", err)
 		}
 		out = append(out, fromTypesCategory(c))
+	}
+	return out, rows.Err()
+}
+
+// AggregateByCategory returns SKU count + average margin per category
+// for the tenant. One row per category that exists for this tenant
+// (categories with zero items return SKUCount=0 + HasMargin=false).
+//
+// AvgMarginPct = AVG( ((default_price - default_cost) / default_price) * 100 )
+// across items where default_price > 0. Categories with no priced
+// items return HasMargin=false. Soft-deleted items (status='deleted')
+// are excluded.
+//
+// Replaces the in-memory bucket-and-average that ran on the first 500
+// items only — the SQL aggregate is a single round-trip and accurate
+// across the full catalog. GRO-857 / Sprint 2 T-N.
+func (s *PgxStore) AggregateByCategory(ctx context.Context, tenantID uuid.UUID) ([]CategoryAggregate, error) {
+	q := `
+		SELECT
+		  c.id,
+		  c.name,
+		  COUNT(i.id) AS sku_count,
+		  AVG(
+		    CASE WHEN i.default_price > 0
+		         THEN ((i.default_price - COALESCE(i.default_cost, 0)) / i.default_price) * 100
+		    END
+		  ) AS avg_margin_pct
+		FROM catalog.product_categories c
+		LEFT JOIN catalog.items i
+		  ON i.category_id = c.id
+		  AND i.tenant_id = c.tenant_id
+		  AND i.status != 'deleted'
+		WHERE c.tenant_id = $1
+		  AND c.status != 'deleted'
+		GROUP BY c.id, c.name
+		ORDER BY c.name`
+	rows, err := s.pool.Query(ctx, q, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("item: aggregate by category: %w", err)
+	}
+	defer rows.Close()
+
+	var out []CategoryAggregate
+	for rows.Next() {
+		var a CategoryAggregate
+		var avg *float64
+		if err := rows.Scan(&a.CategoryID, &a.Name, &a.SKUCount, &avg); err != nil {
+			return nil, fmt.Errorf("item: scan category aggregate: %w", err)
+		}
+		if avg != nil {
+			a.AvgMarginPct = *avg
+			a.HasMargin = true
+		}
+		out = append(out, a)
 	}
 	return out, rows.Err()
 }

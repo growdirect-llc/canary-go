@@ -2185,7 +2185,7 @@ func (h *Handler) reportCasesPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // reportCategoryPage renders margin + volume by category.
-// Wired W2c / GRO-817.
+// Wired W2c / GRO-817; SQL-aggregated in T-N / GRO-857.
 func (h *Handler) reportCategoryPage(w http.ResponseWriter, r *http.Request) {
 	if h.deps.ItemStore == nil {
 		h.render(w, r, "report_category", "reports", map[string]any{
@@ -2196,79 +2196,47 @@ func (h *Handler) reportCategoryPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	tenantID := tenantIDFromCtx(ctx)
 
-	cats, err := h.deps.ItemStore.ListCategories(ctx, tenantID)
+	aggs, err := h.deps.ItemStore.AggregateByCategory(ctx, tenantID)
 	if err != nil {
-		h.logger.Error("reportCategoryPage: list categories", zap.Error(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		h.render(w, r, "err500", "reports", nil)
-		return
-	}
-	items, err := h.deps.ItemStore.List(ctx, item.ListFilters{TenantID: tenantID, Limit: 500})
-	if err != nil {
-		h.logger.Error("reportCategoryPage: list items", zap.Error(err))
+		h.logger.Error("reportCategoryPage: aggregate by category", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		h.render(w, r, "err500", "reports", nil)
 		return
 	}
 
-	// Bucket items by category and compute per-bucket aggregate margin.
-	type bucket struct {
-		count     int
-		marginSum float64
-	}
-	buckets := map[uuid.UUID]*bucket{}
-	for _, it := range items {
-		if it.CategoryID == nil {
-			continue
-		}
-		b, ok := buckets[*it.CategoryID]
-		if !ok {
-			b = &bucket{}
-			buckets[*it.CategoryID] = b
-		}
-		b.count++
-		if margin := marginPct(it.DefaultPrice, it.DefaultCost); margin >= 0 {
-			b.marginSum += margin
-		}
-	}
-
-	rows := make([]map[string]any, 0, len(cats))
-	totalMargin := 0.0
+	rows := make([]map[string]any, 0, len(aggs))
+	totalMarginSum := 0.0
+	priceMarginCategories := 0
 	totalSKUs := 0
 	topName := "—"
 	topCount := 0
-	for _, c := range cats {
-		b := buckets[c.ID]
-		count := 0
+	for _, a := range aggs {
 		avgMargin := "—"
-		if b != nil {
-			count = b.count
-			if count > 0 {
-				avg := b.marginSum / float64(count)
-				avgMargin = strconv.FormatFloat(avg, 'f', 1, 64) + "%"
-				totalMargin += avg
-			}
+		if a.HasMargin {
+			avgMargin = strconv.FormatFloat(a.AvgMarginPct, 'f', 1, 64) + "%"
+			totalMarginSum += a.AvgMarginPct
+			priceMarginCategories++
 		}
-		if count > topCount {
-			topCount = count
-			topName = c.Name
+		if a.SKUCount > topCount {
+			topCount = a.SKUCount
+			topName = a.Name
 		}
-		totalSKUs += count
+		totalSKUs += a.SKUCount
 		rows = append(rows, map[string]any{
-			"Name":       c.Name,
-			"SKUCount":   count,
+			"Name":       a.Name,
+			"SKUCount":   a.SKUCount,
 			"TotalSales": "—", // wires when sales aggregation per category lands
 			"AvgMargin":  avgMargin,
 			"Turn":       "—",
 		})
 	}
 	avgMarginAll := "—"
-	if len(rows) > 0 {
-		avgMarginAll = strconv.FormatFloat(totalMargin/float64(len(rows)), 'f', 1, 64) + "%"
+	if priceMarginCategories > 0 {
+		avgMarginAll = strconv.FormatFloat(totalMarginSum/float64(priceMarginCategories), 'f', 1, 64) + "%"
 	}
 
 	h.render(w, r, "report_category", "reports", map[string]any{
-		"TotalCategories": len(cats),
+		"TotalCategories": len(aggs),
 		"TopCategory":     topName,
 		"AvgMargin":       avgMarginAll,
 		"SKUsTracked":     totalSKUs,

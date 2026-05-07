@@ -60,6 +60,13 @@ func (s *stubStore) List(ctx context.Context, f ListFilters) ([]Item, error) {
 func (s *stubStore) ListCategories(ctx context.Context, t uuid.UUID) ([]Category, error) {
 	return s.listCategoriesFn(ctx, t)
 }
+func (s *stubStore) AggregateByCategory(ctx context.Context, t uuid.UUID) ([]CategoryAggregate, error) {
+	// Not exercised by /v1/items handler tests — the SQL-aggregation
+	// path lives in the web handler at /reports/category. Default to
+	// nil so the stub satisfies the Store interface without forcing
+	// every test to set up a fixture.
+	return nil, nil
+}
 func (s *stubStore) ListVendors(ctx context.Context, t uuid.UUID) ([]Vendor, error) {
 	return s.listVendorsFn(ctx, t)
 }
