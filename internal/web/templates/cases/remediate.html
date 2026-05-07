@@ -66,6 +66,28 @@
     </form>
   </div>
 
+  <!-- Remediation catalog (W16 / GRO-835): available actions that
+       link a case into a target module's workflow. -->
+  <div class="ops-card" style="margin-bottom:16px;">
+    <h3 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;">Available Actions</h3>
+    {{if .Catalog}}
+    <div style="display:flex;flex-direction:column;gap:0;">
+      {{range .Catalog}}
+      <div style="padding:12px 0;border-bottom:1px solid var(--border-subtle);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span class="badge">{{.Module}}</span>
+          <strong style="font-size:13px;color:var(--text-primary);">{{.Name}}</strong>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);font-family:monospace;margin-bottom:4px;">{{.Code}}</div>
+        <div style="font-size:12px;color:var(--text-secondary);">{{.Note}}</div>
+      </div>
+      {{end}}
+    </div>
+    {{else}}
+    <p style="font-size:13px;color:var(--text-muted);">No remediation actions registered.</p>
+    {{end}}
+  </div>
+
   <!-- Active remediations -->
   <div class="ops-card">
     <h3 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;">Active Remediations</h3>
