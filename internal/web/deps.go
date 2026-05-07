@@ -2,6 +2,7 @@ package web
 
 import (
 	"github.com/growdirect-llc/rapidpos/internal/alert"
+	"github.com/growdirect-llc/rapidpos/internal/billing"
 	"github.com/growdirect-llc/rapidpos/internal/casemgmt"
 	"github.com/growdirect-llc/rapidpos/internal/chirp"
 	"github.com/growdirect-llc/rapidpos/internal/customer"
@@ -14,6 +15,7 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/pricing"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/namespace"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
+	"github.com/growdirect-llc/rapidpos/internal/task"
 	"github.com/growdirect-llc/rapidpos/internal/transaction"
 	"github.com/growdirect-llc/rapidpos/internal/workflow"
 )
@@ -49,4 +51,10 @@ type Deps struct {
 	// callers; the portal stays tenant-scoped to match every other
 	// internal/web/ handler.
 	OwlDashboard *owl.DashboardStore
+
+	// Operator workflow surfaces — directed-task queue + L402 OTB budgets.
+	// Wired W5 / GRO-824 for the /tasks page, /reports/otb action buttons,
+	// and the /receiving close / discrepancy POST handlers.
+	TaskStore    *task.Store
+	BillingStore *billing.Store
 }

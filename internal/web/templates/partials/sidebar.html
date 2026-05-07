@@ -61,6 +61,10 @@
 
     <div class="sidebar-section">
       <div class="sidebar-section-label">Ops</div>
+      <a href="/tasks" class="sidebar-item{{if eq .Page "tasks"}} active{{end}}" data-color="tasks">
+        <span class="nav-icon" style="background: var(--nav-chirps);"></span>
+        Tasks
+      </a>
       <a href="/transfers" class="sidebar-item{{if eq .Page "transfers"}} active{{end}}" data-color="transfers">
         <span class="nav-icon" style="background: var(--nav-transactions);"></span>
         Transfers

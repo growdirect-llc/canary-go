@@ -27,13 +27,16 @@ import (
 	alertPkg     "github.com/growdirect-llc/rapidpos/internal/alert"
 	analyticsPkg "github.com/growdirect-llc/rapidpos/internal/analytics"
 	assetPkg     "github.com/growdirect-llc/rapidpos/internal/asset"
+	billingPkg   "github.com/growdirect-llc/rapidpos/internal/billing"
 	casemgmtPkg  "github.com/growdirect-llc/rapidpos/internal/casemgmt"
 	chirpPkg     "github.com/growdirect-llc/rapidpos/internal/chirp"
 	customerPkg  "github.com/growdirect-llc/rapidpos/internal/customer"
 	"github.com/growdirect-llc/rapidpos/internal/devops"
 	lpPkg        "github.com/growdirect-llc/rapidpos/internal/lp"
 	owlPkg       "github.com/growdirect-llc/rapidpos/internal/owl"
+	taskPkg      "github.com/growdirect-llc/rapidpos/internal/task"
 	"github.com/growdirect-llc/rapidpos/internal/web"
+	workflowPkg  "github.com/growdirect-llc/rapidpos/internal/workflow"
 	employeePkg  "github.com/growdirect-llc/rapidpos/internal/employee"
 	reportPkg    "github.com/growdirect-llc/rapidpos/internal/report"
 	returnsPkg   "github.com/growdirect-llc/rapidpos/internal/returns"
@@ -229,6 +232,9 @@ func main() {
 		SubstrateStore: lpPkg.NewSubstrateStore(pool),
 		AllowListStore: lpPkg.NewAllowListStore(pool),
 		OwlDashboard:   owlPkg.NewDashboardStore(pool),
+		TaskStore:      taskPkg.NewStore(pool),
+		BillingStore:   billingPkg.NewStore(pool),
+		WorkflowStore:  workflowPkg.NewStore(pool),
 	}
 	web.New(webDeps, logger).Mount(r)
 

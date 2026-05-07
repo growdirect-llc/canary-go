@@ -175,6 +175,7 @@ func New(deps Deps, logger *zap.Logger) *Handler {
 	h.mustParse("owl_dashboards", "templates/owl/dashboards.html")
 	h.mustParse("owl_parties", "templates/owl/parties.html")
 	h.mustParse("owl_lp_performance", "templates/owl/lp_performance.html")
+	h.mustParse("tasks", "templates/tasks.html")
 	return h
 }
 
@@ -282,12 +283,8 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/reports/tax", h.page("reports", "report_tax", func(_ *http.Request) any {
 		return map[string]any{"TotalTax": "—", "AuthorityCount": 0, "NexusStates": 0, "FilingPeriod": "—", "Authorities": nil}
 	}))
-	r.Get("/reports/otb", h.page("reports", "report_otb", func(_ *http.Request) any {
-		return map[string]any{"OTBRemaining": "—", "Committed": "—", "Received": "—", "Variance": "—", "Periods": nil}
-	}))
-	r.Get("/orders/suggested", h.page("reports", "report_suggested_orders", func(_ *http.Request) any {
-		return map[string]any{"Orders": nil, "PendingCount": 0}
-	}))
+	r.Get("/reports/otb", h.reportOTBPage)
+	r.Get("/orders/suggested", h.suggestedOrdersPage)
 	r.Get("/reports/range", h.page("reports", "report_range", func(_ *http.Request) any {
 		return map[string]any{"ActiveRanges": 0, "AvgSellThrough": "—", "AvgTurn": "—", "AvgGMROI": "—", "Ranges": nil}
 	}))
@@ -306,12 +303,25 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/employees/{id}", h.employeeDetailPage)
 	r.Get("/reports/labor", h.reportLaborPage)
 
-	// Receiving + RTV workflow — wired W2d / GRO-818.
+	// Receiving + RTV workflow — wired W2d / GRO-818, POST handlers W5 / GRO-824.
 	r.Get("/receiving", h.receivingListPage)
 	r.Get("/receiving/{id}", h.receivingDetailPage)
 	r.Get("/receiving/{id}/close", h.receivingClosePage)
+	r.Post("/receiving/{id}/close", h.receivingCloseAction)
+	r.Post("/receiving/{id}/lines/{lineID}/discrepancy", h.receivingLineDiscrepancyAction)
 	r.Get("/returns", h.returnsListPage)
 	r.Get("/returns/{id}", h.returnsDetailPage)
+
+	// Operator workflow surfaces — directed-task queue + OTB action buttons.
+	// W5 / GRO-824.
+	r.Get("/tasks", h.tasksListPage)
+	r.Post("/tasks/{id}/claim", h.taskClaimAction)
+	r.Post("/tasks/{id}/complete", h.taskCompleteAction)
+	r.Post("/tasks/{id}/exception", h.taskExceptionAction)
+	r.Post("/reports/otb/{budgetID}/lock", h.otbLockAction)
+	r.Post("/orders/suggested/{id}/approve", h.suggestedOrderActionApprove)
+	r.Post("/orders/suggested/{id}/reject", h.suggestedOrderActionReject)
+	r.Post("/orders/suggested/{id}/send", h.suggestedOrderActionSend)
 
 	// Cross-domain exceptions
 	r.Get("/exceptions", h.page("exceptions", "exceptions_list", func(_ *http.Request) any {
@@ -2424,11 +2434,12 @@ func (h *Handler) receivingDetailPage(w http.ResponseWriter, r *http.Request) {
 	view["OpenedAt"] = doc.CreatedAt.Format(time.RFC3339)
 	lineRows := make([]map[string]any, 0, len(lines))
 	for _, l := range lines {
-		lineRows = append(lineRows, transferLineView(l)) // shared shape: SKU/Description/QtyShipped/QtyReceived/Variance
+		lineRows = append(lineRows, receivingLineView(l))
 	}
 	h.render(w, r, "receiving_detail", "receiving", map[string]any{
 		"Session": view,
 		"Lines":   lineRows,
+		"Flash":   r.URL.Query().Get("flash"),
 	})
 }
 

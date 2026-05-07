@@ -1,0 +1,90 @@
+{{template "base.html" .}}
+
+{{define "title"}}Tasks — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Directed Tasks</h1>
+  <p class="page-subtitle">Receiving, replenishment, cycle-count work for the operator</p>
+</div>
+
+{{if .Flash}}
+<div style="margin-bottom:16px;padding:10px 14px;background:rgba(234,179,8,0.08);border:1px solid var(--signal-yellow);border-radius:6px;font-size:12px;color:var(--signal-yellow);">
+  Action: {{.Flash}}
+</div>
+{{end}}
+
+<div style="display:flex;gap:8px;margin-bottom:24px;align-items:center;">
+  {{$active := .StatusFilter}}
+  <a href="/tasks" data-status="" class="status-pill{{if eq $active ""}} active{{end}}" style="padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;text-decoration:none;border:1px solid var(--border-subtle);{{if eq $active ""}}background:var(--signal-yellow);color:#0d1117;{{else}}background:var(--bg-surface);color:var(--text-secondary);{{end}}">all</a>
+  {{range $opt := .StatusOptions}}
+  <a href="/tasks?status={{$opt}}" data-status="{{$opt}}" class="status-pill{{if eq $opt $active}} active{{end}}" style="padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;text-decoration:none;border:1px solid var(--border-subtle);{{if eq $opt $active}}background:var(--signal-yellow);color:#0d1117;{{else}}background:var(--bg-surface);color:var(--text-secondary);{{end}}">{{$opt}}</a>
+  {{end}}
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:24px;">
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--signal-yellow);">{{.PendingCount}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Pending</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--health-green);">{{.CompletedCount}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Completed</div>
+  </div>
+</div>
+
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Queue</div>
+  {{if .Tasks}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Task</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Type</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Priority</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Qty</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Location</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Status</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Created</th>
+        <th style="padding:6px 0;text-align:right;font-weight:500;">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Tasks}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;font-family:'Space Grotesk',monospace;font-size:11px;color:var(--text-muted);">{{.ShortID}}</td>
+        <td style="padding:10px 12px;color:var(--text-secondary);">{{.Type}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.Priority}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.Quantity}}</td>
+        <td style="padding:10px 12px;font-family:'Space Grotesk',monospace;font-size:11px;color:var(--text-muted);">{{.LocationID}}</td>
+        <td style="padding:10px 12px;">
+          <span class="badge" style="{{if eq .Status "queued"}}background:rgba(107,114,128,0.15);color:var(--text-muted);{{else if eq .Status "assigned"}}background:rgba(59,130,246,0.15);color:var(--accent-blue);{{else if eq .Status "in_progress"}}background:rgba(234,179,8,0.12);color:var(--signal-yellow);{{else if eq .Status "complete"}}background:rgba(16,185,129,0.10);color:var(--health-green);{{else if eq .Status "verified"}}background:rgba(16,185,129,0.18);color:var(--health-green);{{else}}background:rgba(239,68,68,0.12);color:var(--critical-red);{{end}}">{{.Status}}</span>
+        </td>
+        <td style="padding:10px 12px;color:var(--text-muted);font-size:11px;">{{.CreatedAt}}</td>
+        <td style="padding:10px 0;text-align:right;">
+          {{if .Claimable}}
+          <form method="POST" action="/tasks/{{.ID}}/claim" style="display:inline;">
+            <button type="submit" style="font-size:11px;padding:3px 8px;background:transparent;border:1px solid var(--accent-blue);color:var(--accent-blue);border-radius:4px;cursor:pointer;margin-right:4px;">Claim</button>
+          </form>
+          {{end}}
+          {{if .Completable}}
+          <form method="POST" action="/tasks/{{.ID}}/complete" style="display:inline;">
+            <button type="submit" style="font-size:11px;padding:3px 8px;background:transparent;border:1px solid var(--health-green);color:var(--health-green);border-radius:4px;cursor:pointer;margin-right:4px;">Complete</button>
+          </form>
+          {{end}}
+          <form method="POST" action="/tasks/{{.ID}}/exception" style="display:inline;">
+            <input type="hidden" name="reason_code" value="other"/>
+            <button type="submit" style="font-size:11px;padding:3px 8px;background:transparent;border:1px solid var(--text-muted);color:var(--text-muted);border-radius:4px;cursor:pointer;">Exception</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No tasks in this view. Replenishment writes here when SOH drops below the Min/Max threshold; receiving writes here when a vendor delivery is staged for putaway.</p>
+  {{end}}
+</div>
+{{end}}
+{{end}}
