@@ -10,7 +10,7 @@ import (
 )
 
 func TestAdminAudit_NoStore_RendersEmptyState(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -28,7 +28,7 @@ func TestAdminAudit_NoStore_RendersEmptyState(t *testing.T) {
 }
 
 func TestAdminAudit_FilterParams(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -43,7 +43,7 @@ func TestAdminAudit_FilterParams(t *testing.T) {
 }
 
 func TestAdminISO27001_RendersControls(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -61,7 +61,7 @@ func TestAdminISO27001_RendersControls(t *testing.T) {
 }
 
 func TestAdminUsers_RendersBlocked(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -77,7 +77,7 @@ func TestAdminUsers_RendersBlocked(t *testing.T) {
 }
 
 func TestAdminConfig_RendersSections(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -95,7 +95,7 @@ func TestAdminConfig_RendersSections(t *testing.T) {
 }
 
 func TestReportTax_RendersBlocked(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

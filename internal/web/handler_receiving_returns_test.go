@@ -18,7 +18,7 @@ import (
 func TestReceivingList_Renders(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{InventoryStore: inventory.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -57,7 +57,7 @@ func TestReceivingDetail_BadID_Returns404(t *testing.T) {
 func TestReceivingDetail_NotFound_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{InventoryStore: inventory.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/receiving/"+uuid.New().String(), nil)
@@ -83,7 +83,7 @@ func TestReceivingClose_BadID_Returns404(t *testing.T) {
 func TestReturnsList_Renders(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{InventoryStore: inventory.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/returns", nil)
@@ -121,7 +121,7 @@ func TestReturnsDetail_BadID_Returns404(t *testing.T) {
 func TestReturnsDetail_NotFound_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{InventoryStore: inventory.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/returns/"+uuid.New().String(), nil)

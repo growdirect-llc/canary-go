@@ -11,7 +11,7 @@ import (
 )
 
 func TestAssetsList_NoStore_RendersEmptyState(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -29,7 +29,7 @@ func TestAssetsList_NoStore_RendersEmptyState(t *testing.T) {
 }
 
 func TestAssetsList_FilterParams(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -44,7 +44,7 @@ func TestAssetsList_FilterParams(t *testing.T) {
 }
 
 func TestAssetDetail_NoStore_RendersStub(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -60,7 +60,7 @@ func TestAssetDetail_NoStore_RendersStub(t *testing.T) {
 }
 
 func TestAssetDetail_BadID_404(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -73,7 +73,7 @@ func TestAssetDetail_BadID_404(t *testing.T) {
 }
 
 func TestBillingOverview_NoStore_RendersEmptyState(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -91,7 +91,7 @@ func TestBillingOverview_NoStore_RendersEmptyState(t *testing.T) {
 }
 
 func TestBillingInvoices_NoStore_RendersEmptyState(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -109,7 +109,7 @@ func TestBillingInvoices_NoStore_RendersEmptyState(t *testing.T) {
 }
 
 func TestBillingPaymentMethod_RendersUnconnected(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

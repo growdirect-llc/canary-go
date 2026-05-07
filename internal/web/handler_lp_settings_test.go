@@ -39,7 +39,7 @@ func TestLPSettingsPages_RenderWithStore(t *testing.T) {
 	deps := web.Deps{
 		AllowListStore: lpPkg.NewAllowListStore(pool),
 	}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -61,7 +61,7 @@ func TestLPSettings_CreateRoundTrip(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := lpPkg.NewAllowListStore(pool)
 	deps := web.Deps{AllowListStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -158,7 +158,7 @@ func TestLPSettings_DeleteRoundTrip(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := lpPkg.NewAllowListStore(pool)
 	deps := web.Deps{AllowListStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -197,7 +197,7 @@ func TestLPSettings_DeleteRoundTrip(t *testing.T) {
 func TestLPSettings_DeleteUnknownIDIsIdempotent(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{AllowListStore: lpPkg.NewAllowListStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -215,7 +215,7 @@ func TestLPSettings_DeleteUnknownIDIsIdempotent(t *testing.T) {
 func TestLPSettings_PostMissingFieldRedirectsWithError(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{AllowListStore: lpPkg.NewAllowListStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

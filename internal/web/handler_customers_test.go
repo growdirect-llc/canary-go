@@ -21,7 +21,7 @@ func TestCustomerListPage_Renders(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := customer.NewStore(pool)
 	deps := web.Deps{CustomerStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -44,7 +44,7 @@ func TestCustomerListPage_SearchQuery(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := customer.NewStore(pool)
 	deps := web.Deps{CustomerStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -65,7 +65,7 @@ func TestCustomerListPage_SearchQuery(t *testing.T) {
 // when no CustomerStore is wired (nil-store fallback path).
 func TestCustomerListPage_NoStore(t *testing.T) {
 	deps := web.Deps{}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -84,7 +84,7 @@ func TestCustomerDetailPage_UnknownID_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := customer.NewStore(pool)
 	deps := web.Deps{CustomerStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -103,7 +103,7 @@ func TestCustomerDetailPage_BadID_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := customer.NewStore(pool)
 	deps := web.Deps{CustomerStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -121,7 +121,7 @@ func TestCustomerRiskPage_UnknownID_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := customer.NewStore(pool)
 	deps := web.Deps{CustomerStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -139,7 +139,7 @@ func TestCustomerContextPage_UnknownID_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := customer.NewStore(pool)
 	deps := web.Deps{CustomerStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

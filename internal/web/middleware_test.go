@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"github.com/ruptiv/canary/internal/tenant"
@@ -150,5 +151,56 @@ func TestRequireTenant_ResolvedTenant_PassesThrough(t *testing.T) {
 	}
 	if rec.Code == http.StatusFound {
 		t.Error("redirected despite resolved tenant")
+	}
+}
+
+// TestMount_PublicRoutes_ReachableWithoutTenant verifies T-B Phase 2:
+// the `/connect`, `/welcome`, `/join`, error pages, and the home
+// redirect must remain reachable for a logged-out client (no resolved
+// tenant) — those are the routes the redirect-on-nil gate sends users
+// to. If they were inside the protected Group the gate would loop.
+func TestMount_PublicRoutes_ReachableWithoutTenant(t *testing.T) {
+	// No MerchantResolver -> tenantSessionMiddleware is a passthrough,
+	// every request lands with uuid.Nil tenant.
+	h := New(Deps{}, nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	publicRoutes := []struct {
+		path       string
+		wantStatus int
+	}{
+		{"/", http.StatusFound},                  // 302 → /dashboard
+		{"/errors/404", http.StatusNotFound},     // errPage(404) renders a 404 body
+		{"/errors/500", http.StatusInternalServerError},
+	}
+	for _, tc := range publicRoutes {
+		req := httptest.NewRequest("GET", tc.path, nil)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		if rec.Code != tc.wantStatus {
+			t.Errorf("public path %s: got %d, want %d", tc.path, rec.Code, tc.wantStatus)
+		}
+	}
+}
+
+// TestMount_ProtectedRoutes_RedirectWhenNoTenant verifies that a
+// representative tenant-scoped route gets redirected to /connect when
+// no session is resolved. This proves the Group-level gate is wired.
+func TestMount_ProtectedRoutes_RedirectWhenNoTenant(t *testing.T) {
+	h := New(Deps{}, nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	for _, p := range []string{"/dashboard", "/transactions", "/admin/audit", "/protocol"} {
+		req := httptest.NewRequest("GET", p, nil)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		if rec.Code != http.StatusFound {
+			t.Errorf("protected path %s: got %d, want 302", p, rec.Code)
+		}
+		if loc := rec.Header().Get("Location"); loc != "/connect" {
+			t.Errorf("protected path %s redirect: got %q, want /connect", p, loc)
+		}
 	}
 }

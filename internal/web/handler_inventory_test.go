@@ -38,7 +38,7 @@ func TestTransferList_Renders_NoStore(t *testing.T) {
 func TestTransferList_Renders_WithStore(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{InventoryStore: inventory.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -68,7 +68,7 @@ func TestTransferDetail_BadID_Returns404(t *testing.T) {
 func TestTransferDetail_NotFound_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{InventoryStore: inventory.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -117,7 +117,7 @@ func TestTransferVariance_BadID_Returns404(t *testing.T) {
 func TestReportDistribution_Renders(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{InventoryStore: inventory.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -133,7 +133,7 @@ func TestReportDistribution_Renders(t *testing.T) {
 func TestReportInventory_Renders(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{InventoryStore: inventory.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

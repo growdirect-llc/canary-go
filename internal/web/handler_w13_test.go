@@ -10,7 +10,7 @@ import (
 )
 
 func TestOnboarding_IndexRedirects(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/onboarding", nil)
@@ -25,7 +25,7 @@ func TestOnboarding_IndexRedirects(t *testing.T) {
 }
 
 func TestOnboarding_AllSteps(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	for _, c := range []struct {
@@ -51,7 +51,7 @@ func TestOnboarding_AllSteps(t *testing.T) {
 }
 
 func TestOnboarding_RulesEnableRedirects(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodPost, "/onboarding/rules/enable", nil)
@@ -66,7 +66,7 @@ func TestOnboarding_RulesEnableRedirects(t *testing.T) {
 }
 
 func TestOnboarding_ProgressBar(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/onboarding/import", nil)

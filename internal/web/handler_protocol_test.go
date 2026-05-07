@@ -46,7 +46,7 @@ func TestProtocolOverview_WithStores_Renders(t *testing.T) {
 		ProtocolValidate:  validate.NewPgxStore(pool),
 		ProtocolNamespace: namespace.NewStore(pool),
 	}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -67,7 +67,7 @@ func TestProtocolOverview_WithStores_Renders(t *testing.T) {
 func TestProtocolOverview_OnlyValidate_Renders(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{ProtocolValidate: validate.NewPgxStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

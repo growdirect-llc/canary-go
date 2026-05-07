@@ -11,7 +11,7 @@ import (
 )
 
 func TestAdminHierarchy_NoStore_RendersEmptyState(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -29,7 +29,7 @@ func TestAdminHierarchy_NoStore_RendersEmptyState(t *testing.T) {
 }
 
 func TestAdminHierarchyCreate_NoStore_Redirect(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -47,7 +47,7 @@ func TestAdminHierarchyCreate_NoStore_Redirect(t *testing.T) {
 }
 
 func TestAdminNetworkIntegrity_NoStore_RendersEmptyState(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -65,7 +65,7 @@ func TestAdminNetworkIntegrity_NoStore_RendersEmptyState(t *testing.T) {
 }
 
 func TestDashboardsCrossStore_NoStore_RendersEmptyState(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -83,7 +83,7 @@ func TestDashboardsCrossStore_NoStore_RendersEmptyState(t *testing.T) {
 }
 
 func TestAdminHierarchy_FlashRenders(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

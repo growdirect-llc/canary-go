@@ -10,7 +10,7 @@ import (
 )
 
 func TestEcomOrders_RendersChannels(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/ecom/orders", nil)
@@ -27,7 +27,7 @@ func TestEcomOrders_RendersChannels(t *testing.T) {
 }
 
 func TestEcomSync_RendersChannelHealth(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/ecom/sync", nil)

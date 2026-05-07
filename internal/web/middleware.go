@@ -64,3 +64,19 @@ func (h *Handler) requireTenant(next http.HandlerFunc) http.HandlerFunc {
 		next(w, r)
 	}
 }
+
+// requireTenantMiddleware is the chi-middleware form of requireTenant
+// — wraps a whole subrouter so every route inside a chi.Group is
+// gated. Public routes (registered outside the group) remain
+// reachable without a session.
+//
+// T-B / GRO-849.
+func (h *Handler) requireTenantMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if tenantIDFromCtx(r.Context()) == uuid.Nil {
+			http.Redirect(w, r, "/connect", http.StatusFound)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}

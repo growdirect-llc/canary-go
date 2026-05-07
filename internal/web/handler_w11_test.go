@@ -12,7 +12,7 @@ import (
 )
 
 func TestSuppliersList_NoStore_RendersEmptyState(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/suppliers", nil)
@@ -29,7 +29,7 @@ func TestSuppliersList_NoStore_RendersEmptyState(t *testing.T) {
 }
 
 func TestSuppliersCreate_NoStore_Redirect(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	form := url.Values{"supplier_name": {"Acme"}}
@@ -46,7 +46,7 @@ func TestSuppliersCreate_NoStore_Redirect(t *testing.T) {
 }
 
 func TestSupplierDetail_NoStore_RendersStub(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/suppliers/"+uuid.NewString(), nil)
@@ -61,7 +61,7 @@ func TestSupplierDetail_NoStore_RendersStub(t *testing.T) {
 }
 
 func TestSupplierScorecard_NoStore_RendersBlocked(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/suppliers/"+uuid.NewString()+"/scorecard", nil)
@@ -78,7 +78,7 @@ func TestSupplierScorecard_NoStore_RendersBlocked(t *testing.T) {
 }
 
 func TestPOList_NoStore_RendersEmptyState(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/po", nil)
@@ -95,7 +95,7 @@ func TestPOList_NoStore_RendersEmptyState(t *testing.T) {
 }
 
 func TestPOCreate_NoStore_Redirect(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	form := url.Values{"supplier_id": {uuid.NewString()}, "po_number": {"PO-001"}}
@@ -112,7 +112,7 @@ func TestPOCreate_NoStore_Redirect(t *testing.T) {
 }
 
 func TestPODetail_NoStore_RendersStub(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/po/"+uuid.NewString(), nil)
@@ -127,7 +127,7 @@ func TestPODetail_NoStore_RendersStub(t *testing.T) {
 }
 
 func TestPOMatch_NoStore_RendersBlocked(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/po/"+uuid.NewString()+"/match", nil)
@@ -142,7 +142,7 @@ func TestPOMatch_NoStore_RendersBlocked(t *testing.T) {
 }
 
 func TestPOStatus_NoStore_Redirect(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	id := uuid.NewString()

@@ -95,7 +95,7 @@ func TestOwlPortalPeriod_Default(t *testing.T) {
 // TestOwlDashboards_NoStore_RendersEmptyState — dashboards page renders
 // with empty-state copy when the store is nil.
 func TestOwlDashboards_NoStore_RendersEmptyState(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -115,7 +115,7 @@ func TestOwlDashboards_NoStore_RendersEmptyState(t *testing.T) {
 // TestOwlDashboards_PeriodSelector — each period parses + renders the
 // active pill.
 func TestOwlDashboards_PeriodSelector(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -151,7 +151,7 @@ func TestOwlDashboards_PeriodSelector(t *testing.T) {
 // TestOwlParties_NoStore_RendersEmptyState — parties page renders the
 // empty-state copy when the store is nil.
 func TestOwlParties_NoStore_RendersEmptyState(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -168,7 +168,7 @@ func TestOwlParties_NoStore_RendersEmptyState(t *testing.T) {
 
 // TestOwlParties_LimitClamp — limit is clamped + falls back; never errors.
 func TestOwlParties_LimitClamp(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -185,7 +185,7 @@ func TestOwlParties_LimitClamp(t *testing.T) {
 // TestOwlLPPerformance_NoStore_RendersEmptyState — LP-perf page renders
 // the empty-state copy with KPI tiles at 0.
 func TestOwlLPPerformance_NoStore_RendersEmptyState(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -205,7 +205,7 @@ func TestOwlLPPerformance_NoStore_RendersEmptyState(t *testing.T) {
 
 // TestOwlLPPerformance_PeriodSelector — every period renders 200.
 func TestOwlLPPerformance_PeriodSelector(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

@@ -18,7 +18,7 @@ import (
 func TestReportFinance_Renders_WithStore(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{TransactionStore: transaction.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/reports/finance", nil)
@@ -44,7 +44,7 @@ func TestReportFinance_NoStore_RendersStub(t *testing.T) {
 func TestReportCases_Renders_WithStore(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{CaseStore: casemgmt.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/reports/cases", nil)

@@ -30,7 +30,7 @@ func TestEmployeeDetail_BadID_Returns404(t *testing.T) {
 func TestEmployeeDetail_NotFound_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{EmployeeStore: employee.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/employees/"+uuid.New().String(), nil)
@@ -56,7 +56,7 @@ func TestEmployeeDetail_NoStore_RendersStub(t *testing.T) {
 func TestReportLabor_Renders_WithStore(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{EmployeeStore: employee.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/reports/labor", nil)

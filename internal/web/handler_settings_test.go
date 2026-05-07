@@ -17,7 +17,7 @@ import (
 // returns 200 with no stores wired (inline lambda stub path).
 func TestSettingsDrawerPage_Renders(t *testing.T) {
 	deps := web.Deps{}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -38,7 +38,7 @@ func TestSettingsAllowlistDeadCount_Renders(t *testing.T) {
 		SubstrateStore: lpPkg.NewSubstrateStore(pool),
 		AllowListStore: lpPkg.NewAllowListStore(pool),
 	}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -54,7 +54,7 @@ func TestSettingsAllowlistDeadCount_Renders(t *testing.T) {
 // TestSettingsAllowlistDiscounts_Renders verifies the allowlist/discounts page.
 func TestSettingsAllowlistDiscounts_Renders(t *testing.T) {
 	deps := web.Deps{}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -70,7 +70,7 @@ func TestSettingsAllowlistDiscounts_Renders(t *testing.T) {
 // TestSettingsAllowlistVoids_Renders verifies the allowlist/voids page.
 func TestSettingsAllowlistVoids_Renders(t *testing.T) {
 	deps := web.Deps{}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -86,7 +86,7 @@ func TestSettingsAllowlistVoids_Renders(t *testing.T) {
 // TestSettingsStoreVoidReasons_Renders verifies the store/void-reasons page.
 func TestSettingsStoreVoidReasons_Renders(t *testing.T) {
 	deps := web.Deps{}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -102,7 +102,7 @@ func TestSettingsStoreVoidReasons_Renders(t *testing.T) {
 // TestSettingsStoreCompReasons_Renders verifies the store/comp-reasons page.
 func TestSettingsStoreCompReasons_Renders(t *testing.T) {
 	deps := web.Deps{}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -118,7 +118,7 @@ func TestSettingsStoreCompReasons_Renders(t *testing.T) {
 // TestSettingsTrainingMode_Renders verifies the training-mode page.
 func TestSettingsTrainingMode_Renders(t *testing.T) {
 	deps := web.Deps{}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

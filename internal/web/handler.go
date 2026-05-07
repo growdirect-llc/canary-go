@@ -240,14 +240,31 @@ func (h *Handler) mustParse(name, pageFile string) {
 }
 
 // Mount registers all web UI routes on r.
+//
+// Route surface is split in two by T-B / GRO-849:
+//
+//   - Public routes (registered directly on r): static assets, the
+//     home redirect, /join, /connect, /welcome, error pages. These
+//     must work without a session.
+//   - Protected routes (registered inside r.Group with
+//     requireTenantMiddleware): every tenant-scoped page —
+//     /dashboard, /transactions, /alerts, /reports, /admin, etc.
+//     A request without a resolved tenant 302s to /connect.
+//
+// Both halves run through tenantSessionMiddleware first so the
+// resolver fires once per request and tenantIDFromCtx returns the
+// authenticated UUID downstream.
 func (h *Handler) Mount(r chi.Router) {
 	staticFS, _ := fs.Sub(embedFS, "static")
 
 	// Resolve tenant from session cookie on every request (T-B / GRO-849).
 	// This is a passthrough when MerchantResolver is nil (test wiring) or
 	// when the request has no valid session cookie — public routes still
-	// reach their handlers. Per-handler enforcement uses h.requireTenant().
+	// reach their handlers. The protected Group below adds the
+	// redirect-on-nil gate.
 	r.Use(tenantSessionMiddleware(h.deps.MerchantResolver))
+
+	// ─── Public routes ─────────────────────────────────────────────────
 
 	r.Handle("/web/static/*", http.StripPrefix("/web/static/",
 		http.FileServer(http.FS(staticFS))))
@@ -256,205 +273,210 @@ func (h *Handler) Mount(r chi.Router) {
 		http.Redirect(w, r, "/dashboard", http.StatusFound)
 	})
 
-	// Public auth pages (standalone HTML, no base template)
 	r.Get("/join", h.joinPage)
-
-	// App pages — auth guard will wrap these once identity middleware lands
-	r.Get("/dashboard", h.page("dashboard", "dashboard", stubDashboard))
-	r.Get("/chirps", h.chirpListPage)
-	r.Get("/transactions", h.page("transactions", "transactions", stubTransactions))
-	r.Get("/transactions/{id}", h.transactionDetailPage)
-	r.Get("/transactions/{id}/proof", h.transactionProofPage)
-	r.Get("/alerts", h.alertListPage)
-	r.Get("/cases", h.page("cases", "cases", stubCases))
-	r.Get("/employees", h.page("employees", "employees", stubEmployees))
-	r.Get("/reports", h.page("reports", "reports", stubReports))
-	r.Get("/settings", h.page("settings", "settings", stubSettings))
-	r.Get("/owl", h.owlPage)
-	r.Get("/owl/dashboards", h.owlDashboardsPage)
-	r.Get("/owl/parties", h.owlPartiesPage)
-	r.Get("/owl/lp-performance", h.owlLPPerformancePage)
-	r.Get("/rules", h.rulesListPage)
 	r.Get("/connect", h.page("connect", "connect", stubConnect))
 	r.Get("/welcome", h.page("welcome", "welcome", nil))
 
-	// Hawk case management
-	r.Get("/cases/hawk", h.hawkListPage)
-	r.Get("/cases/hawk/new", h.page("cases", "hawk_new", stubHawkNew))
-	r.Get("/cases/hawk/analytics", h.page("cases", "hawk_analytics", stubHawkAnalytics))
-	r.Get("/cases/hawk/patterns", h.page("cases", "hawk_patterns", stubHawkPatterns))
-	r.Get("/cases/hawk/{id}", h.hawkDetailPage)
-	r.Get("/cases/hawk/{id}/evidence", h.hawkEvidencePage)
-	r.Post("/cases/hawk", h.hawkCreateCase)
-
-	// Detail pages
-	r.Get("/alerts/{id}", h.alertDetailPage)
-	r.Get("/rules/{id}", h.ruleDetailPage)
-	r.Get("/chirps/{id}", h.chirpDetailPage)
-
-	// Customer investigator
-	r.Get("/customers", h.customersListPage)
-	r.Get("/customers/{id}", h.customerDetailPage)
-	r.Get("/customers/{id}/risk", h.customerRiskPage)
-	r.Get("/customers/{id}/context", h.customerContextPage)
-
-	// Settings — LP allow-list + N.4 thresholds + training mode + alert routing.
-	// 10 screens, each backed by detection.allow_list with a pattern type+kind
-	// discriminator. CRUD wired via h.mountLPSettings (handler_lp_settings.go).
-	// W1 dispatch: GRO-814.
-	h.mountLPSettings(r)
-	r.Get("/settings/devices", h.page("settings", "settings_devices", func(_ *http.Request) any {
-		return map[string]any{"Online": 0, "Offline": 0, "Degraded": 0, "Devices": nil}
-	}))
-	r.Get("/settings/devices/new", h.page("settings", "settings_devices_new", func(_ *http.Request) any {
-		return map[string]any{}
-	}))
-	r.Get("/settings/store", h.page("settings", "settings_store_config", func(_ *http.Request) any {
-		return map[string]any{"StoreID": "—", "POSSource": "—", "LastSync": "—", "ActiveRuleCount": 0, "AllowListCount": 0, "TrainingMode": false}
-	}))
-
-	// Transfers + inventory reports — wired W2b / GRO-816.
-	r.Get("/transfers", h.transferListPage)
-	r.Get("/transfers/{id}", h.transferDetailPage)
-	r.Get("/transfers/{id}/variance", h.transferVariancePage)
-
-	r.Get("/reports/distribution", h.reportDistributionPage)
-	r.Get("/reports/inventory", h.reportInventoryPage)
-	r.Get("/reports/category", h.reportCategoryPage)
-
-	// Items + category report — wired W2c / GRO-817.
-	r.Get("/items", h.itemListPage)
-	r.Get("/items/{id}", h.itemDetailPage)
-
-	// Finance + payments — wired W2e / GRO-819.
-	r.Get("/reports/finance", h.reportFinancePage)
-	r.Get("/reports/payments", h.page("reports", "report_payments", func(_ *http.Request) any {
-		// Tender mix requires a tender_mix aggregation method on transaction.Store
-		// (per-transaction GetByID is too expensive). Filed as a follow-on.
-		return map[string]any{"TotalTransactions": 0, "CashPct": "—", "CardPct": "—", "OtherPct": "—", "Tenders": nil, "SecurePayEnabled": false, "LastGatewaySync": "—"}
-	}))
-	r.Get("/reports/tax", h.reportTaxPage)
-	r.Get("/reports/otb", h.reportOTBPage)
-	r.Get("/orders/suggested", h.suggestedOrdersPage)
-	r.Get("/reports/range", h.page("reports", "report_range", func(_ *http.Request) any {
-		return map[string]any{"ActiveRanges": 0, "AvgSellThrough": "—", "AvgTurn": "—", "AvgGMROI": "—", "Ranges": nil}
-	}))
-	// Promotions calendar — wired W2f / GRO-820. Pricing reports remain stub
-	// until market-price + price-history + markdown source data lands.
-	r.Get("/promotions", h.promotionsCalendarPage)
-	r.Get("/reports/pricing", h.page("reports", "report_pricing", func(_ *http.Request) any {
-		return map[string]any{"ItemsTracked": 0, "AboveMarket": 0, "AtMarket": 0, "BelowMarket": 0, "Items": nil}
-	}))
-	r.Get("/reports/price-history", h.page("reports", "report_price_history", func(_ *http.Request) any {
-		return map[string]any{"Changes": nil, "TotalCount": 0}
-	}))
-	r.Get("/reports/markdowns", h.page("reports", "report_markdowns", func(_ *http.Request) any {
-		return map[string]any{"ActiveMarkdowns": 0, "AvgDepth": "—", "UnitsMoved": 0, "RevenueRecovery": "—", "Items": nil}
-	}))
-	r.Get("/employees/{id}", h.employeeDetailPage)
-	r.Get("/reports/labor", h.reportLaborPage)
-
-	// Receiving + RTV workflow — wired W2d / GRO-818, POST handlers W5 / GRO-824.
-	r.Get("/receiving", h.receivingListPage)
-	r.Get("/receiving/{id}", h.receivingDetailPage)
-	r.Get("/receiving/{id}/close", h.receivingClosePage)
-	r.Post("/receiving/{id}/close", h.receivingCloseAction)
-	r.Post("/receiving/{id}/lines/{lineID}/discrepancy", h.receivingLineDiscrepancyAction)
-	r.Get("/returns", h.returnsListPage)
-	r.Get("/returns/{id}", h.returnsDetailPage)
-
-	// Operator workflow surfaces — directed-task queue + OTB action buttons.
-	// W5 / GRO-824.
-	r.Get("/tasks", h.tasksListPage)
-	r.Post("/tasks/{id}/claim", h.taskClaimAction)
-	r.Post("/tasks/{id}/complete", h.taskCompleteAction)
-	r.Post("/tasks/{id}/exception", h.taskExceptionAction)
-	r.Post("/reports/otb/{budgetID}/lock", h.otbLockAction)
-	r.Post("/orders/suggested/{id}/approve", h.suggestedOrderActionApprove)
-	r.Post("/orders/suggested/{id}/reject", h.suggestedOrderActionReject)
-	r.Post("/orders/suggested/{id}/send", h.suggestedOrderActionSend)
-
-	// Asset registry + billing portal — wired W8 / GRO-827 (read-only).
-	r.Get("/assets", h.assetsListPage)
-	r.Get("/assets/{id}", h.assetDetailPage)
-	r.Get("/billing/overview", h.billingOverviewPage)
-	r.Get("/billing/invoices", h.billingInvoicesPage)
-	r.Get("/billing/payment-method", h.billingPaymentMethodPage)
-
-	// Compliance + admin — wired W9 / GRO-828.
-	r.Get("/admin/audit", h.adminAuditPage)
-	r.Get("/admin/iso27001", h.adminISO27001Page)
-	r.Get("/admin/users", h.adminUsersPage)
-	r.Get("/admin/config", h.adminConfigPage)
-
-	// Multi-store intelligence — wired W10 / GRO-829.
-	r.Get("/admin/hierarchy", h.adminHierarchyPage)
-	r.Post("/admin/hierarchy", h.adminHierarchyCreate)
-	r.Get("/admin/network-integrity", h.adminNetworkIntegrityPage)
-	r.Get("/dashboards/cross-store", h.dashboardsCrossStorePage)
-
-	// Procurement — supplier + PO portal. W11 / GRO-830.
-	r.Get("/suppliers", h.suppliersListPage)
-	r.Post("/suppliers", h.suppliersCreate)
-	r.Get("/suppliers/{id}", h.supplierDetailPage)
-	r.Get("/suppliers/{id}/scorecard", h.supplierScorecardPage)
-	r.Get("/po", h.poListPage)
-	r.Post("/po", h.poCreate)
-	r.Get("/po/{id}", h.poDetailPage)
-	r.Get("/po/{id}/match", h.poMatchPage)
-	r.Post("/po/{id}/status", h.poStatusAction)
-
-	// Onboarding wizard — W13 / GRO-832.
-	r.Get("/onboarding", h.onboardingIndexPage)
-	r.Get("/onboarding/connect", h.onboardingConnectPage)
-	r.Get("/onboarding/import", h.onboardingImportPage)
-	r.Get("/onboarding/rules", h.onboardingRulesPage)
-	r.Post("/onboarding/rules/enable", h.onboardingRulesEnableAction)
-	r.Get("/onboarding/welcome", h.onboardingWelcomePage)
-
-	// Mobile / Android POS UX — W14 / GRO-833.
-	r.Get("/m/tasks", h.mobileTasksPage)
-	r.Get("/m/receiving", h.mobileReceivingPage)
-	r.Get("/m/cycle-count", h.mobileCycleCountPage)
-	r.Get("/m/alerts/{id}", h.mobileAlertDetailPage)
-
-	// Ecom channel surface — W15 / GRO-834.
-	r.Get("/ecom/orders", h.ecomOrdersPage)
-	r.Get("/ecom/sync", h.ecomSyncPage)
-
-	// Cross-domain exceptions
-	r.Get("/exceptions", h.page("exceptions", "exceptions_list", func(_ *http.Request) any {
-		return map[string]any{"Exceptions": nil, "OpenCount": 0, "TotalCount": 0, "DomainFilter": ""}
-	}))
-	r.Get("/exceptions/{id}", h.exceptionDetailPage)
-
-	// Cross-domain case management (registered after /cases/hawk/* to avoid conflicts)
-	r.Get("/cases/new", h.casesNewPage)
-	r.Get("/cases/{id}/evidence", h.casesEvidencePage)
-	r.Get("/cases/{id}/correlation", h.casesCorrelationPage)
-	r.Get("/cases/{id}/remediate", h.casesRemediatePage)
-
-	// Cases analytics — wired W2e / GRO-819.
-	r.Get("/reports/cases", h.reportCasesPage)
-
-	// Workflow engine surfaces — wired W4 / GRO-823 (unified list page;
-	// per-workflow detail views are a follow-on dispatch).
-	r.Get("/workflows", h.workflowsListPage)
-
-	// MCP tool catalog — wired W12 / GRO-831. Reads the in-process
-	// registry; usage log + playground are follow-on dispatches.
-	r.Get("/mcp/tools", h.mcpToolsPage)
-
-	// Protocol portal — wired W7 / GRO-826. Unified overview of Bitcoin L2
-	// anchors, .jeffe namespace registrations, and L402 verification tokens.
-	// Per-surface drilldowns (anchor proof viewer, charge dispute, evidence
-	// chain per case) are follow-on dispatches.
-	r.Get("/protocol", h.protocolOverviewPage)
-
-	// Error pages (also reachable programmatically via Render403/404/500)
+	// Error pages (also reachable programmatically via Render403/404/500).
+	// Public so a 403/404 redirect doesn't loop on logged-out clients.
 	r.Get("/errors/403", h.errPage(403))
 	r.Get("/errors/404", h.errPage(404))
 	r.Get("/errors/500", h.errPage(500))
+
+	// ─── Protected routes (require resolved tenant) ───────────────────
+
+	r.Group(func(r chi.Router) {
+		r.Use(h.requireTenantMiddleware)
+
+		r.Get("/dashboard", h.page("dashboard", "dashboard", stubDashboard))
+		r.Get("/chirps", h.chirpListPage)
+		r.Get("/transactions", h.page("transactions", "transactions", stubTransactions))
+		r.Get("/transactions/{id}", h.transactionDetailPage)
+		r.Get("/transactions/{id}/proof", h.transactionProofPage)
+		r.Get("/alerts", h.alertListPage)
+		r.Get("/cases", h.page("cases", "cases", stubCases))
+		r.Get("/employees", h.page("employees", "employees", stubEmployees))
+		r.Get("/reports", h.page("reports", "reports", stubReports))
+		r.Get("/settings", h.page("settings", "settings", stubSettings))
+		r.Get("/owl", h.owlPage)
+		r.Get("/owl/dashboards", h.owlDashboardsPage)
+		r.Get("/owl/parties", h.owlPartiesPage)
+		r.Get("/owl/lp-performance", h.owlLPPerformancePage)
+		r.Get("/rules", h.rulesListPage)
+
+		// Hawk case management
+		r.Get("/cases/hawk", h.hawkListPage)
+		r.Get("/cases/hawk/new", h.page("cases", "hawk_new", stubHawkNew))
+		r.Get("/cases/hawk/analytics", h.page("cases", "hawk_analytics", stubHawkAnalytics))
+		r.Get("/cases/hawk/patterns", h.page("cases", "hawk_patterns", stubHawkPatterns))
+		r.Get("/cases/hawk/{id}", h.hawkDetailPage)
+		r.Get("/cases/hawk/{id}/evidence", h.hawkEvidencePage)
+		r.Post("/cases/hawk", h.hawkCreateCase)
+
+		// Detail pages
+		r.Get("/alerts/{id}", h.alertDetailPage)
+		r.Get("/rules/{id}", h.ruleDetailPage)
+		r.Get("/chirps/{id}", h.chirpDetailPage)
+
+		// Customer investigator
+		r.Get("/customers", h.customersListPage)
+		r.Get("/customers/{id}", h.customerDetailPage)
+		r.Get("/customers/{id}/risk", h.customerRiskPage)
+		r.Get("/customers/{id}/context", h.customerContextPage)
+
+		// Settings — LP allow-list + N.4 thresholds + training mode + alert routing.
+		// 10 screens, each backed by detection.allow_list with a pattern type+kind
+		// discriminator. CRUD wired via h.mountLPSettings (handler_lp_settings.go).
+		// W1 dispatch: GRO-814.
+		h.mountLPSettings(r)
+		r.Get("/settings/devices", h.page("settings", "settings_devices", func(_ *http.Request) any {
+			return map[string]any{"Online": 0, "Offline": 0, "Degraded": 0, "Devices": nil}
+		}))
+		r.Get("/settings/devices/new", h.page("settings", "settings_devices_new", func(_ *http.Request) any {
+			return map[string]any{}
+		}))
+		r.Get("/settings/store", h.page("settings", "settings_store_config", func(_ *http.Request) any {
+			return map[string]any{"StoreID": "—", "POSSource": "—", "LastSync": "—", "ActiveRuleCount": 0, "AllowListCount": 0, "TrainingMode": false}
+		}))
+
+		// Transfers + inventory reports — wired W2b / GRO-816.
+		r.Get("/transfers", h.transferListPage)
+		r.Get("/transfers/{id}", h.transferDetailPage)
+		r.Get("/transfers/{id}/variance", h.transferVariancePage)
+
+		r.Get("/reports/distribution", h.reportDistributionPage)
+		r.Get("/reports/inventory", h.reportInventoryPage)
+		r.Get("/reports/category", h.reportCategoryPage)
+
+		// Items + category report — wired W2c / GRO-817.
+		r.Get("/items", h.itemListPage)
+		r.Get("/items/{id}", h.itemDetailPage)
+
+		// Finance + payments — wired W2e / GRO-819.
+		r.Get("/reports/finance", h.reportFinancePage)
+		r.Get("/reports/payments", h.page("reports", "report_payments", func(_ *http.Request) any {
+			// Tender mix requires a tender_mix aggregation method on transaction.Store
+			// (per-transaction GetByID is too expensive). Filed as a follow-on.
+			return map[string]any{"TotalTransactions": 0, "CashPct": "—", "CardPct": "—", "OtherPct": "—", "Tenders": nil, "SecurePayEnabled": false, "LastGatewaySync": "—"}
+		}))
+		r.Get("/reports/tax", h.reportTaxPage)
+		r.Get("/reports/otb", h.reportOTBPage)
+		r.Get("/orders/suggested", h.suggestedOrdersPage)
+		r.Get("/reports/range", h.page("reports", "report_range", func(_ *http.Request) any {
+			return map[string]any{"ActiveRanges": 0, "AvgSellThrough": "—", "AvgTurn": "—", "AvgGMROI": "—", "Ranges": nil}
+		}))
+		// Promotions calendar — wired W2f / GRO-820. Pricing reports remain stub
+		// until market-price + price-history + markdown source data lands.
+		r.Get("/promotions", h.promotionsCalendarPage)
+		r.Get("/reports/pricing", h.page("reports", "report_pricing", func(_ *http.Request) any {
+			return map[string]any{"ItemsTracked": 0, "AboveMarket": 0, "AtMarket": 0, "BelowMarket": 0, "Items": nil}
+		}))
+		r.Get("/reports/price-history", h.page("reports", "report_price_history", func(_ *http.Request) any {
+			return map[string]any{"Changes": nil, "TotalCount": 0}
+		}))
+		r.Get("/reports/markdowns", h.page("reports", "report_markdowns", func(_ *http.Request) any {
+			return map[string]any{"ActiveMarkdowns": 0, "AvgDepth": "—", "UnitsMoved": 0, "RevenueRecovery": "—", "Items": nil}
+		}))
+		r.Get("/employees/{id}", h.employeeDetailPage)
+		r.Get("/reports/labor", h.reportLaborPage)
+
+		// Receiving + RTV workflow — wired W2d / GRO-818, POST handlers W5 / GRO-824.
+		r.Get("/receiving", h.receivingListPage)
+		r.Get("/receiving/{id}", h.receivingDetailPage)
+		r.Get("/receiving/{id}/close", h.receivingClosePage)
+		r.Post("/receiving/{id}/close", h.receivingCloseAction)
+		r.Post("/receiving/{id}/lines/{lineID}/discrepancy", h.receivingLineDiscrepancyAction)
+		r.Get("/returns", h.returnsListPage)
+		r.Get("/returns/{id}", h.returnsDetailPage)
+
+		// Operator workflow surfaces — directed-task queue + OTB action buttons.
+		// W5 / GRO-824.
+		r.Get("/tasks", h.tasksListPage)
+		r.Post("/tasks/{id}/claim", h.taskClaimAction)
+		r.Post("/tasks/{id}/complete", h.taskCompleteAction)
+		r.Post("/tasks/{id}/exception", h.taskExceptionAction)
+		r.Post("/reports/otb/{budgetID}/lock", h.otbLockAction)
+		r.Post("/orders/suggested/{id}/approve", h.suggestedOrderActionApprove)
+		r.Post("/orders/suggested/{id}/reject", h.suggestedOrderActionReject)
+		r.Post("/orders/suggested/{id}/send", h.suggestedOrderActionSend)
+
+		// Asset registry + billing portal — wired W8 / GRO-827 (read-only).
+		r.Get("/assets", h.assetsListPage)
+		r.Get("/assets/{id}", h.assetDetailPage)
+		r.Get("/billing/overview", h.billingOverviewPage)
+		r.Get("/billing/invoices", h.billingInvoicesPage)
+		r.Get("/billing/payment-method", h.billingPaymentMethodPage)
+
+		// Compliance + admin — wired W9 / GRO-828.
+		r.Get("/admin/audit", h.adminAuditPage)
+		r.Get("/admin/iso27001", h.adminISO27001Page)
+		r.Get("/admin/users", h.adminUsersPage)
+		r.Get("/admin/config", h.adminConfigPage)
+
+		// Multi-store intelligence — wired W10 / GRO-829.
+		r.Get("/admin/hierarchy", h.adminHierarchyPage)
+		r.Post("/admin/hierarchy", h.adminHierarchyCreate)
+		r.Get("/admin/network-integrity", h.adminNetworkIntegrityPage)
+		r.Get("/dashboards/cross-store", h.dashboardsCrossStorePage)
+
+		// Procurement — supplier + PO portal. W11 / GRO-830.
+		r.Get("/suppliers", h.suppliersListPage)
+		r.Post("/suppliers", h.suppliersCreate)
+		r.Get("/suppliers/{id}", h.supplierDetailPage)
+		r.Get("/suppliers/{id}/scorecard", h.supplierScorecardPage)
+		r.Get("/po", h.poListPage)
+		r.Post("/po", h.poCreate)
+		r.Get("/po/{id}", h.poDetailPage)
+		r.Get("/po/{id}/match", h.poMatchPage)
+		r.Post("/po/{id}/status", h.poStatusAction)
+
+		// Onboarding wizard — W13 / GRO-832.
+		r.Get("/onboarding", h.onboardingIndexPage)
+		r.Get("/onboarding/connect", h.onboardingConnectPage)
+		r.Get("/onboarding/import", h.onboardingImportPage)
+		r.Get("/onboarding/rules", h.onboardingRulesPage)
+		r.Post("/onboarding/rules/enable", h.onboardingRulesEnableAction)
+		r.Get("/onboarding/welcome", h.onboardingWelcomePage)
+
+		// Mobile / Android POS UX — W14 / GRO-833.
+		r.Get("/m/tasks", h.mobileTasksPage)
+		r.Get("/m/receiving", h.mobileReceivingPage)
+		r.Get("/m/cycle-count", h.mobileCycleCountPage)
+		r.Get("/m/alerts/{id}", h.mobileAlertDetailPage)
+
+		// Ecom channel surface — W15 / GRO-834.
+		r.Get("/ecom/orders", h.ecomOrdersPage)
+		r.Get("/ecom/sync", h.ecomSyncPage)
+
+		// Cross-domain exceptions
+		r.Get("/exceptions", h.page("exceptions", "exceptions_list", func(_ *http.Request) any {
+			return map[string]any{"Exceptions": nil, "OpenCount": 0, "TotalCount": 0, "DomainFilter": ""}
+		}))
+		r.Get("/exceptions/{id}", h.exceptionDetailPage)
+
+		// Cross-domain case management (registered after /cases/hawk/* to avoid conflicts)
+		r.Get("/cases/new", h.casesNewPage)
+		r.Get("/cases/{id}/evidence", h.casesEvidencePage)
+		r.Get("/cases/{id}/correlation", h.casesCorrelationPage)
+		r.Get("/cases/{id}/remediate", h.casesRemediatePage)
+
+		// Cases analytics — wired W2e / GRO-819.
+		r.Get("/reports/cases", h.reportCasesPage)
+
+		// Workflow engine surfaces — wired W4 / GRO-823 (unified list page;
+		// per-workflow detail views are a follow-on dispatch).
+		r.Get("/workflows", h.workflowsListPage)
+
+		// MCP tool catalog — wired W12 / GRO-831. Reads the in-process
+		// registry; usage log + playground are follow-on dispatches.
+		r.Get("/mcp/tools", h.mcpToolsPage)
+
+		// Protocol portal — wired W7 / GRO-826. Unified overview of Bitcoin L2
+		// anchors, .jeffe namespace registrations, and L402 verification tokens.
+		// Per-surface drilldowns (anchor proof viewer, charge dispute, evidence
+		// chain per case) are follow-on dispatches.
+		r.Get("/protocol", h.protocolOverviewPage)
+	})
 
 	h.logger.Info("web UI mounted", zap.String("path", "/"))
 }
@@ -2809,9 +2831,9 @@ func stubConnect(_ *http.Request) any {
 		Label string
 	}
 	return map[string]any{
-		"WeekDays":    days,
-		"WeekStart":   0,
-		"Lookback":    "30",
+		"WeekDays":  days,
+		"WeekStart": 0,
+		"Lookback":  "30",
 		"LookbackOpts": []lookbackOpt{
 			{"7", "7 days"}, {"30", "30 days"}, {"90", "90 days"}, {"all", "All"},
 		},
@@ -2902,10 +2924,10 @@ func (h *Handler) customersListPage(w http.ResponseWriter, r *http.Request) {
 				name := customerDisplayName(c)
 				shortID := c.ID.String()[:8]
 				customers = append(customers, map[string]any{
-					"ID":              c.ID.String(),
-					"ShortID":         shortID,
-					"Name":            name,
-					"RiskTier":        "—",
+					"ID":               c.ID.String(),
+					"ShortID":          shortID,
+					"Name":             name,
+					"RiskTier":         "—",
 					"LastPurchaseDate": "—",
 				})
 			}

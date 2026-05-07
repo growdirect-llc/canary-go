@@ -11,7 +11,7 @@ import (
 )
 
 func TestW16_ExceptionDetail_NoStore_RendersStub(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/exceptions/"+uuid.NewString(), nil)
@@ -23,7 +23,7 @@ func TestW16_ExceptionDetail_NoStore_RendersStub(t *testing.T) {
 }
 
 func TestW16_CasesEvidence_NoStore_RendersDomainCounts(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/cases/"+uuid.NewString()+"/evidence", nil)
@@ -39,7 +39,7 @@ func TestW16_CasesEvidence_NoStore_RendersDomainCounts(t *testing.T) {
 }
 
 func TestW16_CasesCorrelation_NoStore_RendersRelatedCasesEmpty(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/cases/"+uuid.NewString()+"/correlation", nil)
@@ -56,7 +56,7 @@ func TestW16_CasesCorrelation_NoStore_RendersRelatedCasesEmpty(t *testing.T) {
 }
 
 func TestW16_CasesRemediate_NoStore_RendersCatalog(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/cases/"+uuid.NewString()+"/remediate", nil)

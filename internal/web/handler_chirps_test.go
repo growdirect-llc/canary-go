@@ -22,7 +22,7 @@ func TestChirpListPage_Renders(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := chirp.NewPgxStore(pool)
 	deps := web.Deps{ChirpStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -44,7 +44,7 @@ func TestChirpDetailPage_UnknownID_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := chirp.NewPgxStore(pool)
 	deps := web.Deps{ChirpStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -65,7 +65,7 @@ func TestRulesListPage_Renders(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := chirp.NewPgxStore(pool)
 	deps := web.Deps{ChirpStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -87,7 +87,7 @@ func TestRuleDetailPage_UnknownID_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := chirp.NewPgxStore(pool)
 	deps := web.Deps{ChirpStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

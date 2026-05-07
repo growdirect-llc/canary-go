@@ -32,7 +32,7 @@ func TestItemList_Renders_NoStore(t *testing.T) {
 func TestItemList_Renders_WithStore(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{ItemStore: item.NewPgxStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -47,7 +47,7 @@ func TestItemList_Renders_WithStore(t *testing.T) {
 func TestItemList_QueryFilter(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{ItemStore: item.NewPgxStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -78,7 +78,7 @@ func TestItemDetail_BadID_Returns404(t *testing.T) {
 func TestItemDetail_NotFound_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{ItemStore: item.NewPgxStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -107,7 +107,7 @@ func TestItemDetail_NoStore_RendersStub(t *testing.T) {
 func TestReportCategory_Renders_WithStore(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{ItemStore: item.NewPgxStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

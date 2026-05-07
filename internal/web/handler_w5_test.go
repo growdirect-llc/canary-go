@@ -14,7 +14,7 @@ import (
 // TestTasksList_NoStore_RendersEmptyState — /tasks renders the queue
 // page with the empty-state copy when TaskStore is nil.
 func TestTasksList_NoStore_RendersEmptyState(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -34,7 +34,7 @@ func TestTasksList_NoStore_RendersEmptyState(t *testing.T) {
 // TestTasksList_StatusFilter — every filter renders 200; no panic on
 // unknown values.
 func TestTasksList_StatusFilter(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -50,7 +50,7 @@ func TestTasksList_StatusFilter(t *testing.T) {
 
 // TestTasksList_FlashRenders — flash query param surfaces in the page.
 func TestTasksList_FlashRenders(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -68,7 +68,7 @@ func TestTasksList_FlashRenders(t *testing.T) {
 // TestReportOTB_NoStore_RendersEmptyState — /reports/otb renders with
 // empty-state copy when BillingStore is nil.
 func TestReportOTB_NoStore_RendersEmptyState(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -88,7 +88,7 @@ func TestReportOTB_NoStore_RendersEmptyState(t *testing.T) {
 // TestSuggestedOrders_NoStore_RendersStub — /orders/suggested renders
 // the placeholder list (no backing PO model today).
 func TestSuggestedOrders_NoStore_RendersStub(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -106,7 +106,7 @@ func TestSuggestedOrders_NoStore_RendersStub(t *testing.T) {
 // TestSuggestedOrderActions_RedirectWithFlash — approve / reject / send
 // all 303-redirect to /orders/suggested with the action flash query param.
 func TestSuggestedOrderActions_RedirectWithFlash(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -137,7 +137,7 @@ func TestSuggestedOrderActions_RedirectWithFlash(t *testing.T) {
 // TestReceivingClose_NoStore_RedirectsWithFlash — close POST against a
 // nil InventoryStore redirects with no_store flash (does not 500).
 func TestReceivingClose_NoStore_RedirectsWithFlash(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -156,7 +156,7 @@ func TestReceivingClose_NoStore_RedirectsWithFlash(t *testing.T) {
 // TestReceivingDiscrepancy_NoStore_RedirectsWithFlash — same shape as
 // the close POST.
 func TestReceivingDiscrepancy_NoStore_RedirectsWithFlash(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -178,7 +178,7 @@ func TestReceivingDiscrepancy_NoStore_RedirectsWithFlash(t *testing.T) {
 // TestTaskActions_NoStore_RedirectsWithFlash — claim/complete/exception
 // POSTs all redirect with no_store flash when TaskStore is nil.
 func TestTaskActions_NoStore_RedirectsWithFlash(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -204,7 +204,7 @@ func TestTaskActions_NoStore_RedirectsWithFlash(t *testing.T) {
 
 // TestOTBLock_NoStore_RedirectsWithFlash — same shape.
 func TestOTBLock_NoStore_RedirectsWithFlash(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

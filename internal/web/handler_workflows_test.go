@@ -17,7 +17,7 @@ import (
 func TestWorkflowsList_Renders_WithStore(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{WorkflowStore: workflow.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/workflows", nil)

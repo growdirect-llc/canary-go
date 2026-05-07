@@ -11,7 +11,7 @@ import (
 )
 
 func TestMobile_NoStores_RenderAllPages(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	for _, c := range []struct {
@@ -45,7 +45,7 @@ func TestMobile_NoStores_RenderAllPages(t *testing.T) {
 }
 
 func TestMobileTasks_OpenStateRenders(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/m/tasks", nil)
@@ -60,7 +60,7 @@ func TestMobileTasks_OpenStateRenders(t *testing.T) {
 }
 
 func TestMobileAlertDetail_BadID_RendersNotFoundShell(t *testing.T) {
-	h := New(Deps{}, nil)
+	h := New(withTestAuth(Deps{}), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/m/alerts/not-a-uuid", nil)

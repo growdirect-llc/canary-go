@@ -157,7 +157,7 @@ func TestTransactionDetail_BadID_Returns404(t *testing.T) {
 func TestTransactionDetail_NotFound_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{TransactionStore: transaction.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -191,7 +191,7 @@ func TestTransactionDetail_RealData(t *testing.T) {
 	}
 
 	deps := web.Deps{TransactionStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -218,7 +218,7 @@ func TestTransactionDetail_TenantIsolation_Returns404(t *testing.T) {
 	dto := seedTxn(t, ctx, store, tenantID, locID)
 
 	deps := web.Deps{TransactionStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -260,7 +260,7 @@ func deriveHashForTest(id string) string {
 func TestTransactionProof_Pending_NoAnchor(t *testing.T) {
 	stub := &stubValidateStore{proofs: map[string]*validate.AnchorProof{}}
 	deps := web.Deps{ValidateStore: stub}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -303,7 +303,7 @@ func TestTransactionProof_Valid_RendersAnchor(t *testing.T) {
 	}}
 
 	deps := web.Deps{ValidateStore: stub}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
