@@ -1,9 +1,9 @@
-# GRO-769 Neo4j MDM Adjunct — Assessment
+# GRO-846 Neo4j MDM Adjunct — Assessment
 
 **Date:** 2026-05-07
 **Scope:** Whether to introduce a Neo4j read adjunct on the metrics / master-data side of canary.go for graph-shaped data currently flattened into Postgres recursive CTEs and self-referential FKs.
 **Status:** Assessment — not yet decided.
-**Linked filing:** assign Linear ticket on adoption; this doc is the assessment substrate.
+**Linked filing:** [GRO-846](https://linear.app/growdirect/issue/GRO-846) — Architecture: Neo4j MDM read-adjunct.
 
 ---
 

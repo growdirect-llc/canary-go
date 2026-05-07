@@ -1,9 +1,9 @@
-# GRO-771 AtlasView Identity Integration — Contract Assessment
+# GRO-848 AtlasView Identity Integration — Contract Assessment
 
 **Date:** 2026-05-07
 **Scope:** Pin the contract by which AtlasView (Ruptiv's methodology orchestration platform; the configuration engine for ALX) delegates authentication to canary.go's `internal/identity` service. AtlasView decided in D-134 to delegate rather than re-implement; this GRO closes the contract questions identity service owns.
 **Status:** Assessment — awaiting identity-service team review.
-**Linked filing:** assign Linear ticket on adoption; this doc is the assessment substrate.
+**Linked filing:** [GRO-848](https://linear.app/growdirect/issue/GRO-848) — AtlasView identity integration: contract pin.
 
 ---
 

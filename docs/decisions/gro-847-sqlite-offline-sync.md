@@ -1,9 +1,9 @@
-# GRO-770 SQLite-on-Device Offline + Sync Layer — Assessment
+# GRO-847 SQLite-on-Device Offline + Sync Layer — Assessment
 
 **Date:** 2026-05-07
 **Scope:** Whether to introduce on-device SQLite plus a server-sync layer for canary.go's mobile / POS clients to support continued operation during connectivity loss.
 **Status:** Assessment — not yet decided.
-**Linked filing:** assign Linear ticket on adoption; this doc is the assessment substrate.
+**Linked filing:** [GRO-847](https://linear.app/growdirect/issue/GRO-847) — Architecture: SQLite-on-device offline + sync layer for POS.
 
 ---
 
