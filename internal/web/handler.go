@@ -176,6 +176,11 @@ func New(deps Deps, logger *zap.Logger) *Handler {
 	h.mustParse("owl_parties", "templates/owl/parties.html")
 	h.mustParse("owl_lp_performance", "templates/owl/lp_performance.html")
 	h.mustParse("tasks", "templates/tasks.html")
+	h.mustParse("assets_list", "templates/assets/list.html")
+	h.mustParse("assets_detail", "templates/assets/detail.html")
+	h.mustParse("billing_overview", "templates/billing/overview.html")
+	h.mustParse("billing_invoices", "templates/billing/invoices.html")
+	h.mustParse("billing_payment_method", "templates/billing/payment_method.html")
 	return h
 }
 
@@ -322,6 +327,13 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Post("/orders/suggested/{id}/approve", h.suggestedOrderActionApprove)
 	r.Post("/orders/suggested/{id}/reject", h.suggestedOrderActionReject)
 	r.Post("/orders/suggested/{id}/send", h.suggestedOrderActionSend)
+
+	// Asset registry + billing portal — wired W8 / GRO-827 (read-only).
+	r.Get("/assets", h.assetsListPage)
+	r.Get("/assets/{id}", h.assetDetailPage)
+	r.Get("/billing/overview", h.billingOverviewPage)
+	r.Get("/billing/invoices", h.billingInvoicesPage)
+	r.Get("/billing/payment-method", h.billingPaymentMethodPage)
 
 	// Cross-domain exceptions
 	r.Get("/exceptions", h.page("exceptions", "exceptions_list", func(_ *http.Request) any {

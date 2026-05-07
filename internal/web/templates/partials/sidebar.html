@@ -81,6 +81,26 @@
         <span class="nav-icon" style="background: var(--nav-dashboard);"></span>
         Items
       </a>
+      <a href="/assets" class="sidebar-item{{if eq .Page "assets"}} active{{end}}" data-color="assets">
+        <span class="nav-icon" style="background: var(--nav-dashboard);"></span>
+        Assets
+      </a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Billing</div>
+      <a href="/billing/overview" class="sidebar-item{{if eq .Page "billing"}} active{{end}}" data-color="billing">
+        <span class="nav-icon" style="background: var(--nav-reports);"></span>
+        Overview
+      </a>
+      <a href="/billing/invoices" class="sidebar-item" data-color="billing">
+        <span class="nav-icon" style="background: var(--nav-audit);"></span>
+        Invoices
+      </a>
+      <a href="/billing/payment-method" class="sidebar-item" data-color="billing">
+        <span class="nav-icon" style="background: var(--nav-employees);"></span>
+        Payment Method
+      </a>
     </div>
 
     <div class="sidebar-section">

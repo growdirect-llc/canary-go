@@ -24,10 +24,10 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	alertPkg     "github.com/growdirect-llc/rapidpos/internal/alert"
-	analyticsPkg "github.com/growdirect-llc/rapidpos/internal/analytics"
-	assetPkg     "github.com/growdirect-llc/rapidpos/internal/asset"
-	billingPkg   "github.com/growdirect-llc/rapidpos/internal/billing"
+	alertPkg       "github.com/growdirect-llc/rapidpos/internal/alert"
+	analyticsPkg   "github.com/growdirect-llc/rapidpos/internal/analytics"
+	assetPkg       "github.com/growdirect-llc/rapidpos/internal/asset"
+	billingPkg     "github.com/growdirect-llc/rapidpos/internal/billing"
 	casemgmtPkg  "github.com/growdirect-llc/rapidpos/internal/casemgmt"
 	chirpPkg     "github.com/growdirect-llc/rapidpos/internal/chirp"
 	customerPkg  "github.com/growdirect-llc/rapidpos/internal/customer"
@@ -235,6 +235,7 @@ func main() {
 		TaskStore:      taskPkg.NewStore(pool),
 		BillingStore:   billingPkg.NewStore(pool),
 		WorkflowStore:  workflowPkg.NewStore(pool),
+		AssetStore:     assetPkg.NewStore(pool),
 	}
 	web.New(webDeps, logger).Mount(r)
 

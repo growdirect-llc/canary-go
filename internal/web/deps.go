@@ -2,6 +2,7 @@ package web
 
 import (
 	"github.com/growdirect-llc/rapidpos/internal/alert"
+	"github.com/growdirect-llc/rapidpos/internal/asset"
 	"github.com/growdirect-llc/rapidpos/internal/billing"
 	"github.com/growdirect-llc/rapidpos/internal/casemgmt"
 	"github.com/growdirect-llc/rapidpos/internal/chirp"
@@ -57,4 +58,11 @@ type Deps struct {
 	// and the /receiving close / discrepancy POST handlers.
 	TaskStore    *task.Store
 	BillingStore *billing.Store
+
+	// Asset registry portal — read-only inventory-positions view + lots.
+	// Wired W8 / GRO-827. Note: today's "asset" surface wraps
+	// inventory.inventory_positions; the hardware-asset taxonomy in
+	// canary-asset.md (app.assets, asset_lifecycle_events, asset_types)
+	// has no migration today and is future work.
+	AssetStore *asset.Store
 }
