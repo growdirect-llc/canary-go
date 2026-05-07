@@ -1,6 +1,8 @@
 // Package counterpoint implements the SourceAdapter for NCR
-// Counterpoint. This is the keystone for Bart's wedge — proving the
-// substrate generalizes beyond Square is the point of Loop 2.
+// Counterpoint. It demonstrates that the SourceAdapter substrate
+// generalizes beyond Square — the same canonical event shape
+// (transaction.canonical) is produced from a vendor with a different
+// authentication model, payload schema, and pull-vs-push posture.
 //
 // NCR Counterpoint exposes a REST API with a `/Documents` endpoint
 // that returns sales documents. Each document carries a header plus

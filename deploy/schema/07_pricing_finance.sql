@@ -296,13 +296,12 @@ CREATE INDEX idx_pay_invapp_invoice ON finance.payment_invoice_applications(invo
 -- finance.markup_envelope_tiers — platform-wide cost-plus markup defaults per
 -- merchant archetype. Per-tenant override path is
 -- app.tenants.attributes->>'markup_envelope_pct'; the pricing module
--- (Wave B) reads tenant override first, falls back to the active row
--- here for the tenant's archetype. Source: OQ Resolution Pack §A.1
--- OQ-2.1 (founder-approved 2026-05-03 per GRO-762).
+-- reads tenant override first, falls back to the active row here for
+-- the tenant's archetype.
 CREATE TABLE finance.markup_envelope_tiers (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   archetype       text NOT NULL,                              -- small | medium | large
-  markup_pct      numeric(5,2) NOT NULL,                      -- 50.00, 30.00, 15.00 per OQ-2.1
+  markup_pct      numeric(5,2) NOT NULL,                      -- 50.00 / 30.00 / 15.00 per archetype
   effective_at    timestamptz NOT NULL DEFAULT now(),
   expires_at      timestamptz,                                -- NULL = open-ended
   attributes      jsonb NOT NULL DEFAULT '{}',

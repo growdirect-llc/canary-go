@@ -146,11 +146,9 @@ VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────
--- finance.markup_envelope_tiers defaults per archetype — loop4-wave-a
--- (GRO-763 §B.2). Source: OQ Resolution Pack §A.1 OQ-2.1
--- (founder-approved 2026-05-03 per GRO-762).
+-- finance.markup_envelope_tiers defaults per archetype.
 --
--- Pricing module (Wave B) reads tenant override
+-- Pricing module reads tenant override
 -- (app.tenants.attributes->>'markup_envelope_pct') first and falls back
 -- to the active row here for the tenant's archetype. Idempotent: skip
 -- if a non-expired row for the archetype already exists.

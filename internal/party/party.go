@@ -11,11 +11,11 @@
 // Spec: GRO-764 Phase C.2 (folds Fox SDD-bug from
 // docs/sdds/go-handoff/canonical-data-model-party-edits.md §D).
 //
-// Posture: LAZY-mode resolution per OQ Resolution Pack §A.1 OQ-1.5.
-// Detection volume is 100×–1000× case volume; we resolve party at
-// case-escalation time (when Fox calls), not at every detection
-// write. Per-tenant override available via
-// app.tenants.attributes->>'subjects_resolve_mode' = 'eager'.
+// Posture: LAZY-mode resolution by default. Detection volume is
+// 100×–1000× case volume; we resolve party at case-escalation time
+// (when Fox calls), not at every detection write. Per-tenant override
+// available via app.tenants.attributes->>'subjects_resolve_mode' =
+// 'eager'.
 package party
 
 import (

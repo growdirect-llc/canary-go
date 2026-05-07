@@ -533,17 +533,16 @@ func (h *Handler) closeCase(w http.ResponseWriter, r *http.Request) {
 // when resolution fails — the case's primary_subject_id is nullable
 // in the schema, so a missed resolution degrades cleanly.
 //
-// Per OQ Resolution Pack §A.1 OQ-1.5 (founder-approved 2026-05-03):
-// LAZY mode by default — this method runs at case-escalation time,
+// LAZY mode is the default — this method runs at case-escalation time,
 // not on chirp detection write. Detection volume is 100×–1000× case
 // volume; eager resolve would burden the hot path with FK lookups for
 // signals that 99% never escalate. EAGER mode is reserved for tenants
 // with explicit clustering needs on the detection stream itself
 // (per-tenant override via app.tenants.attributes->>'subjects_resolve_mode').
 //
-// Subject precedence: cashier_employee_id wins over customer_id
-// (LP cases skew employee-driven per the founder's prior context on
-// detection-rule design). When neither is present, returns nil and
+// Subject precedence: cashier_employee_id wins over customer_id —
+// LP cases skew employee-driven per the detection-rule design. When
+// neither is present, returns nil and
 // the case opens with primary_subject_id NULL.
 func (h *Handler) subjectFromDetection(ctx context.Context, det *types.Detection) *uuid.UUID {
 	// Wave B C.2: when a party.Store is wired, route through party.

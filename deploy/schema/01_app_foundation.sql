@@ -94,9 +94,7 @@ CREATE TABLE IF NOT EXISTS app.merchant_settings (
     -- default) restricts visibility to LP-tier roles + auditor; the
     -- party-module de-merge UX returns 403 to other internal roles.
     -- 'all_internal' opens the trail to every authenticated tenant
-    -- user. Per OQ Resolution Pack §A.1 OQ-1.4 (founder-approved
-    -- 2026-05-03 per GRO-762). Handler-level enforcement lands when
-    -- the de-merge UX ships in a later loop.
+    -- user. Handler-level enforcement lands when the de-merge UX ships.
     de_merge_audit_visibility TEXT       NOT NULL DEFAULT 'lp_only'
                                          CHECK (de_merge_audit_visibility IN ('lp_only', 'all_internal')),
     -- three_way_match_variance_pct — variance tolerance for the PO ↔
@@ -450,8 +448,7 @@ CREATE INDEX IF NOT EXISTS idx_api_keys_tenant_status ON app.api_keys(tenant_id,
 CREATE INDEX IF NOT EXISTS idx_api_keys_agent ON app.api_keys(agent_name);
 
 -- ─────────────────────────────────────────────────────────────────────
--- Workflow substrate — per OQ Resolution Pack §A.1 OQ-3.2
--- (founder-approved 2026-05-03 per GRO-762).
+-- Workflow substrate.
 --
 -- Two-table substrate for cross-cutting orchestration: long-running
 -- multi-step processes that span modules (three-way-match, l402
