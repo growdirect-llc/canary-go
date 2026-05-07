@@ -49,13 +49,19 @@ services:
       LNURL_SCHEME: http
       LNURL_HOST: localhost:8080
       DEV_CONSOLE: "1"
-    # Mount the manifest pipeline outputs read-only so /devops/catalog and
-    # /devops/api-docs read live data instead of rendering placeholders.
-    # The Go handlers' first candidate path is "services/canary-protocol/...";
-    # gateway cwd is "/" so this lines up. Run `make manifest` from the repo
-    # root to regenerate; restart the gateway to pick up changes. GRO-836.
+      # MANIFEST_ROUTEWALK=1 dumps every mounted route to routes-seen.json
+      # on each boot. Pure observation; consumed by reconcile.py to detect
+      # drift between the manifest and the live router. GRO-836 / GRO-838.
+      MANIFEST_ROUTEWALK: "1"
+      MANIFEST_ROUTEWALK_OUT: "/services/canary-protocol/manifest/build/routes-seen.json"
+    # Mount the manifest pipeline outputs into the gateway container so
+    # /devops/catalog + /devops/api-docs read live data, and so the routewalk
+    # dump above lands on the host. Read-only on the canary-protocol root,
+    # writable on the build/ subpath (gitignored). Run `make manifest` from
+    # the repo root to regenerate the spec artifacts. GRO-836.
     volumes:
       - ../../services/canary-protocol:/services/canary-protocol:ro
+      - ../../services/canary-protocol/manifest/build:/services/canary-protocol/manifest/build
     depends_on:
       canarygo-migrate:
         condition: service_completed_successfully
