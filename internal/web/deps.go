@@ -10,6 +10,7 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/item"
 	"github.com/growdirect-llc/rapidpos/internal/mcp"
 	lpPkg "github.com/growdirect-llc/rapidpos/internal/lp"
+	"github.com/growdirect-llc/rapidpos/internal/owl"
 	"github.com/growdirect-llc/rapidpos/internal/pricing"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/namespace"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
@@ -40,4 +41,12 @@ type Deps struct {
 	// L402 charge-flow interface used by gateway POST /v1/validate).
 	ProtocolValidate  *validate.PgxStore
 	ProtocolNamespace *namespace.Store
+
+	// Owl intelligence portal — tenant-scoped dashboard reads over
+	// party.decisioning_facts and detection.detections / detection.cases.
+	// Wired W6 / GRO-825. Separate from the merchant-keyed Aggregator
+	// behind /v1/owl/* JSON API (cmd/owl) — that surface is for external
+	// callers; the portal stays tenant-scoped to match every other
+	// internal/web/ handler.
+	OwlDashboard *owl.DashboardStore
 }
