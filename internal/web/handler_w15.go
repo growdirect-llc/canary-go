@@ -1,6 +1,6 @@
 // internal/web/handler_w15.go
 //
-// W15 / GRO-834 — Ecom channel surface (thin).
+// W15 — Ecom channel surface (thin).
 //
 //   /ecom/orders → list of orders by channel (empty-state today)
 //   /ecom/sync   → channel registry + sync health

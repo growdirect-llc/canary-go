@@ -24,7 +24,7 @@ import (
 // the middleware is a passthrough — preserves existing handler tests
 // that build a Handler without wiring squareauth.
 //
-// T-B / GRO-849.
+// T-B.
 func tenantSessionMiddleware(resolver MerchantResolver) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		if resolver == nil {
@@ -54,7 +54,7 @@ func tenantSessionMiddleware(resolver MerchantResolver) func(http.Handler) http.
 // assets) MUST NOT use this wrapper — they need to stay reachable
 // without a session.
 //
-// T-B / GRO-849.
+// T-B.
 func (h *Handler) requireTenant(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if tenantIDFromCtx(r.Context()) == uuid.Nil {
@@ -70,7 +70,7 @@ func (h *Handler) requireTenant(next http.HandlerFunc) http.HandlerFunc {
 // gated. Public routes (registered outside the group) remain
 // reachable without a session.
 //
-// T-B / GRO-849.
+// T-B.
 func (h *Handler) requireTenantMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if tenantIDFromCtx(r.Context()) == uuid.Nil {
@@ -95,7 +95,7 @@ func (h *Handler) requireTenantMiddleware(next http.Handler) http.Handler {
 // Method-gated to POST/PUT/PATCH so GETs aren't penalized by the
 // body wrapping (they shouldn't have bodies, but defensive).
 //
-// T-E / GRO-849.
+// T-E.
 func MaxBytesMiddleware(maxBytes int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

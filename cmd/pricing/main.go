@@ -2,7 +2,7 @@
 // promotion × tax → final unit price + line breakdown for transactions
 // at the register, web add-to-cart, and any agent that needs a quote.
 //
-// Wave 2 of GRO-761 Loop 2. Service port 8091.
+// Service port 8091.
 //
 // Endpoints:
 //

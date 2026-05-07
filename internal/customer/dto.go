@@ -2,7 +2,7 @@
 //
 // Wire types for customer endpoints.
 //
-// Spec: GRO-766 Phase D.
+//
 
 package customer
 

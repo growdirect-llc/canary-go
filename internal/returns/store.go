@@ -4,7 +4,7 @@
 // 'return'. The FraudFlag write inserts a detection.detections row — it does NOT
 // update the transaction; the detection drives downstream alert lifecycle.
 //
-// Spec: GRO-766 Phase E.
+//
 
 package returns
 

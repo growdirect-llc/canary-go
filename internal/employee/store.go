@@ -3,7 +3,7 @@
 // pgx-backed employee store. Reads employee.employees and aggregates over
 // detection.detections (cashier_employee_id) for the alert summary view.
 //
-// Spec: GRO-766 Phase D.
+//
 
 package employee
 

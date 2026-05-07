@@ -4,7 +4,7 @@
 // service body · activity · linked) inside a shared shell with a
 // grouped service sidebar and a tenant/env top nav.
 //
-// T2.0 / GRO-840 of the sysadmin module epic (GRO-836). Phase 2 of
+// T2.0 / GRO-840 of the sysadmin module epic. Phase 2 of
 // the build sequence captured in
 // docs/superpowers/specs/2026-05-07-sysadmin-module-design.md.
 //

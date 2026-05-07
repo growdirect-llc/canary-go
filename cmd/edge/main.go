@@ -5,7 +5,7 @@
 // every 60 seconds and publishes sale document events to the Canary
 // protocol pipeline via Valkey Streams (protocol:events).
 //
-// GRO-801: Loop 4 implementation.
+// Loop 4 implementation.
 package main
 
 import (

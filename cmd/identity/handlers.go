@@ -107,7 +107,7 @@ func (h *handlers) sessionsValidate(w http.ResponseWriter, r *http.Request) {
 
 // ─────────────────────────────────────────────────────────────────────
 // /v1/identity/* — API key lifecycle + caller introspection
-// (GRO-763 Phase C.6 / folds GRO-688)
+//
 // ─────────────────────────────────────────────────────────────────────
 
 type createKeyRequest struct {

@@ -1,6 +1,6 @@
 // Package publisher publishes validated webhook events onto Valkey
 // Streams (the "events" stream consumed by the Triple Subscriber
-// pipeline — GRO-747). It also exposes a Valkey-backed NonceStore
+// pipeline). It also exposes a Valkey-backed NonceStore
 // that satisfies internal/protocol/hmac.NonceStore.
 //
 // The Publisher interface lets the webhook handler stay infra-free

@@ -5,7 +5,7 @@
 // evidence in q.case_evidence and actions in q.case_actions. All q.case_*
 // descendant tables are append-only per canonical schema.
 //
-// Built in GRO-761 Loop 2 Wave 2.
+//
 package main
 
 import (

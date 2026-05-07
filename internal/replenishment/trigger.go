@@ -11,7 +11,7 @@
 //
 // Consumer group: "replenishment-trigger". One consumer per process.
 //
-// GRO-799: Loop 4 Min/Max engine wired to SOH events.
+// Loop 4 Min/Max engine wired to SOH events.
 package replenishment
 
 import (

@@ -11,7 +11,7 @@
 // across POS sources (Square, NCR Counterpoint, Clover, future) via
 // the SourceAdapter interface in internal/adapters.
 //
-// Built in GRO-761 (Loop 2 Wave 2).
+// Built in
 package main
 
 import (

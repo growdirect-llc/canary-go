@@ -1,5 +1,5 @@
 // Package po is the purchase-order lifecycle store.
-// Wires app.purchase_orders + app.purchase_order_lines per W11 / GRO-830.
+// Wires app.purchase_orders + app.purchase_order_lines per W11.
 
 package po
 

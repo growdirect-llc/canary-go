@@ -4,7 +4,7 @@
 // operator-facing alerts with lifecycle transitions (ack / resolve /
 // suppress) and rule-category stats.
 //
-// Spec: GRO-766 Phase A.1.
+//
 package main
 
 import (

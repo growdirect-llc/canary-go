@@ -1,7 +1,7 @@
 // cmd/transaction/main.go
 //
 // Module T binary — owns the canonical write path for t.transactions
-// and child tables. Spec: GRO-764 Phase B.1.
+// and child tables.
 package main
 
 import (
@@ -40,7 +40,7 @@ func main() {
 	r.Use(middleware.RealIP, middleware.Recoverer)
 	r.Get("/health", health(cfg))
 
-	// Transaction endpoints under API-key auth (Wave A C.4 / GRO-688).
+	// Transaction endpoints under API-key auth.
 	r.Group(func(r chi.Router) {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
 			Pool:     pool,

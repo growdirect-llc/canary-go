@@ -23,7 +23,6 @@
 // landing zone, leaving an evidentiary record. Canary is a customer of
 // its own protocol (memory: project_canary_is_customer_of_protocol).
 //
-// GRO-694.
 package audit
 
 import (
@@ -315,7 +314,7 @@ type ListFilters struct {
 // ListByMerchant returns recent audit rows ordered by created_at DESC.
 // Tenant scoping happens via merchant_id (the column carried in the
 // audit_log row). Limit clamped to [1, 500] with default 100.
-// Wired W9 / GRO-828.
+// Wired W9.
 func (p *PgxInserter) ListByMerchant(ctx context.Context, f ListFilters) ([]LogRow, error) {
 	limit := f.Limit
 	if limit <= 0 || limit > 500 {

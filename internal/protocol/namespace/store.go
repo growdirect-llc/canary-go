@@ -109,7 +109,7 @@ func (s *Store) GetByName(ctx context.Context, name string) (*Registration, erro
 }
 
 // ListRecent returns the most recently registered .jeffe namespace claims
-// across all owners. Used by the protocol portal overview (W7 / GRO-826).
+// across all owners. Used by the protocol portal overview (W7).
 // Cross-tenant — operators with portal access see all recent registrations.
 // Ordered by registered_at DESC; default limit 50, max 200.
 func (s *Store) ListRecent(ctx context.Context, limit int) ([]Registration, error) {

@@ -190,7 +190,7 @@ func (s *Store) LogException(ctx context.Context, tenantID, taskID uuid.UUID, re
 
 // OpenReplenishmentExists returns true when an open (queued/assigned/in_progress)
 // replenishment task already exists for this (tenant, item, location) tuple.
-// Used for deduplication by the replenishment trigger (GRO-799).
+// Used for deduplication by the replenishment trigger.
 func (s *Store) OpenReplenishmentExists(ctx context.Context, tenantID, itemID, locationID uuid.UUID) (bool, error) {
 	const q = `
 		SELECT EXISTS (
@@ -213,7 +213,7 @@ func (s *Store) OpenReplenishmentExists(ctx context.Context, tenantID, itemID, l
 //   - "open"       → queued + assigned + in_progress
 //   - any single status string → exact match
 // Limit is clamped to [1, 500] with a default of 100.
-// Wired W5 / GRO-824 for the /tasks portal page.
+// Wired W5 for the /tasks portal page.
 func (s *Store) ListByTenant(ctx context.Context, tenantID uuid.UUID, status string, limit int) ([]TaskDTO, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 100

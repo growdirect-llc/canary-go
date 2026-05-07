@@ -4,7 +4,7 @@
 // i.inventory_lots as operator-facing asset views with a flag write path
 // that creates i.inventory_movements rows for discrepancy capture.
 //
-// Spec: GRO-766 Phase C.
+//
 package main
 
 import (

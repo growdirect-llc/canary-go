@@ -1,7 +1,7 @@
 // Package owl is the merchant intelligence aggregator. Read-only over
 // canonical schema (t.*, q.*, m.*, l.*, e.*, app.*) — no writes.
 //
-// Loop 2 dispatch (GRO-761 Wave 2). The owl.md SDD describes a much
+// Loop 2 dispatch. The owl.md SDD describes a much
 // broader AI / MCP server (chat, personalities, embeddings, LLM
 // inference). The Loop 2 dispatch overrides that scope: this build is
 // a read-only dashboard aggregator that turns canonical sales + cases

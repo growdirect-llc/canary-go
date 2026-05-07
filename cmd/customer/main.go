@@ -3,7 +3,7 @@
 // Customer — c.customers + c.loyalty_memberships read surface.
 // Tenant-scoped, API-key gated.
 //
-// Spec: GRO-766 Phase D.
+//
 package main
 
 import (

@@ -5,7 +5,7 @@
 // is migrated (Wave E schema).
 // Tenant-scoped, API-key gated.
 //
-// Spec: GRO-766 Phase E.
+//
 package main
 
 import (

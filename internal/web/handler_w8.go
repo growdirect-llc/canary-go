@@ -1,6 +1,6 @@
 // internal/web/handler_w8.go
 //
-// W8 / GRO-827 — Asset + Billing portal (read-only).
+// W8 — Asset + Billing portal (read-only).
 //
 // Five GET surfaces over existing internal/asset and internal/billing
 // stores. Per dispatch: no CRUD, no plan upgrade flow, no invoice

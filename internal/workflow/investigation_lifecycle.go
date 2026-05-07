@@ -1,7 +1,6 @@
 // internal/workflow/investigation_lifecycle.go
 //
 // Investigation lifecycle workflow definition + step constants. Spec:
-// GRO-765 Phase B.3 (folds part of GRO-644).
 //
 // Steps: opened → investigating → review_pending → closed{disposition}.
 // SLA tracking happens at the q.cases column level (sla_* columns

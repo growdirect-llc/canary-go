@@ -1,5 +1,5 @@
 // Package squareauth implements Square OAuth + minimal Square API client
-// for the May 12 demo (GRO-802). Provides:
+// for the May 12 demo. Provides:
 //
 //   - OAuth 2.0 authorization-code grant against Square Connect
 //   - Token storage in app.pos_tenant_credentials with AES-256-GCM encryption

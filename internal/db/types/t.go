@@ -1,4 +1,4 @@
-// Code generated from deploy/schema/08_t_transactions.sql for Loop 2 (GRO-761).
+// Code generated from deploy/schema/08_t_transactions.sql for Loop 2.
 // Wave 1 hand-written types — sqlc retrofit is Loop 3.
 // Edit the SQL files in deploy/schema/, regenerate this file by hand.
 package types

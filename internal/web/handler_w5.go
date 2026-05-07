@@ -1,6 +1,6 @@
 // internal/web/handler_w5.go
 //
-// W5 / GRO-824 — operator workflow surfaces over engines that already
+// W5 — operator workflow surfaces over engines that already
 // run headless: directed-task queue (internal/task), inventory document
 // close + line discrepancy (internal/inventory), L402 OTB budget lock
 // (internal/billing), three-way-match workflow trigger (internal/workflow).
@@ -330,7 +330,7 @@ func (h *Handler) taskExceptionAction(w http.ResponseWriter, r *http.Request) {
 
 // reportOTBPage renders the L402 OTB budget surface. Reads from
 // billing.Store.ListBudgets, falls back to empty-state when the store
-// is nil. Wired W5 / GRO-824 (replaces the W2-era stub).
+// is nil. Wired W5 (replaces the W2-era stub).
 func (h *Handler) reportOTBPage(w http.ResponseWriter, r *http.Request) {
 	view := map[string]any{
 		"Flash":       r.URL.Query().Get("flash"),

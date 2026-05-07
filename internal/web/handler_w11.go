@@ -1,6 +1,6 @@
 // internal/web/handler_w11.go
 //
-// W11 / GRO-830 — Supplier + Purchase Order portal.
+// W11 — Supplier + Purchase Order portal.
 //
 //   /suppliers                    list
 //   /suppliers (POST)             create

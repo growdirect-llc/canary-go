@@ -1,6 +1,6 @@
 // Package hierarchy is the merchant location-hierarchy reader/writer.
 // Wraps app.location_hierarchy + app.locations for the W10 multi-store
-// portal (GRO-829).
+// portal.
 //
 // Tenant scoping happens via merchant_id (the column carried in both
 // tables today). Direct pgx is fine here per the amended sqlc rule

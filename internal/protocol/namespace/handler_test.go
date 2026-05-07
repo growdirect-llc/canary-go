@@ -248,7 +248,7 @@ func TestHandler_GET_404_UnknownName(t *testing.T) {
 	}
 }
 
-// ─── T-C / GRO-849 ownership-proof tests ─────────────────────────────────────
+// ─── T-C ownership-proof tests ─────────────────────────────────────
 
 // TestHandler_POST_401_NoClaims verifies that the register endpoint
 // rejects requests with no identity.Claims — the production wiring

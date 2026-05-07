@@ -3,7 +3,7 @@
 // Employee — e.employees read surface + detection alert summary view.
 // Tenant-scoped, API-key gated.
 //
-// Spec: GRO-766 Phase D.
+//
 package main
 
 import (

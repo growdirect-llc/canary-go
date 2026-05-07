@@ -1,6 +1,6 @@
 // cmd/inventory/main.go
 //
-// Inventory service — GRO-798 (Loop 4). SOH read/write + sale event consumer.
+// Inventory service (Loop 4). SOH read/write + sale event consumer.
 //
 // Two goroutines run concurrently:
 //  1. HTTP server — position reads, movement appends, cycle-count adjustments

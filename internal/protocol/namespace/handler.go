@@ -20,7 +20,7 @@ import (
 //	POST /v1/protocol/namespace        — register a name (auth-required)
 //	GET  /v1/protocol/namespace/{name} — look up a registration (public)
 //
-// T-C / GRO-849 splits the surface: lookups stay public (the namespace
+// T-C splits the surface: lookups stay public (the namespace
 // is intentionally a public registry), but registration requires an
 // API key whose tenant matches the request's owner_id — preventing
 // spoofed registrations that claim ownership of someone else's
@@ -107,7 +107,7 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// T-C / GRO-849: ownership proof. Caller must present an API key
+	// T-C: ownership proof. Caller must present an API key
 	// (claims attached by APIKeyMiddleware). Tenant-scoped keys can
 	// register names only against their own tenant UUID — a tenant-
 	// scoped caller passing a different owner_id would otherwise be

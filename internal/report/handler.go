@@ -7,7 +7,7 @@
 //   GET  /v1/reports          — list jobs for the tenant
 //   GET  /v1/reports/{job_id} — poll job status / get download URL
 //
-// Spec: GRO-766 Phase E.
+//
 
 package report
 

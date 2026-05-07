@@ -5,7 +5,7 @@
 // sales, cases, and detections into the dashboard a merchant operator
 // looks at first thing in the morning.
 //
-// Loop 2 dispatch (GRO-761 Wave 2). Owl's longer-arc role per
+// Loop 2 dispatch. Owl's longer-arc role per
 // docs/sdds/go-handoff/owl.md is the AI / MCP intelligence layer
 // (chat, personalities, embeddings); that's deferred. Loop 2 ships
 // the dashboard surface only — the SQL spine that the AI layer will
@@ -47,7 +47,7 @@ func main() {
 	defer pool.Close()
 
 	// Wave A obs scaffold — first module to fully exercise tracer +
-	// trace-aware logger + chi span middleware. GRO-765 Phase C.3.
+	// trace-aware logger + chi span middleware. 
 	obsLogger := obs.NewLogger(serviceName)
 	tracer, err := obs.NewTracer(ctx, serviceName)
 	if err != nil {

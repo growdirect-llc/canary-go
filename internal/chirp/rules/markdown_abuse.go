@@ -15,7 +15,7 @@
 // not populated by the source, the rule short-circuits (no false
 // positives).
 //
-// Spec: GRO-764 Phase C.1 (folds part of GRO-651) +
+// Spec: GRO-764 Phase C.1 +
 // docs/sdds/go-handoff/chirp.md "markdown abuse" pattern.
 
 package rules

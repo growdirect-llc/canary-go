@@ -1,5 +1,5 @@
 // Package supplier is the vendor master / supplier profile store.
-// Wires app.suppliers — minimal viable shape per W11 / GRO-830.
+// Wires app.suppliers — minimal viable shape per W11.
 //
 // Out of scope (per dispatch): EDI, vendor self-service, RFQ.
 

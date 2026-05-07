@@ -1,6 +1,6 @@
 // internal/web/handler_w10.go
 //
-// W10 / GRO-829 — Multi-store intelligence portal.
+// W10 — Multi-store intelligence portal.
 //
 //   /admin/hierarchy       — list + create chains/regions/formats
 //   /admin/network-integrity — store connectivity placeholder
@@ -32,7 +32,7 @@ import (
 // queries to return empty (no rows match). This mirrors the W7 /
 // W6 / W8 nil-safe shape — empty-state copy renders without 500ing.
 //
-// Real merchant resolution lands when the identity middleware (GRO-769)
+// Real merchant resolution lands when the identity middleware
 // is wired in front of /admin and /dashboards routes.
 func merchantIDFromCtx(_ http.ResponseWriter, r *http.Request) uuid.UUID {
 	v := r.URL.Query().Get("merchant_id")

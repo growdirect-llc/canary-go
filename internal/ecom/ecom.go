@@ -2,7 +2,7 @@
 //
 // Adapters live as separate sub-packages or external stubs; this
 // package owns the interface contract + a static channel registry
-// the portal renders against. Wired W15 / GRO-830.
+// the portal renders against. Wired W15.
 //
 // Inventory unification: ecom orders SHOULD consume from the same
 // SOH as in-store. The in-store consume path lives at

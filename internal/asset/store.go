@@ -6,7 +6,7 @@
 // inventory.inventory_positions — that is the job of the Bull ingest pipeline
 // which processes movements and reconciles SOH.
 //
-// Spec: GRO-766 Phase C.
+//
 
 package asset
 

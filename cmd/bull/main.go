@@ -2,13 +2,13 @@
 //
 // Bull — directed-work task queue + L402-gated billing (Module B).
 //
-// Task queue (GRO-800): POST /v1/tasks, GET /v1/tasks/next, PATCH status,
+// Task queue: POST /v1/tasks, GET /v1/tasks/next, PATCH status,
 // exception, skip — three task types: receiving, replenishment, cycle_count.
 //
-// Replenishment trigger (GRO-799): background goroutine subscribes to
+// Replenishment trigger: background goroutine subscribes to
 // inventory:replenish stream and creates replenishment tasks via Min/Max.
 //
-// Billing (GRO-765): L402 charge cycle + satoshi cost rollup under
+// Billing: L402 charge cycle + satoshi cost rollup under
 // /v1/billing/* (API-key gated).
 package main
 

@@ -4,7 +4,7 @@
 // q.detection_rules, evaluates them against transaction events from
 // schema t, writes matched detections to q.detections.
 //
-// Built in GRO-761 Loop 2 Wave 2.
+//
 package main
 
 import (

@@ -6,7 +6,7 @@
 // compatible invoice, and gets charged. Failed charges retry per
 // configurable policy.
 //
-// Spec: GRO-765 Phase A.1 (folds part of GRO-643).
+// Spec: GRO-765 Phase A.1.
 //
 // L402 reference (Lightning Service Authentication Token):
 //   https://docs.lightning.engineering/the-lightning-network/l402

@@ -2,7 +2,7 @@
 // RS256 JWT validation against an IdP JWKS endpoint, per-agent scoped
 // API keys backed by app.api_keys, and tenant boundary helpers.
 //
-// Spec: docs/sdds/canary-go/identity-auth-tenant.md (GRO-763 Phase C).
+// Spec: docs/sdds/canary-go/identity-auth-tenant.md.
 //
 // This file: RS256 JWT validation. The legacy HS256 path in
 // internal/auth stays in place during the migration; new

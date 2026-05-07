@@ -9,7 +9,7 @@ import (
 )
 
 // newTestService builds a Service with only the fields the cookie-signing
-// helpers need. Avoids touching the pgx pool / http client. GRO-857 / T-D.
+// helpers need. Avoids touching the pgx pool / http client.
 func newTestService(t *testing.T, key string) *Service {
 	t.Helper()
 	return &Service{

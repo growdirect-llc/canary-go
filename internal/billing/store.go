@@ -1,7 +1,7 @@
 // internal/billing/store.go
 //
 // pgxpool-backed access to ledger.l402_otb_budgets +
-// ledger.ildwac_positions. Spec: GRO-765 Phase A.
+// ledger.ildwac_positions.
 
 package billing
 
@@ -91,7 +91,7 @@ const (
 )
 
 // UpdateBudgetStatus flips a budget's status. Used by the OTB report
-// "lock period" action (W5 / GRO-824) — operator-initiated active ↔
+// "lock period" action (W5) — operator-initiated active ↔
 // locked toggle. Returns ErrNotFound when no row matches.
 func (s *Store) UpdateBudgetStatus(ctx context.Context, tenantID, id uuid.UUID, status string) (*OTBBudget, error) {
 	const q = `

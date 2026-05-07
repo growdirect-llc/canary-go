@@ -10,7 +10,7 @@
 // This package is observation-only. It must never change runtime behavior;
 // it runs after route mounting completes and writes a single file.
 //
-// Phase 1 / GRO-837 sub-task T1.2 of the sysadmin module epic (GRO-836).
+// Phase 1 / GRO-837 sub-task T1.2 of the sysadmin module epic.
 package routewalk
 
 import (

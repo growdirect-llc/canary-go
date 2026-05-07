@@ -1,10 +1,10 @@
 // cmd/gateway/admin.go
 //
 // Admin-scoped endpoints under /v1/webhooks/*. Authenticated via
-// X-Canary-API-Key against app.api_keys (Wave A C.4 / GRO-688). The
+// X-Canary-API-Key against app.api_keys. The
 // dlq:replay scope is required for replay calls; dlq:read for list.
 //
-// Spec: GRO-764 Phase A.3.
+//
 
 package main
 
@@ -68,7 +68,7 @@ func (h *adminHandlers) list(w http.ResponseWriter, r *http.Request) {
 		SourceCode: q.Get("source_code"),
 		Status:     q.Get("status"),
 	}
-	// T-H / GRO-849: tenant-scoped keys see only their own DLQ rows.
+	// T-H: tenant-scoped keys see only their own DLQ rows.
 	// Platform-scope keys (claims.TenantID == uuid.Nil) keep the
 	// merchant_id query param as a free filter — they're cross-tenant
 	// by design.
@@ -127,7 +127,7 @@ func (h *adminHandlers) get(w http.ResponseWriter, r *http.Request) {
 		writeAdminErr(w, http.StatusInternalServerError, "get_failed", err.Error())
 		return
 	}
-	// T-H / GRO-849: tenant-scoped key fetching another tenant's row
+	// T-H: tenant-scoped key fetching another tenant's row
 	// gets 404 (not 403) — same response shape as a true miss to
 	// avoid leaking row existence across tenants.
 	claims, _ := identity.ClaimsFromContext(r.Context())
@@ -172,7 +172,7 @@ func (h *adminHandlers) replay(w http.ResponseWriter, r *http.Request) {
 		writeAdminErr(w, http.StatusInternalServerError, "get_failed", err.Error())
 		return
 	}
-	// T-H / GRO-849: tenant-scoped key replaying another tenant's
+	// T-H: tenant-scoped key replaying another tenant's
 	// row — return 404 to avoid existence leak. Replay would also
 	// re-publish under row.MerchantID, which is the foreign tenant.
 	claims, _ := identity.ClaimsFromContext(r.Context())

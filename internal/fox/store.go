@@ -1,6 +1,6 @@
 // internal/fox/store.go
 //
-// Direct pgx + raw SQL persistence layer. Loop 2 dispatch (GRO-761)
+// Direct pgx + raw SQL persistence layer. Loop 2 dispatch
 // overrides the CanaryGo CLAUDE.md "all queries through sqlc" rule
 // for this wave — sqlc retrofit lands in Loop 3.
 package fox

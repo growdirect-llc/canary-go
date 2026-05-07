@@ -38,7 +38,7 @@ func TestGenerateAPIKeyPlaintextDistinct(t *testing.T) {
 
 // TestExtractPrefixGeneratedFormat — every plaintext from
 // GenerateAPIKeyPlaintext yields a prefix of the documented length.
-// Locks the contract for the prefix-indexed verify path. GRO-860 / T-L.
+// Locks the contract for the prefix-indexed verify path.
 func TestExtractPrefixGeneratedFormat(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		p, _ := GenerateAPIKeyPlaintext()

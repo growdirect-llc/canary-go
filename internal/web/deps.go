@@ -32,7 +32,7 @@ import (
 // MerchantResolver derives the authenticated merchant UUID from a
 // request. The web handler does not import squareauth — gateway main
 // passes squareSvc.MerchantFromRequest in. Returns (uuid.Nil, false)
-// when no valid session cookie is present. T-B / GRO-849.
+// when no valid session cookie is present. T-B.
 type MerchantResolver func(r *http.Request) (uuid.UUID, bool)
 
 // Deps holds all backend store dependencies for the web handler.
@@ -61,20 +61,20 @@ type Deps struct {
 
 	// Owl intelligence portal — tenant-scoped dashboard reads over
 	// party.decisioning_facts and detection.detections / detection.cases.
-	// Wired W6 / GRO-825. Separate from the merchant-keyed Aggregator
+	// Wired W6. Separate from the merchant-keyed Aggregator
 	// behind /v1/owl/* JSON API (cmd/owl) — that surface is for external
 	// callers; the portal stays tenant-scoped to match every other
 	// internal/web/ handler.
 	OwlDashboard *owl.DashboardStore
 
 	// Operator workflow surfaces — directed-task queue + L402 OTB budgets.
-	// Wired W5 / GRO-824 for the /tasks page, /reports/otb action buttons,
+	// Wired W5 for the /tasks page, /reports/otb action buttons,
 	// and the /receiving close / discrepancy POST handlers.
 	TaskStore    *task.Store
 	BillingStore *billing.Store
 
 	// Asset registry portal — read-only inventory-positions view + lots.
-	// Wired W8 / GRO-827. Note: today's "asset" surface wraps
+	// Wired W8. Note: today's "asset" surface wraps
 	// inventory.inventory_positions; the hardware-asset taxonomy in
 	// canary-asset.md (app.assets, asset_lifecycle_events, asset_types)
 	// has no migration today and is future work.
@@ -86,14 +86,14 @@ type Deps struct {
 	// (admin module).
 	AuditReader *audit.PgxInserter
 
-	// Multi-store intelligence — wired W10 / GRO-829. Reads
+	// Multi-store intelligence — wired W10. Reads
 	// app.location_hierarchy + app.locations and renders the
 	// /admin/hierarchy + /dashboards/cross-store + /admin/network-integrity
 	// surfaces.
 	HierarchyStore *hierarchy.Store
 
 	// Procurement portal — supplier + purchase order lifecycle.
-	// Wired W11 / GRO-830 over new app.suppliers, app.purchase_orders,
+	// Wired W11 over new app.suppliers, app.purchase_orders,
 	// app.purchase_order_lines tables (migration 030).
 	SupplierStore *supplier.Store
 	POStore       *po.Store
@@ -103,6 +103,6 @@ type Deps struct {
 	// squareSvc.MerchantFromRequest. When nil (e.g. tests that don't
 	// exercise auth), the tenant middleware degrades to the legacy
 	// "no resolved tenant" path and tenantIDFromCtx returns uuid.Nil
-	// — preserving existing handler behavior. T-B / GRO-849.
+	// — preserving existing handler behavior. T-B.
 	MerchantResolver MerchantResolver
 }

@@ -7,7 +7,7 @@
 // and a download URL. Actual generation is handled by background workers
 // (Wave E+); this module ships the API contract.
 //
-// Spec: GRO-766 Phase E.
+//
 
 package report
 

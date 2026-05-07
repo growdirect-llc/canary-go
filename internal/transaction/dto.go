@@ -2,7 +2,7 @@
 // transaction.transactions and its child tables (transaction.transaction_line_items,
 // transaction.transaction_tenders, transaction.transaction_discounts).
 //
-// Spec: GRO-764 Phase B (folds GRO-647). The transaction module is
+// The transaction module is
 // the canonical example of "complex writes" per the sqlc rule
 // reconciliation in docs/conventions.md — multi-statement
 // transactional writes that span 4+ tables.

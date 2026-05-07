@@ -134,7 +134,7 @@ func APIKeyMiddleware(opts APIKeyMiddlewareOpts) func(http.Handler) http.Handler
 // brand prefix) used to bucket keys for indexed verify-loop selection.
 // 8 base32 characters = 40 bits of entropy in the prefix space, more
 // than enough to filter to ~1 candidate per request without leaking
-// the secret material. GRO-860 / Sprint 2 T-L.
+// the secret material. 
 const keyPrefixLen = len(KeyPlaintextPrefix) + 8
 
 // extractPrefix returns the indexable prefix of a plaintext API key

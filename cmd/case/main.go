@@ -1,7 +1,7 @@
 // cmd/case/main.go
 //
 // Case API binary — owns the q.cases / q.case_actions / q.case_evidence
-// HTTP surface. Spec: GRO-765 Phase B.2.
+// HTTP surface.
 //
 // Registers the investigation_lifecycle workflow at boot. Endpoints
 // are gated by the API-key middleware (Wave A C.4).

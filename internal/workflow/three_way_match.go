@@ -2,7 +2,7 @@
 //
 // Three-way-match workflow definition + step constants. The first
 // real workflow registered against the Wave A app.workflow_definitions
-// substrate. Spec: GRO-764 Phase B.4 (folds part of GRO-647).
+// substrate. Spec: GRO-764 Phase B.4.
 //
 // The workflow advances a (po_line, receipt_line, supplier_invoice_line)
 // triple through these steps:

@@ -3,7 +3,7 @@
 // seven-state status machine (queued → assigned → in_progress → complete →
 // verified; side exits: skipped, cancelled).
 //
-// GRO-800: Loop 4 mobile task queue.
+// Loop 4 mobile task queue.
 package task
 
 import (

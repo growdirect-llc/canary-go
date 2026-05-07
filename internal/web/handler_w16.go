@@ -1,6 +1,6 @@
 package web
 
-// W16 — Cross-domain case management capstone (GRO-835).
+// W16 — Cross-domain case management capstone.
 //
 // Five operator-facing surfaces that bridge the alert/exception layer
 // into casemgmt and the cross-domain evidence aggregation:
@@ -12,7 +12,7 @@ package web
 //   casesRemediatePage       /cases/{id}/remediate         — remediation catalog (workflow KickOff target)
 //
 // Pre-W16 these handlers lived inline in handler.go (~236 LOC). Moved
-// here in Sprint 2 T-J / GRO-853 to match the per-W-series file
+// here in Sprint 2 T-J to match the per-W-series file
 // convention (handler_w5.go, handler_w8.go, handler_w9.go, etc.).
 // No behavior change — pure relocation. Route registrations remain
 // in handler.go's Mount().

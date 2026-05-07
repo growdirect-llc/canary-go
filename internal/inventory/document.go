@@ -4,11 +4,11 @@
 // inventory_documents is a single table type-discriminated by document_type
 // (goods_receipt | transfer_out | transfer_in | rtv | stock_count |
 // adjustment_batch). The portal uses these reads to render the Transfers
-// list/detail/variance views (W2b / GRO-816), the Receiving list (W2d),
+// list/detail/variance views (W2b), the Receiving list (W2d),
 // the Returns list (W2d), and the distribution variance report (W2b /
 // W2e).
 //
-// Writes are out of scope for W2b — transfer creation is GRO-824 (W5).
+// Writes are out of scope for W2b — transfer creation is
 
 package inventory
 
@@ -207,7 +207,7 @@ func (s *Store) ListDocumentLines(ctx context.Context, tenantID, documentID uuid
 }
 
 // Document status discriminators for inventory_documents.status. Not
-// exhaustive — these are the values the portal mutates today (W5 / GRO-824).
+// exhaustive — these are the values the portal mutates today (W5).
 const (
 	DocumentStatusOpen       = "open"
 	DocumentStatusInProgress = "in_progress"
@@ -218,7 +218,7 @@ const (
 // UpdateDocumentStatus moves a document to a new status. Records performedBy
 // (operator id) and stamps completed_at when transitioning to a terminal
 // status. Returns the updated DocumentDTO. Used by /receiving/{id}/close
-// (W5 / GRO-824) and the planned transfers/RTV close flows.
+// (W5) and the planned transfers/RTV close flows.
 func (s *Store) UpdateDocumentStatus(
 	ctx context.Context,
 	tenantID, id uuid.UUID,
@@ -259,7 +259,7 @@ func (s *Store) UpdateDocumentStatus(
 
 // MarkLineDiscrepancy sets variance_reason on an inventory_document_line.
 // Tenant-scoped. Returns ErrDocumentNotFound if no row matches. Used by
-// /receiving/{id}/lines/{lineID}/discrepancy (W5 / GRO-824).
+// /receiving/{id}/lines/{lineID}/discrepancy (W5).
 func (s *Store) MarkLineDiscrepancy(
 	ctx context.Context,
 	tenantID, lineID uuid.UUID,

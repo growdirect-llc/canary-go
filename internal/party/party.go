@@ -2,7 +2,7 @@
 // upstream-of-customer identity node that resolves cashier / customer
 // / loyalty references into a single canonical party.parties row.
 //
-// Wave A B.5 (GRO-763) landed the schema (party.parties, party.identifiers,
+// Wave A B.5 landed the schema (party.parties, party.identifiers,
 // party.resolution_events, party.households, party.household_memberships,
 // party.household_evidence, party.decisioning_facts MV). Wave B C.2
 // (this package) ships the resolution helpers Fox + downstream

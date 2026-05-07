@@ -4,7 +4,7 @@
 // plus fraud-flag write path that fires q.detections.
 // Tenant-scoped, API-key gated.
 //
-// Spec: GRO-766 Phase E.
+//
 package main
 
 import (

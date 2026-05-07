@@ -4,7 +4,7 @@
 // Exposes sales summary, basket metrics, customer cohort, item velocity,
 // and shrink indicators — all tenant-scoped, all API-key gated.
 //
-// Spec: GRO-766 Phase B.
+//
 package main
 
 import (

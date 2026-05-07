@@ -9,7 +9,7 @@
 // pass the wire-shape CreateRequest, the store maps to canonical
 // columns and writes.
 //
-// Spec: GRO-764 Phase B.1.
+//
 
 package transaction
 

@@ -4,9 +4,9 @@
 // Application 63/991,596). Receives webhook POSTs from source networks,
 // validates HMAC-SHA256 signatures against per-(merchant, source)
 // secrets, computes payload hashes, and publishes canonical events to
-// Valkey Streams for the Triple Subscriber pipeline (GRO-747).
+// Valkey Streams for the Triple Subscriber pipeline.
 //
-// Built in GRO-746.
+//
 package main
 
 import (
@@ -70,7 +70,7 @@ const (
 
 	// streamName is the Valkey Stream that the Triple Subscriber pipeline
 	// reads from. Single stream, three independent consumer groups (one
-	// per subscriber) — see GRO-747.
+	// per subscriber) —
 	streamName = "protocol:events"
 
 	// noncePrefix namespaces nonce keys in Valkey so multiple gateway
@@ -120,35 +120,33 @@ func main() {
 
 	// .jeffe namespace registration — Node identity layer.
 	// ORDINALSBOT_API_KEY env var selects real vs stub inscriber.
-	// GRO-751.
 	inscriber := sub3.NewOrdinalsBot(os.Getenv("ORDINALSBOT_API_KEY"), "signet")
 	nsHandler := namespace.New(pool, inscriber, logger)
 
-	// L402 sat-gated Validation API — revenue surface. GRO-752.
+	// L402 sat-gated Validation API — revenue surface. 
 	// VALIDATOR_SECRET: 32-byte hex key for stub L402 HMAC. If absent,
 	// a random key is generated at startup (stub mode, not production-safe).
 	// VALIDATOR_SATOSHI_PRICE: sat price per proof (default 100).
 	validateHandler := buildValidateHandler(pool, logger)
 
-	// LNURL-auth login surface — Lightning wallet QR login. GRO-753.
+	// LNURL-auth login surface — Lightning wallet QR login. 
 	// LNURL_JWT_SECRET: 64-char hex key for HS256 session JWTs. If absent,
 	// a random key is generated (ephemeral, dev only).
 	// LNURL_STUB: set to "true" to skip secp256k1 signature verification
 	// (CI/signet mode).
 	lnurlHandler := buildLNURLHandler(pool, logger)
 
-	// Square OAuth demo flow (GRO-802). Anthropic-facing demo:
+	// Square OAuth demo flow. Anthropic-facing demo:
 	// connect Square sandbox, see merchant data live. Routes /, /auth/square,
 	// /auth/square/callback, /dashboard, /auth/square/disconnect.
 	// Requires SQUARE_APPLICATION_ID, SQUARE_APPLICATION_SECRET, SQUARE_REDIRECT_URI.
 	squareSvc := squareauth.New(pool, logger)
 
 	// /v1/webhooks/* — admin endpoints under API-key auth.
-	// GRO-764 Phase A.3 (folds part of GRO-642).
 	dlq := domainwebhook.NewDLQ(pool)
 	admin := newAdminHandlers(dlq, pub)
 
-	// Build MCP tool registry over the 7 Wave D module stores. GRO-767.
+	// Build MCP tool registry over the 7 Wave D module stores. 
 	mcpRegistry := mcp.NewRegistry()
 	mcp.RegisterAlertTools(mcpRegistry, alertPkg.NewStore(pool))
 	mcp.RegisterAnalyticsTools(mcpRegistry, analyticsPkg.NewStore(pool))
@@ -168,7 +166,7 @@ func main() {
 
 	// Bilateral verification APIs — read-only, mounted outside the
 	// audit group. Reads don't need state-mutation audit semantics.
-	// GRO-748 (evidence) · GRO-750 (anchor / Merkle proof).
+	//
 	evidenceHandler.Mount(r)
 	anchorHandler.Mount(r)
 
@@ -176,26 +174,25 @@ func main() {
 	// gated below behind APIKeyMiddleware (T-C / GRO-849: prevents
 	// spoofed registrations claiming someone else's owner_id).
 	// The POST writes one row but carries its own payload_hash +
-	// inscription_id as the audit trail. GRO-751.
+	// inscription_id as the audit trail. 
 	nsHandler.MountPublic(r)
 
 	// L402 sat-gated verification — POST issues challenge, GET consumes.
 	// Mounted outside audit group; the payment record IS the audit trail.
-	// GRO-752.
 	validateHandler.Mount(r)
 
 	// LNURL-auth login — wallet QR challenge/response + JWT session.
 	// Mounted outside audit group; Lightning wallet calls are read-only
-	// from an audit perspective until the session is established. GRO-753.
+	// from an audit perspective until the session is established. 
 	lnurlHandler.Mount(r)
 
-	// Square OAuth demo (GRO-802). Mounted outside audit group; OAuth
+	// Square OAuth demo. Mounted outside audit group; OAuth
 	// state is the auth mechanism, no API-key gating.
 	squareSvc.Mount(r)
 
 	// Audit middleware records every state-mutating protocol invocation
 	// into app.audit_log. Scoped to webhook routes so /health and
-	// read-only /v1/protocol/evidence/* stay noise-free. GRO-694.
+	// read-only /v1/protocol/evidence/* stay noise-free. 
 	auditMW := audit.Middleware(audit.Config{
 		Inserter:    audit.NewPgxInserter(pool),
 		Logger:      logger,
@@ -216,7 +213,7 @@ func main() {
 		r.Use(auditMW)
 		admin.Mount(r)
 
-		// T-C / GRO-849: POST /v1/protocol/namespace requires
+		// T-C: POST /v1/protocol/namespace requires
 		// API-key auth + tenant-match on owner_id. Mounted here so
 		// it inherits the same APIKeyMiddleware + audit pair as the
 		// admin endpoints.
@@ -224,7 +221,7 @@ func main() {
 	})
 
 	// POST /mcp — MCP JSON-RPC 2.0 endpoint. API-key auth, tenant-scoped.
-	// 26 tools across 7 domain modules. GRO-767.
+	// 26 tools across 7 domain modules. 
 	r.Group(func(r chi.Router) {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
 			Pool:     pool,
@@ -236,11 +233,11 @@ func main() {
 	// /devops — pipeline monitor + API explorer. Dev-only (DEV_CONSOLE=1).
 	devops.New(pool, rdb, logger, squareSvc).Mount(r)
 
-	// /devops/<service> — sysadmin module shell (Phase 2 of GRO-836).
+	// /devops/<service> — sysadmin module shell.
 	// Owns the catalog/manifest/observability/pipeline/qa-agent service
 	// pages. Routes don't collide with the dev console's specific paths
 	// (square / api / releases / static); Phase 3 folds those legacy
-	// pages into the new shell. GRO-840 T2.0.
+	// pages into the new shell. 
 	if sysadmin, err := webdevops.New(logger); err == nil {
 		sysadmin.Mount(r)
 	} else {
@@ -266,7 +263,7 @@ func main() {
 		POStore:          poPkg.NewStore(pool),
 		MerchantResolver: squareSvc.MerchantFromRequest,
 	}
-	// T-E / GRO-849: wrap the merchant UI in CSRF + body-size caps.
+	// T-E: wrap the merchant UI in CSRF + body-size caps.
 	// CSRF runs the gorilla synchronizer-token pattern (signed,
 	// HttpOnly cookie + per-form hidden field). Body cap fails fast
 	// at 64 KiB on POST/PUT/PATCH. Both apply to the entire web tree
@@ -290,7 +287,7 @@ func main() {
 
 	// MANIFEST_ROUTEWALK=1 — emit build/routes-seen.json then continue
 	// boot. Pure observation; consumed by the manifest reconciler to
-	// detect drift against manifest.yaml + openapi.yaml. GRO-837 T1.2.
+	// detect drift against manifest.yaml + openapi.yaml. 
 	if os.Getenv("MANIFEST_ROUTEWALK") == "1" {
 		out := os.Getenv("MANIFEST_ROUTEWALK_OUT")
 		if err := routewalk.Walk(r, serviceName, out); err != nil {
@@ -321,7 +318,6 @@ func main() {
 //
 // PUBLIC_URL env var sets the base URL (e.g. https://demo.growdirect.io).
 // If unset, the handler derives it from the incoming request Host header.
-// GRO-802 Day 5.
 func discoveryHandler(cfg *config.Config) http.HandlerFunc {
 	const (
 		mcpVersion  = "2025-03-26"
@@ -428,7 +424,7 @@ func buildResolver(ctx context.Context, pool *pgxpool.Pool, logger *zap.Logger) 
 // Production requires it; dev generates an ephemeral key + warns.
 // gorilla/csrf signs the per-session token cookie with this key — if it
 // changes between restarts, all in-flight tokens become invalid (users
-// must re-fetch a form GET before POSTing). T-E / GRO-849.
+// must re-fetch a form GET before POSTing). T-E.
 func buildCSRFKey(logger *zap.Logger) []byte {
 	isProd := os.Getenv("ENV") == "production"
 	key := make([]byte, 32)
@@ -460,7 +456,7 @@ func buildCSRFKey(logger *zap.Logger) []byte {
 // invalid or absent value generates an ephemeral random key with a
 // warning. In production (ENV=production) the absence or invalidity
 // is fatal — the L402 HMAC must be deterministic so peer verification
-// can succeed across restarts. GRO-856 / Sprint 2 T-I.
+// can succeed across restarts. 
 // VALIDATOR_SATOSHI_PRICE: satoshi price per proof verification (default 100).
 func buildValidateHandler(pool *pgxpool.Pool, logger *zap.Logger) *validate.Handler {
 	isProd := os.Getenv("ENV") == "production"
@@ -514,7 +510,6 @@ func buildValidateHandler(pool *pgxpool.Pool, logger *zap.Logger) *validate.Hand
 // in production — http leaks the auth k1 nonce in transit.
 // LNURL_HOST: hostname[:port] for callback URLs (default "localhost:8080").
 //
-// Production hardening: GRO-856 / Sprint 2 T-I.
 func buildLNURLHandler(pool *pgxpool.Pool, logger *zap.Logger) *lnurl.Handler {
 	isProd := os.Getenv("ENV") == "production"
 	secret := make([]byte, 32)

@@ -8,7 +8,7 @@
 //   GET /v1/employees/{id}/alerts      — detection alert summary for employee
 //   GET /v1/employees/alert-summary    — ranked alert summary across all employees
 //
-// Spec: GRO-766 Phase D.
+//
 
 package employee
 

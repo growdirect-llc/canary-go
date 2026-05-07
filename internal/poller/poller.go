@@ -13,7 +13,7 @@
 // Per-merchant errors are logged and skipped — one bad credential does
 // not stall the whole poll cycle.
 //
-// GRO-801: Loop 4 — poll → wrap → publish. Parse logic stays in
+// Loop 4 — poll → wrap → publish. Parse logic stays in
 // internal/adapters/counterpoint (consumed downstream by sub2-parse-route).
 package poller
 

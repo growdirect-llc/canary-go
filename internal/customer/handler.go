@@ -8,7 +8,7 @@
 //   GET  /v1/customers/{id}/memberships — loyalty memberships
 //   GET  /v1/customers/{id}/transactions — recent transactions (via JOIN)
 //
-// Spec: GRO-766 Phase D.
+//
 
 package customer
 

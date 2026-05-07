@@ -3,7 +3,7 @@
 // pgx-backed analytics store. All queries are read-only aggregations over
 // the t.* and i.* schemas. No mutations.
 //
-// Spec: GRO-766 Phase B.
+//
 
 package analytics
 

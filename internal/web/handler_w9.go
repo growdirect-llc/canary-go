@@ -1,6 +1,6 @@
 // internal/web/handler_w9.go
 //
-// W9 / GRO-828 — Compliance + Admin portal.
+// W9 — Compliance + Admin portal.
 //
 // Five surfaces:
 //   /admin/audit       — app.audit_log viewer (real read; filterable).
@@ -41,7 +41,7 @@ func (h *Handler) adminAuditPage(w http.ResponseWriter, r *http.Request) {
 
 	if h.deps.AuditReader != nil {
 		ctx := r.Context()
-		// T-C / GRO-849: clamp the audit query to the caller's tenant.
+		// T-C: clamp the audit query to the caller's tenant.
 		// requireTenantMiddleware (T-B) guarantees a non-nil tenant on
 		// this route, so ListByMerchant always filters — no leak of
 		// other tenants' audit rows from the /admin/audit surface.

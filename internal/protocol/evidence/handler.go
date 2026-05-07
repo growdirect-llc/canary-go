@@ -8,7 +8,7 @@
 //
 // Reads only — never mutates the table.
 //
-// T-C / GRO-849 (sec review C3 + C4): the default response is the
+// T-C (sec review C3 + C4): the default response is the
 // stripped Record. raw_payload and merchant_id are PII / data-flow
 // metadata and are NOT in the public response — a third-party
 // verifier brings the payload they're checking, the server just

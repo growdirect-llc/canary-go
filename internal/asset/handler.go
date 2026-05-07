@@ -2,7 +2,7 @@
 //
 // HTTP layer for asset (inventory) endpoints.
 //
-// Spec: GRO-766 Phase C.
+//
 
 package asset
 

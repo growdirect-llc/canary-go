@@ -7,7 +7,7 @@
 // Index of the Data Sovereignty Stack (write-once, hash-chained,
 // per-merchant).
 //
-// Built in GRO-748.
+//
 package main
 
 import (

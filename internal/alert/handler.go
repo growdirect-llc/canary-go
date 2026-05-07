@@ -2,7 +2,7 @@
 //
 // HTTP layer for the alert endpoints.
 //
-// Spec: GRO-766 Phase A.1.
+//
 
 package alert
 

@@ -175,7 +175,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	eventID := uuid.New()
 
 	// Bridge minted event_id + resolved source code onto the request
-	// context so the audit middleware (GRO-694) can record them. This
+	// context so the audit middleware can record them. This
 	// is a no-op when the middleware isn't installed.
 	ctx = audit.WithEventID(ctx, eventID)
 	ctx = audit.WithSource(ctx, source)

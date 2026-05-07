@@ -1,6 +1,6 @@
 // internal/web/handler_w13.go
 //
-// W13 / GRO-832 — Onboarding wizard.
+// W13 — Onboarding wizard.
 //
 // Four steps stitched over existing surfaces (no new substrate today):
 //   /onboarding         → step picker / index

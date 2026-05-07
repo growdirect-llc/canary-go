@@ -4,7 +4,7 @@
 // rows — Canary's detection = an alert to the operator. The store
 // manages lifecycle transitions (new → acknowledged → dismissed/escalated).
 //
-// Spec: GRO-766 Phase A.
+//
 
 package alert
 

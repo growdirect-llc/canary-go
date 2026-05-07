@@ -261,7 +261,7 @@ func TestIntegration_CloseCase_TerminalState(t *testing.T) {
 	}
 }
 
-// TestIntegration_ResolveSubject — GRO-762 §B.3.
+// TestIntegration_ResolveSubject §B.3.
 // Verifies (a) Resolve creates a detection.subjects row when none exists,
 // (b) the second call with the same (tenant, kind, refID) returns
 // the SAME subject id (idempotency via the existing

@@ -1,6 +1,6 @@
 // internal/web/handler_w14.go
 //
-// W14 / GRO-833 — Mobile / Android POS UX.
+// W14 — Mobile / Android POS UX.
 //
 // Responsive web cuts of operator surfaces (no native app).
 //   /m/tasks         → mobile directed-task list

@@ -54,7 +54,7 @@ type Store interface {
 // ((default_price - default_cost) / default_price) * 100 across items
 // where default_price > 0; HasMargin is false when no priced items
 // exist (callers render "—"). Categories with zero items still appear,
-// with SKUCount=0 and HasMargin=false. GRO-857 / Sprint 2 T-N.
+// with SKUCount=0 and HasMargin=false. 
 type CategoryAggregate struct {
 	CategoryID   uuid.UUID
 	Name         string
@@ -517,7 +517,7 @@ func (s *PgxStore) ListCategories(ctx context.Context, tenantID uuid.UUID) ([]Ca
 //
 // Replaces the in-memory bucket-and-average that ran on the first 500
 // items only — the SQL aggregate is a single round-trip and accurate
-// across the full catalog. GRO-857 / Sprint 2 T-N.
+// across the full catalog. 
 func (s *PgxStore) AggregateByCategory(ctx context.Context, tenantID uuid.UUID) ([]CategoryAggregate, error) {
 	q := `
 		SELECT

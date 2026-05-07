@@ -249,7 +249,7 @@ func (s *Service) merchantFromCookie(r *http.Request) (uuid.UUID, bool) {
 // MerchantFromRequest is the exported wrapper around merchantFromCookie.
 // Other packages (web, devops) inject this as a resolver so they can
 // derive the tenant UUID from the session without importing private
-// cookie-handling internals. T-B / GRO-849.
+// cookie-handling internals. T-B.
 func (s *Service) MerchantFromRequest(r *http.Request) (uuid.UUID, bool) {
 	return s.merchantFromCookie(r)
 }

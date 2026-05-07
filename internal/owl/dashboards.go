@@ -2,7 +2,7 @@
 //
 // Wave C analytics surface — RFM rollups per party (consumer of the
 // party.decisioning_facts materialized view from Wave A B.5) plus
-// LP-rate metrics aggregating detection.detections / detection.cases. Spec: GRO-765
+// LP-rate metrics aggregating detection.detections / detection.cases.
 // Phase C.
 //
 // Loop 2 ships internal/owl/ with metrics aggregation primitives;

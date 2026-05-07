@@ -1,6 +1,6 @@
 // cmd/hawk/main.go
 //
-// Hawk — case-side reader binary. Spec: GRO-765 Phase B.4.
+// Hawk — case-side reader binary.
 //
 // Wave C wires Hawk against the casemgmt store directly so a
 // read-only operator dashboard can list cases / inspect actions /

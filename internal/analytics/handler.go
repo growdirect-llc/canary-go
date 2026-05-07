@@ -3,7 +3,7 @@
 // HTTP layer for analytics endpoints. All endpoints are tenant-scoped,
 // read-only aggregations. No mutations.
 //
-// Spec: GRO-766 Phase B.
+//
 
 package analytics
 

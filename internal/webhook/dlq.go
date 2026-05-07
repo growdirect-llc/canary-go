@@ -10,7 +10,7 @@
 // worker (Wave C scope) will pick rows up automatically once the
 // next_retry_at watermark passes.
 //
-// Spec: GRO-764 Phase A.1.
+//
 
 package webhook
 

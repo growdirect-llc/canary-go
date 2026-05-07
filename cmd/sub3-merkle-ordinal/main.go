@@ -7,7 +7,7 @@
 // via OrdinalsBot (or a stub in dev), and records the proof paths in
 // protocol.anchors + protocol.evidence_anchors.
 //
-// Built in GRO-750.
+//
 package main
 
 import (
