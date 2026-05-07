@@ -52,9 +52,12 @@ import (
 	"github.com/ruptiv/canary/internal/protocol/validate"
 	"github.com/ruptiv/canary/internal/db"
 	"github.com/ruptiv/canary/internal/identity"
+	"github.com/ruptiv/canary/internal/identity/auth"
 	"github.com/ruptiv/canary/internal/identity/jwks"
 	"github.com/ruptiv/canary/internal/identity/keystore"
 	"github.com/ruptiv/canary/internal/identity/me"
+	"github.com/ruptiv/canary/internal/identity/mint"
+	"github.com/ruptiv/canary/internal/identity/refreshfamily"
 	"github.com/ruptiv/canary/internal/identity/tokenverify"
 	"github.com/ruptiv/canary/internal/manifest/routewalk"
 	"github.com/ruptiv/canary/internal/mcp"
@@ -139,6 +142,22 @@ func main() {
 	tokenVerifier := tokenverify.New(keyStore, "canary", "canary")
 	meHandler := me.New(tokenVerifier, logger)
 
+	// JWT mint pipeline (T-1 / GRO-861).
+	//   - mint.Minter signs new pairs using the keystore active key.
+	//   - refreshfamily.Store tracks rotation chains with reuse
+	//     detection (OAuth 2.1 / RFC 6819 §5.2.2.3).
+	//   - tokenverify.Verifier pinned to aud="refresh" validates
+	//     incoming refresh tokens (audience separation: a captured
+	//     access token can never substitute as a refresh).
+	//   - auth.RefreshHandler composes the three at /auth/refresh.
+	tokenMinter := mint.New(keyStore, mint.Config{
+		Issuer:   "canary",
+		Audience: []string{"canary", "atlasview"},
+	})
+	refreshFamilyStore := refreshfamily.New(pool)
+	refreshVerifier := tokenverify.New(keyStore, "canary", "refresh")
+	refreshHandler := auth.NewRefreshHandler(refreshVerifier, tokenMinter, refreshFamilyStore, logger)
+
 	// .jeffe namespace registration — Node identity layer.
 	// ORDINALSBOT_API_KEY env var selects real vs stub inscriber.
 	inscriber := sub3.NewOrdinalsBot(os.Getenv("ORDINALSBOT_API_KEY"), "signet")
@@ -192,8 +211,12 @@ func main() {
 	jwksHandler.Mount(r)
 
 	// /v1/me — WhoAmI RPC. T-3 / GRO-863. Bearer-auth-gated; reads
-	// claims from a JWT minted by canary's keystore (T-1 will mint).
+	// claims from a JWT minted by canary's keystore.
 	meHandler.Mount(r)
+
+	// /auth/refresh — token rotation with reuse detection.
+	// T-1 / GRO-861. Public — the refresh token IS the auth.
+	refreshHandler.Mount(r)
 
 	// Bilateral verification APIs — read-only, mounted outside the
 	// audit group. Reads don't need state-mutation audit semantics.

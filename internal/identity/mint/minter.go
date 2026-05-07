@@ -35,15 +35,6 @@ const (
 	DefaultRefreshTTL = 12 * time.Hour
 )
 
-// Refresh token claims live alongside access claims but with a
-// minimal shape — sub, jti, family_id, exp, iat, iss, aud="refresh".
-// The audience differentiator means a refresh token can never be
-// presented as an access token (and vice versa).
-type RefreshClaims struct {
-	jwt.RegisteredClaims
-	FamilyID string `json:"family_id"`
-}
-
 // Pair is the tuple a successful mint produces.
 type Pair struct {
 	AccessToken  string
@@ -137,46 +128,39 @@ func (m *Minter) MintPair(ctx context.Context, s Subject, familyID uuid.UUID) (*
 	accessExp := now.Add(m.cfg.AccessTTL)
 	refreshExp := now.Add(m.cfg.RefreshTTL)
 
-	// Access token — full claims per the contract.
-	accessClaims := tokenverify.Claims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    m.cfg.Issuer,
-			Audience:  jwt.ClaimStrings(m.cfg.Audience),
-			Subject:   s.UserID.String(),
-			ID:        accessJTI,
-			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(accessExp),
-			NotBefore: jwt.NewNumericDate(now),
-		},
-		OrgID:    s.OrgID.String(),
-		PersonID: s.PersonID.String(),
-		UserType: s.UserType,
-		Scopes:   s.Scopes,
+	// Both tokens use tokenverify.Claims — only the aud differs.
+	// Access tokens get the configured audience set; refresh tokens
+	// get aud="refresh", a deliberate split so a captured refresh
+	// can never be presented as an access token (and vice versa).
+	common := func() tokenverify.Claims {
+		return tokenverify.Claims{
+			RegisteredClaims: jwt.RegisteredClaims{
+				Issuer:    m.cfg.Issuer,
+				Subject:   s.UserID.String(),
+				IssuedAt:  jwt.NewNumericDate(now),
+				NotBefore: jwt.NewNumericDate(now),
+			},
+			OrgID:    s.OrgID.String(),
+			PersonID: s.PersonID.String(),
+			UserType: s.UserType,
+			Scopes:   s.Scopes,
+			FamilyID: familyID.String(),
+		}
 	}
 
+	accessClaims := common()
+	accessClaims.Audience = jwt.ClaimStrings(m.cfg.Audience)
+	accessClaims.ID = accessJTI
+	accessClaims.ExpiresAt = jwt.NewNumericDate(accessExp)
 	accessSigned, err := signWithKid(accessClaims, sk.Kid, priv)
 	if err != nil {
 		return nil, fmt.Errorf("mint: sign access: %w", err)
 	}
 
-	// Refresh token — minimal shape. aud="refresh" so the access-
-	// token verifier (which expects aud=canary or atlasview) can
-	// never accept a refresh token, and the refresh endpoint's
-	// verifier (which expects aud=refresh) can never accept an
-	// access token. Audience separation is the cleanest defense
-	// against token-substitution attacks.
-	refreshClaims := RefreshClaims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    m.cfg.Issuer,
-			Audience:  jwt.ClaimStrings{"refresh"},
-			Subject:   s.UserID.String(),
-			ID:        refreshJTI,
-			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(refreshExp),
-			NotBefore: jwt.NewNumericDate(now),
-		},
-		FamilyID: familyID.String(),
-	}
+	refreshClaims := common()
+	refreshClaims.Audience = jwt.ClaimStrings{"refresh"}
+	refreshClaims.ID = refreshJTI
+	refreshClaims.ExpiresAt = jwt.NewNumericDate(refreshExp)
 	refreshSigned, err := signWithKid(refreshClaims, sk.Kid, priv)
 	if err != nil {
 		return nil, fmt.Errorf("mint: sign refresh: %w", err)

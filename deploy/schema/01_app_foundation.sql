@@ -532,3 +532,25 @@ CREATE UNIQUE INDEX IF NOT EXISTS signing_keys_one_active
 CREATE INDEX IF NOT EXISTS signing_keys_verify_set
     ON app.signing_keys (status, kid)
     WHERE status IN ('active', 'retiring');
+
+-- ─── Refresh-token families (T-1 / GRO-861) ───────────────────────────
+-- Refresh-token family ledger with reuse detection. A family is
+-- created on /auth/login and continues across /auth/refresh
+-- rotations. A refresh request whose jti != last_jti revokes the
+-- whole family (OAuth 2.1 / RFC 6819 §5.2.2.3 pattern).
+-- See deploy/migrations/034_refresh_token_families.up.sql for
+-- migration narrative.
+
+CREATE TABLE IF NOT EXISTS app.refresh_token_families (
+    id              UUID PRIMARY KEY,
+    subject         UUID NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_used_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_jti        TEXT NOT NULL,
+    revoked_at      TIMESTAMPTZ,
+    revoked_reason  TEXT
+);
+
+CREATE INDEX IF NOT EXISTS refresh_token_families_subject
+    ON app.refresh_token_families(subject)
+    WHERE revoked_at IS NULL;

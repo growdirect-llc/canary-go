@@ -43,14 +43,21 @@ var (
 )
 
 // Claims is the canonical claim shape emitted by canary.go's minter
-// (T-1 will populate the same struct). Verifier returns it so
-// callers don't have to re-parse jwt.Token internals.
+// (T-1 populates the same struct). Verifier returns it so callers
+// don't have to re-parse jwt.Token internals.
+//
+// Both access and refresh tokens carry this shape — only the aud
+// claim differentiates. Access tokens have aud ∈ {canary, atlasview};
+// refresh tokens have aud="refresh". FamilyID is populated on both
+// for forensic continuity (audit log + family-rotation lookup at
+// /auth/refresh time).
 type Claims struct {
 	jwt.RegisteredClaims          // exp, iat, iss, aud, sub, jti, nbf
-	OrgID    string `json:"org_id,omitempty"`     // tenant UUID
-	PersonID string `json:"person_id,omitempty"`  // user UUID
-	UserType string `json:"user_type,omitempty"`  // read_only|regular|power|admin|system
+	OrgID    string   `json:"org_id,omitempty"`    // tenant UUID
+	PersonID string   `json:"person_id,omitempty"` // user UUID
+	UserType string   `json:"user_type,omitempty"` // read_only|regular|power|admin|system
 	Scopes   []string `json:"scopes,omitempty"`
+	FamilyID string   `json:"family_id,omitempty"` // refresh-token family — T-1 / GRO-861
 }
 
 // VerifySetReader is the keystore surface the verifier depends on —

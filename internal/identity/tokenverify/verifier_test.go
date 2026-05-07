@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -173,16 +174,30 @@ func TestVerify_BadIssuer_Rejects(t *testing.T) {
 }
 
 // TestVerify_BadSignature_Rejects verifies a token whose signature
-// has been tampered with returns ErrTokenSignature.
+// has been tampered with returns ErrTokenSignature. Tampers in the
+// middle of the signature segment (not the last char — base64url's
+// last char can encode padding bits that decode to identical bytes,
+// so end-tampering can spuriously pass).
 func TestVerify_BadSignature_Rejects(t *testing.T) {
 	r, sk := ks(t)
 	v := New(r, "canary", "atlasview")
 
 	tok := mintTestToken(t, sk, goodClaims())
-	// Tamper the last char of the signature segment.
-	tampered := tok[:len(tok)-1] + "X"
+	// Find the second dot — start of signature segment.
+	dot1 := strings.IndexByte(tok, '.')
+	dot2 := dot1 + 1 + strings.IndexByte(tok[dot1+1:], '.')
+	sigStart := dot2 + 1
+	// Tamper a byte ~25% into the signature so we're well clear of
+	// any base64 padding-bit edge cases.
+	tamperIdx := sigStart + (len(tok)-sigStart)/4
+	original := tok[tamperIdx]
+	replacement := byte('A')
+	if original == 'A' {
+		replacement = 'B'
+	}
+	tampered := tok[:tamperIdx] + string(replacement) + tok[tamperIdx+1:]
 	if tampered == tok {
-		tampered = tok[:len(tok)-1] + "Y"
+		t.Fatal("tamper produced identical token — test setup bug")
 	}
 
 	_, err := v.Verify(context.Background(), tampered)
