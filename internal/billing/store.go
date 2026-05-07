@@ -82,6 +82,34 @@ func (s *Store) GetBudget(ctx context.Context, tenantID, id uuid.UUID) (*OTBBudg
 	return out, nil
 }
 
+// Budget status discriminators stored in ledger.l402_otb_budgets.status.
+const (
+	BudgetStatusActive   = "active"
+	BudgetStatusLocked   = "locked"
+	BudgetStatusDepleted = "depleted"
+	BudgetStatusExpired  = "expired"
+)
+
+// UpdateBudgetStatus flips a budget's status. Used by the OTB report
+// "lock period" action (W5 / GRO-824) — operator-initiated active ↔
+// locked toggle. Returns ErrNotFound when no row matches.
+func (s *Store) UpdateBudgetStatus(ctx context.Context, tenantID, id uuid.UUID, status string) (*OTBBudget, error) {
+	const q = `
+		UPDATE ledger.l402_otb_budgets
+		   SET status = $1, updated_at = NOW()
+		 WHERE tenant_id = $2 AND id = $3
+		RETURNING ` + budgetSelectColumns
+	row := s.pool.QueryRow(ctx, q, status, tenantID, id)
+	out, err := scanBudget(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("billing: update budget status: %w", err)
+	}
+	return out, nil
+}
+
 // ListBudgets returns active budgets for a tenant, ordered by
 // budget_period DESC.
 func (s *Store) ListBudgets(ctx context.Context, tenantID uuid.UUID, status string) ([]OTBBudget, error) {
