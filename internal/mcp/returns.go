@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/growdirect-llc/rapidpos/internal/identity"
-	"github.com/growdirect-llc/rapidpos/internal/returns"
+	"github.com/ruptiv/canary/internal/identity"
+	"github.com/ruptiv/canary/internal/returns"
 )
 
 // RegisterReturnsTools registers 4 returns tools with the registry.

@@ -1,4 +1,4 @@
-module github.com/growdirect-llc/rapidpos
+module github.com/ruptiv/canary
 
 go 1.25.0
 

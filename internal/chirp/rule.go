@@ -16,7 +16,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/db/types"
+	"github.com/ruptiv/canary/internal/db/types"
 )
 
 // Rule type aliases — keeps call sites readable when the same struct

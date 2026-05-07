@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/growdirect-llc/rapidpos/internal/protocol/sub3"
+	"github.com/ruptiv/canary/internal/protocol/sub3"
 )
 
 // ─── stubStore ───────────────────────────────────────────────────────────────

@@ -10,10 +10,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/growdirect-llc/rapidpos/internal/protocol/namespace"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
-	"github.com/growdirect-llc/rapidpos/internal/web"
+	"github.com/ruptiv/canary/internal/protocol/namespace"
+	"github.com/ruptiv/canary/internal/protocol/validate"
+	"github.com/ruptiv/canary/internal/testutil"
+	"github.com/ruptiv/canary/internal/web"
 )
 
 // TestProtocolOverview_NoStores_RendersStub — empty-state copy renders

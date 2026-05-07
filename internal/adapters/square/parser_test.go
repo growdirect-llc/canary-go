@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/adapters"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
+	"github.com/ruptiv/canary/internal/adapters"
+	"github.com/ruptiv/canary/internal/protocol/publisher"
 )
 
 const samplePaymentCreated = `{

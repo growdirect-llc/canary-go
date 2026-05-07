@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
-	"github.com/growdirect-llc/rapidpos/internal/customer"
-	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/ruptiv/canary/internal/customer"
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 // RegisterCustomerTools registers 3 customer tools with the registry.

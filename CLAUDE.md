@@ -1,7 +1,7 @@
 # CanaryGo — Agent Context
 
 ## Module
-`github.com/growdirect-llc/rapidpos` — monorepo, single go.mod at root.
+`github.com/ruptiv/canary` — monorepo, single go.mod at root.
 
 ## This build
 Greenfield Go service tree for the Canary Go platform. 19 services (20 binaries with edge).

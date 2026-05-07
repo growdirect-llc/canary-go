@@ -14,9 +14,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	canaryhmac "github.com/growdirect-llc/rapidpos/internal/protocol/hmac"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/secrets"
+	canaryhmac "github.com/ruptiv/canary/internal/protocol/hmac"
+	"github.com/ruptiv/canary/internal/protocol/publisher"
+	"github.com/ruptiv/canary/internal/protocol/secrets"
 )
 
 // fixedClock returns a stable Now() for deterministic tests.

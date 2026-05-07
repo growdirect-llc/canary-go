@@ -24,10 +24,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/growdirect-llc/rapidpos/internal/auth"
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/db"
-	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/ruptiv/canary/internal/auth"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/identity"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 )

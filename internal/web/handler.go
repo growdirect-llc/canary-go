@@ -46,16 +46,16 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/alert"
-	"github.com/growdirect-llc/rapidpos/internal/casemgmt"
-	"github.com/growdirect-llc/rapidpos/internal/chirp"
-	"github.com/growdirect-llc/rapidpos/internal/customer"
-	"github.com/growdirect-llc/rapidpos/internal/employee"
-	"github.com/growdirect-llc/rapidpos/internal/inventory"
-	"github.com/growdirect-llc/rapidpos/internal/item"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
-	"github.com/growdirect-llc/rapidpos/internal/transaction"
-	"github.com/growdirect-llc/rapidpos/internal/workflow"
+	"github.com/ruptiv/canary/internal/alert"
+	"github.com/ruptiv/canary/internal/casemgmt"
+	"github.com/ruptiv/canary/internal/chirp"
+	"github.com/ruptiv/canary/internal/customer"
+	"github.com/ruptiv/canary/internal/employee"
+	"github.com/ruptiv/canary/internal/inventory"
+	"github.com/ruptiv/canary/internal/item"
+	"github.com/ruptiv/canary/internal/protocol/validate"
+	"github.com/ruptiv/canary/internal/transaction"
+	"github.com/ruptiv/canary/internal/workflow"
 )
 
 //go:embed static templates

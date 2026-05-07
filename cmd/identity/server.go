@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/identity"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 )

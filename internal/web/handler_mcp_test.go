@@ -10,8 +10,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/growdirect-llc/rapidpos/internal/mcp"
-	"github.com/growdirect-llc/rapidpos/internal/web"
+	"github.com/ruptiv/canary/internal/mcp"
+	"github.com/ruptiv/canary/internal/web"
 )
 
 func TestMCPTools_NoRegistry_RendersStub(t *testing.T) {

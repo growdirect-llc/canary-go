@@ -10,9 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/growdirect-llc/rapidpos/internal/customer"
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
-	"github.com/growdirect-llc/rapidpos/internal/web"
+	"github.com/ruptiv/canary/internal/customer"
+	"github.com/ruptiv/canary/internal/testutil"
+	"github.com/ruptiv/canary/internal/web"
 )
 
 // TestCustomerListPage_Renders verifies the customers list page returns 200

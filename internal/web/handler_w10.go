@@ -24,7 +24,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/hierarchy"
+	"github.com/ruptiv/canary/internal/hierarchy"
 )
 
 // merchantIDFromCtx returns the request-scoped merchant_id when

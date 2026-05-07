@@ -24,7 +24,7 @@
 //	cmd/owl/main.go            — service entry point
 package owl
 
-import "github.com/growdirect-llc/rapidpos/internal/owl/dtotypes"
+import "github.com/ruptiv/canary/internal/owl/dtotypes"
 
 // Type aliases re-export dtotypes so callers see a clean owl.* surface.
 // dtotypes is the leaf package that both owl/ and owl/metrics/ import

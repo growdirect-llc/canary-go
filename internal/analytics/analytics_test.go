@@ -10,7 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 func TestHandlerMount_RegistersRoutes(t *testing.T) {

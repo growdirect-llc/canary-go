@@ -25,13 +25,13 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/billing"
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/db"
-	"github.com/growdirect-llc/rapidpos/internal/identity"
-	"github.com/growdirect-llc/rapidpos/internal/replenishment"
-	"github.com/growdirect-llc/rapidpos/internal/task"
-	"github.com/growdirect-llc/rapidpos/internal/workflow"
+	"github.com/ruptiv/canary/internal/billing"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/identity"
+	"github.com/ruptiv/canary/internal/replenishment"
+	"github.com/ruptiv/canary/internal/task"
+	"github.com/ruptiv/canary/internal/workflow"
 )
 
 const serviceName = "canary-bull"

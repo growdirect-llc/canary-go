@@ -30,7 +30,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/growdirect-llc/rapidpos/internal/db/types"
+	"github.com/ruptiv/canary/internal/db/types"
 )
 
 // Store is the data-access surface used by the HTTP handler. The

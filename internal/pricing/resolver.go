@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/db/types"
+	"github.com/ruptiv/canary/internal/db/types"
 )
 
 // Resolver wires the store to the price-resolve algorithm. It is the

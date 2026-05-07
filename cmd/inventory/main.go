@@ -21,9 +21,9 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/db"
-	"github.com/growdirect-llc/rapidpos/internal/inventory"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/inventory"
 )
 
 const serviceName = "canary-inventory"

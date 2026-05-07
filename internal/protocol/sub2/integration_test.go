@@ -34,11 +34,11 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/adapters"
-	"github.com/growdirect-llc/rapidpos/internal/adapters/counterpoint"
-	"github.com/growdirect-llc/rapidpos/internal/adapters/square"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/sub2"
+	"github.com/ruptiv/canary/internal/adapters"
+	"github.com/ruptiv/canary/internal/adapters/counterpoint"
+	"github.com/ruptiv/canary/internal/adapters/square"
+	"github.com/ruptiv/canary/internal/protocol/publisher"
+	"github.com/ruptiv/canary/internal/protocol/sub2"
 )
 
 func skipIfNoIntegration(t *testing.T) (dbURL, valkeyURL string) {

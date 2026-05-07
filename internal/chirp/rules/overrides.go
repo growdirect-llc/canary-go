@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/chirp"
+	"github.com/ruptiv/canary/internal/chirp"
 )
 
 // ManagerOverrideFrequencyParams binds the rule_definition.parameters block.

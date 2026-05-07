@@ -12,9 +12,9 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/db/types"
-	"github.com/growdirect-llc/rapidpos/internal/pagination"
-	"github.com/growdirect-llc/rapidpos/internal/party"
+	"github.com/ruptiv/canary/internal/db/types"
+	"github.com/ruptiv/canary/internal/pagination"
+	"github.com/ruptiv/canary/internal/party"
 )
 
 // Service is the slim interface the Handler depends on. Store

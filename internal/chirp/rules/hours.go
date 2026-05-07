@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/growdirect-llc/rapidpos/internal/chirp"
+	"github.com/ruptiv/canary/internal/chirp"
 )
 
 // AfterHoursParams binds the rule_definition.parameters block.

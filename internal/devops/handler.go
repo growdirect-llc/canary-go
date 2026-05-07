@@ -31,7 +31,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/squareauth"
+	"github.com/ruptiv/canary/internal/squareauth"
 )
 
 // Pages documented in Mount():

@@ -14,8 +14,8 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/protocol/sub3"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
+	"github.com/ruptiv/canary/internal/protocol/sub3"
+	"github.com/ruptiv/canary/internal/protocol/validate"
 )
 
 // ─── stub store ──────────────────────────────────────────────────────────────

@@ -10,7 +10,7 @@ package web
 import (
 	"net/http"
 
-	"github.com/growdirect-llc/rapidpos/internal/ecom"
+	"github.com/ruptiv/canary/internal/ecom"
 )
 
 func (h *Handler) ecomOrdersPage(w http.ResponseWriter, r *http.Request) {

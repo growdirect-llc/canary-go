@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
-	"github.com/growdirect-llc/rapidpos/internal/identity"
-	"github.com/growdirect-llc/rapidpos/internal/report"
+	"github.com/ruptiv/canary/internal/identity"
+	"github.com/ruptiv/canary/internal/report"
 )
 
 // RegisterReportTools registers 3 report tools with the registry.

@@ -30,10 +30,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/growdirect-llc/rapidpos/internal/adapters"
-	"github.com/growdirect-llc/rapidpos/internal/db/types"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/sub2"
+	"github.com/ruptiv/canary/internal/adapters"
+	"github.com/ruptiv/canary/internal/db/types"
+	"github.com/ruptiv/canary/internal/protocol/publisher"
+	"github.com/ruptiv/canary/internal/protocol/sub2"
 )
 
 // SourceCode is the canonical identifier for this adapter. Must match

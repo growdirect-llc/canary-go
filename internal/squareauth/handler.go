@@ -354,7 +354,7 @@ var landingTmpl = template.Must(template.New("landing").Funcs(tmplFuncs).Parse(`
     <span>·</span>
     <a href="https://canary.growdirect.io/sdds/" class="hover:text-gray-600 no-underline">SDDs</a>
     <span>·</span>
-    <a href="https://github.com/growdirect-llc/canary-go" class="hover:text-gray-600 no-underline">GitHub</a>
+    <a href="https://github.com/ruptiv/canary" class="hover:text-gray-600 no-underline">GitHub</a>
     <span>·</span>
     <span>GrowDirect LLC · sandbox · token storage encrypted at rest</span>
   </div>
@@ -467,7 +467,7 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(tmplFuncs).Par
     <span>·</span>
     <a href="https://canary.growdirect.io/sdds/" class="hover:text-gray-600 no-underline">SDDs</a>
     <span>·</span>
-    <a href="https://github.com/growdirect-llc/canary-go" class="hover:text-gray-600 no-underline">GitHub</a>
+    <a href="https://github.com/ruptiv/canary" class="hover:text-gray-600 no-underline">GitHub</a>
     <span>·</span>
     <span>sandbox · data pulled live from Square Connect API</span>
   </div>

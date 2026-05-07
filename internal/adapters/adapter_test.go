@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/sub2"
+	"github.com/ruptiv/canary/internal/protocol/publisher"
+	"github.com/ruptiv/canary/internal/protocol/sub2"
 )
 
 // fakeAdapter is a minimal SourceAdapter for registry tests.

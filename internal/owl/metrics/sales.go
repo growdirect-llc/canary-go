@@ -17,7 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/growdirect-llc/rapidpos/internal/owl/dtotypes"
+	"github.com/ruptiv/canary/internal/owl/dtotypes"
 )
 
 // SalesSummary aggregates transaction.transactions over [from, to).

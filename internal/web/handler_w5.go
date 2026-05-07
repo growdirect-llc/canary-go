@@ -21,10 +21,10 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/billing"
-	"github.com/growdirect-llc/rapidpos/internal/inventory"
-	"github.com/growdirect-llc/rapidpos/internal/task"
-	"github.com/growdirect-llc/rapidpos/internal/workflow"
+	"github.com/ruptiv/canary/internal/billing"
+	"github.com/ruptiv/canary/internal/inventory"
+	"github.com/ruptiv/canary/internal/task"
+	"github.com/ruptiv/canary/internal/workflow"
 )
 
 // ──────────────────────────────────────────────────────────────────────

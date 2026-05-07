@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
-	lpPkg "github.com/growdirect-llc/rapidpos/internal/lp"
-	"github.com/growdirect-llc/rapidpos/internal/web"
+	"github.com/ruptiv/canary/internal/testutil"
+	lpPkg "github.com/ruptiv/canary/internal/lp"
+	"github.com/ruptiv/canary/internal/web"
 )
 
 // TestSettingsDrawerPage_Renders verifies the store/drawer settings page

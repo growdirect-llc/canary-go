@@ -11,8 +11,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/lp"
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
+	"github.com/ruptiv/canary/internal/lp"
+	"github.com/ruptiv/canary/internal/testutil"
 )
 
 // seedTenant creates an org and a tenant for use in test fixtures.

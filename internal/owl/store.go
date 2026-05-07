@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/growdirect-llc/rapidpos/internal/owl/metrics"
+	"github.com/ruptiv/canary/internal/owl/metrics"
 )
 
 // Store is the read-only data access surface for Owl. All methods take

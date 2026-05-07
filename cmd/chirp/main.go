@@ -16,10 +16,10 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/chirp"
-	"github.com/growdirect-llc/rapidpos/internal/chirp/rules"
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/db"
+	"github.com/ruptiv/canary/internal/chirp"
+	"github.com/ruptiv/canary/internal/chirp/rules"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/db"
 )
 
 const serviceName = "canary-chirp"

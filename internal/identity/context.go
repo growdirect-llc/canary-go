@@ -13,7 +13,7 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-	"github.com/growdirect-llc/rapidpos/internal/tenant"
+	"github.com/ruptiv/canary/internal/tenant"
 )
 
 // ErrTenantMismatch is returned by AssertBodyTenantMatches when the

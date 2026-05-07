@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/growdirect-llc/rapidpos/internal/mcp"
+	"github.com/ruptiv/canary/internal/mcp"
 )
 
 func fakeEcho(_ context.Context, args json.RawMessage) (any, error) {

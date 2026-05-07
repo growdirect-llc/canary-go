@@ -19,9 +19,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/sub1"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/sub3"
+	"github.com/ruptiv/canary/internal/protocol/publisher"
+	"github.com/ruptiv/canary/internal/protocol/sub1"
+	"github.com/ruptiv/canary/internal/protocol/sub3"
 )
 
 // testMerchantID is a fixed UUID used by all test helpers so evidence

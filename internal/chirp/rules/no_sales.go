@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/growdirect-llc/rapidpos/internal/chirp"
+	"github.com/ruptiv/canary/internal/chirp"
 )
 
 // NoSaleFrequencyParams binds the rule_definition.parameters block.

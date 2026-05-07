@@ -10,9 +10,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/employee"
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
-	"github.com/growdirect-llc/rapidpos/internal/web"
+	"github.com/ruptiv/canary/internal/employee"
+	"github.com/ruptiv/canary/internal/testutil"
+	"github.com/ruptiv/canary/internal/web"
 )
 
 func TestEmployeeDetail_BadID_Returns404(t *testing.T) {

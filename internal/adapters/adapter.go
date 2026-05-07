@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/sub2"
+	"github.com/ruptiv/canary/internal/protocol/publisher"
+	"github.com/ruptiv/canary/internal/protocol/sub2"
 )
 
 // Envelope is the canonical envelope read off the protocol:events

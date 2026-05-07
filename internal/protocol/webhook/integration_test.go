@@ -29,9 +29,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
-	canaryhmac "github.com/growdirect-llc/rapidpos/internal/protocol/hmac"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/secrets"
+	canaryhmac "github.com/ruptiv/canary/internal/protocol/hmac"
+	"github.com/ruptiv/canary/internal/protocol/publisher"
+	"github.com/ruptiv/canary/internal/protocol/secrets"
 )
 
 const (

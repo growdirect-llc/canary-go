@@ -26,7 +26,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	lpPkg "github.com/growdirect-llc/rapidpos/internal/lp"
+	lpPkg "github.com/ruptiv/canary/internal/lp"
 )
 
 // lpScreen ties one settings URL to the unified pattern-backed CRUD path.

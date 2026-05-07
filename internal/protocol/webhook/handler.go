@@ -31,10 +31,10 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/protocol/audit"
-	canaryhmac "github.com/growdirect-llc/rapidpos/internal/protocol/hmac"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/secrets"
+	"github.com/ruptiv/canary/internal/protocol/audit"
+	canaryhmac "github.com/ruptiv/canary/internal/protocol/hmac"
+	"github.com/ruptiv/canary/internal/protocol/publisher"
+	"github.com/ruptiv/canary/internal/protocol/secrets"
 )
 
 // HeaderMerchant carries the tenant scope. Sources that don't natively

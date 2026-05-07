@@ -9,9 +9,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
-	"github.com/growdirect-llc/rapidpos/internal/web"
-	"github.com/growdirect-llc/rapidpos/internal/workflow"
+	"github.com/ruptiv/canary/internal/testutil"
+	"github.com/ruptiv/canary/internal/web"
+	"github.com/ruptiv/canary/internal/workflow"
 )
 
 func TestWorkflowsList_Renders_WithStore(t *testing.T) {

@@ -12,7 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/db/types"
+	"github.com/ruptiv/canary/internal/db/types"
 )
 
 // stubService is a fully in-memory implementation of fox.Service for

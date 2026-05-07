@@ -10,9 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/growdirect-llc/rapidpos/internal/chirp"
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
-	"github.com/growdirect-llc/rapidpos/internal/web"
+	"github.com/ruptiv/canary/internal/chirp"
+	"github.com/ruptiv/canary/internal/testutil"
+	"github.com/ruptiv/canary/internal/web"
 )
 
 // TestChirpListPage_Renders verifies the chirps page handler mounts correctly,

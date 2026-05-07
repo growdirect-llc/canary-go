@@ -13,9 +13,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	lpPkg "github.com/growdirect-llc/rapidpos/internal/lp"
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
-	"github.com/growdirect-llc/rapidpos/internal/web"
+	lpPkg "github.com/ruptiv/canary/internal/lp"
+	"github.com/ruptiv/canary/internal/testutil"
+	"github.com/ruptiv/canary/internal/web"
 )
 
 // allLPSettingsPaths covers the 10 W1 settings screens.

@@ -19,7 +19,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/lp"
+	"github.com/ruptiv/canary/internal/lp"
 )
 
 // AllowListLookup is the narrow read surface the suppression check

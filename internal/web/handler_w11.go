@@ -23,8 +23,8 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/po"
-	"github.com/growdirect-llc/rapidpos/internal/supplier"
+	"github.com/ruptiv/canary/internal/po"
+	"github.com/ruptiv/canary/internal/supplier"
 )
 
 // ──────────────────────────────────────────────────────────────────────

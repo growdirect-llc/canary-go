@@ -28,8 +28,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/chirp"
-	"github.com/growdirect-llc/rapidpos/internal/chirp/rules"
+	"github.com/ruptiv/canary/internal/chirp"
+	"github.com/ruptiv/canary/internal/chirp/rules"
 )
 
 func skipIfNoIntegration(t *testing.T) string {

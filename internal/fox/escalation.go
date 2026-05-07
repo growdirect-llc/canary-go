@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/db/types"
+	"github.com/ruptiv/canary/internal/db/types"
 )
 
 // EscalationStore is the narrow surface EvaluateForEscalation needs

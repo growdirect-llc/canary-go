@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/growdirect-llc/rapidpos/internal/chirp"
+	"github.com/ruptiv/canary/internal/chirp"
 )
 
 // RefundNoReceiptParams is empty — this rule has no tunable knobs in

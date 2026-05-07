@@ -28,13 +28,13 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/adapters"
-	"github.com/growdirect-llc/rapidpos/internal/adapters/clover"
-	"github.com/growdirect-llc/rapidpos/internal/adapters/counterpoint"
-	"github.com/growdirect-llc/rapidpos/internal/adapters/square"
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/db"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/sub2"
+	"github.com/ruptiv/canary/internal/adapters"
+	"github.com/ruptiv/canary/internal/adapters/clover"
+	"github.com/ruptiv/canary/internal/adapters/counterpoint"
+	"github.com/ruptiv/canary/internal/adapters/square"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/protocol/sub2"
 )
 
 const serviceName = "canary-sub2-parse-route"

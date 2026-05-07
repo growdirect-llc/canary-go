@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/growdirect-llc/rapidpos/internal/chirp"
+	"github.com/ruptiv/canary/internal/chirp"
 )
 
 // LargeDiscountPctParams binds the rule_definition.parameters block.

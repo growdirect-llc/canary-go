@@ -17,11 +17,11 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/db"
-	"github.com/growdirect-llc/rapidpos/internal/identity"
-	"github.com/growdirect-llc/rapidpos/internal/obs"
-	"github.com/growdirect-llc/rapidpos/internal/report"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/identity"
+	"github.com/ruptiv/canary/internal/obs"
+	"github.com/ruptiv/canary/internal/report"
 )
 
 const serviceName = "canary-report"

@@ -21,7 +21,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/protocol/sub3"
+	"github.com/ruptiv/canary/internal/protocol/sub3"
 )
 
 // ErrNameTaken is returned by Register when the requested name is

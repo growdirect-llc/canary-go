@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/protocol/sub3"
+	"github.com/ruptiv/canary/internal/protocol/sub3"
 	"github.com/google/uuid"
 )
 

@@ -20,7 +20,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 // Handler binds report endpoints onto a chi router.

@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
-	"github.com/growdirect-llc/rapidpos/internal/alert"
-	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/ruptiv/canary/internal/alert"
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 // RegisterAlertTools registers 6 alert tools with the registry.

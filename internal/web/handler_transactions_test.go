@@ -17,10 +17,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
-	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
-	"github.com/growdirect-llc/rapidpos/internal/transaction"
-	"github.com/growdirect-llc/rapidpos/internal/web"
+	"github.com/ruptiv/canary/internal/protocol/validate"
+	"github.com/ruptiv/canary/internal/testutil"
+	"github.com/ruptiv/canary/internal/transaction"
+	"github.com/ruptiv/canary/internal/web"
 )
 
 // seedTxnTenant inserts an org/tenant + a location.locations row and returns

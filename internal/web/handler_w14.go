@@ -21,9 +21,9 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/alert"
-	"github.com/growdirect-llc/rapidpos/internal/inventory"
-	"github.com/growdirect-llc/rapidpos/internal/task"
+	"github.com/ruptiv/canary/internal/alert"
+	"github.com/ruptiv/canary/internal/inventory"
+	"github.com/ruptiv/canary/internal/task"
 )
 
 func (h *Handler) mobileTasksPage(w http.ResponseWriter, r *http.Request) {

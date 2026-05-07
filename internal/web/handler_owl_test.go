@@ -11,8 +11,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/growdirect-llc/rapidpos/internal/owl"
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
+	"github.com/ruptiv/canary/internal/owl"
+	"github.com/ruptiv/canary/internal/testutil"
 )
 
 // TestOwlPortalPeriod_Day pins a known UTC midpoint and verifies the

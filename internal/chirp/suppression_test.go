@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/chirp"
-	"github.com/growdirect-llc/rapidpos/internal/db/types"
-	"github.com/growdirect-llc/rapidpos/internal/lp"
+	"github.com/ruptiv/canary/internal/chirp"
+	"github.com/ruptiv/canary/internal/db/types"
+	"github.com/ruptiv/canary/internal/lp"
 )
 
 // stubAllowList satisfies chirp.AllowListLookup for tests.
