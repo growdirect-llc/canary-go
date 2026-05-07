@@ -33,6 +33,7 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/devops"
 	lpPkg        "github.com/growdirect-llc/rapidpos/internal/lp"
 	"github.com/growdirect-llc/rapidpos/internal/web"
+	webdevops "github.com/growdirect-llc/rapidpos/internal/web/devops"
 	employeePkg  "github.com/growdirect-llc/rapidpos/internal/employee"
 	reportPkg    "github.com/growdirect-llc/rapidpos/internal/report"
 	returnsPkg   "github.com/growdirect-llc/rapidpos/internal/returns"
@@ -219,6 +220,17 @@ func main() {
 
 	// /devops — pipeline monitor + API explorer. Dev-only (DEV_CONSOLE=1).
 	devops.New(pool, rdb, logger, squareSvc).Mount(r)
+
+	// /devops/<service> — sysadmin module shell (Phase 2 of GRO-836).
+	// Owns the catalog/manifest/observability/pipeline/qa-agent service
+	// pages. Routes don't collide with the dev console's specific paths
+	// (square / api / releases / static); Phase 3 folds those legacy
+	// pages into the new shell. GRO-840 T2.0.
+	if sysadmin, err := webdevops.New(logger); err == nil {
+		sysadmin.Mount(r)
+	} else {
+		logger.Warn("sysadmin module disabled", zap.Error(err))
+	}
 
 	// / — Canary application UI.
 	webDeps := web.Deps{

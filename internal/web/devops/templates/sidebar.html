@@ -1,0 +1,14 @@
+{{define "sidebar.html"}}<nav class="sidebar">
+  <div class="sidebar-brand">Canary Sysadmin</div>
+  {{range .Categories}}
+    <div class="sidebar-group-title">{{.Title}}</div>
+    {{range .Services}}
+      <a href="/devops/{{.Name}}" class="{{if eq .Name $.Active}}active{{end}}">
+        <span>{{.Name}}</span>
+        <span class="sidebar-tag">{{.Priority}}</span>
+      </a>
+    {{end}}
+  {{end}}
+  <div class="sidebar-group-title" style="margin-top: 32px;">Phase 1 baseline</div>
+  <a href="/devops/catalog/spec.yaml" style="color: var(--text-muted); font-size: 12px;">manifest.yaml ↗</a>
+</nav>{{end}}
