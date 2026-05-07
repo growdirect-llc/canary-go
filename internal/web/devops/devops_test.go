@@ -109,12 +109,12 @@ func TestKnownServices_returnsAllSkeletons(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	got := h.KnownServices()
-	if len(got) != 5 {
-		t.Errorf("KnownServices count: got %d, want 5; got %v", len(got), got)
-	}
 	want := map[string]bool{
 		"catalog": true, "manifest": true, "observability": true,
-		"pipeline": true, "qa-agent": true,
+		"pipeline": true, "qa-agent": true, "api-docs": true,
+	}
+	if len(got) != len(want) {
+		t.Errorf("KnownServices count: got %d, want %d; got %v", len(got), len(want), got)
 	}
 	for _, name := range got {
 		if !want[name] {
@@ -130,5 +130,117 @@ func TestNew_buildsTemplate(t *testing.T) {
 	}
 	if h.tmpl == nil {
 		t.Error("tmpl is nil")
+	}
+}
+
+func TestApiDocs_pageRendersWhenSpecLoaded(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	// Force-load a synthetic spec so the test doesn't depend on cwd.
+	h.openAPIRaw = []byte("openapi: 3.0.3\ninfo: { title: x, version: 0 }\npaths: {}\n")
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/devops/api-docs", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+	for _, want := range []string{
+		"api-docs",
+		"redoc.standalone.js",
+		"Redoc.init(",
+		`id="redoc-container"`,
+		"/devops/api-docs/openapi.yaml", // appears as the spec URL — html/template encodes it for JS context
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("api-docs body missing %q", want)
+		}
+	}
+}
+
+func TestApiDocs_pageRendersPlaceholderWhenSpecMissing(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	h.openAPIRaw = nil // force not-loaded state
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/devops/api-docs", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "SPEC NOT LOADED") {
+		t.Errorf("placeholder banner missing")
+	}
+	if strings.Contains(body, "Redoc.init(") {
+		t.Errorf("Redoc init script should NOT render when spec missing")
+	}
+}
+
+func TestApiDocs_specEndpointReturnsYAML(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	body := []byte("openapi: 3.0.3\ninfo: { title: y, version: 1 }\npaths: {}\n")
+	h.openAPIRaw = body
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/devops/api-docs/openapi.yaml", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	if ct := rr.Header().Get("Content-Type"); ct != "application/yaml; charset=utf-8" {
+		t.Errorf("Content-Type: got %q, want application/yaml", ct)
+	}
+	if rr.Body.String() != string(body) {
+		t.Errorf("spec body mismatch")
+	}
+}
+
+func TestApiDocs_specEndpoint503WhenNotLoaded(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	h.openAPIRaw = nil
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/devops/api-docs/openapi.yaml", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("status: got %d, want 503", rr.Code)
+	}
+}
+
+func TestApiDocs_includedInKnownServices(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	found := false
+	for _, n := range h.KnownServices() {
+		if n == "api-docs" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("api-docs not in KnownServices()")
 	}
 }

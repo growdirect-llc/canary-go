@@ -23,6 +23,8 @@ import (
 	"embed"
 	"html/template"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
@@ -99,19 +101,31 @@ var Categories = []Group{
 				PythonPriorArt: "Canary/canary/qa_agent/",
 				BodyTODO:       "Page-aware operator agent with cross-service MCP tools — wired in T3B.4.",
 			},
+			{
+				Name: "api-docs", Port: 9105, Owner: "ALX",
+				Card: "Brain/wiki/cards/api-docs.md", Priority: "P0",
+				Scope: "cross-tenant", Category: "cross-tenant infra",
+				Cells:    []string{"B × reference"},
+				BodyTODO: "Redoc-rendered OpenAPI 3.0 spec — wired in T2.35.",
+			},
 		},
 	},
 }
 
 // Handler renders the sysadmin module shell.
 type Handler struct {
-	tmpl   *template.Template
-	logger *zap.Logger
-	index  map[string]*Service // name → metadata, built once at New()
+	tmpl       *template.Template
+	logger     *zap.Logger
+	index      map[string]*Service // name → metadata, built once at New()
+	openAPIRaw []byte              // openapi.yaml loaded once at boot for /devops/api-docs/openapi.yaml
 }
 
 // New constructs a Handler. Returns an error if templates fail to
-// parse — main.go logs and continues without mounting.
+// parse — main.go logs and continues without mounting. openAPIPath
+// is the absolute or repo-relative path to openapi.yaml; if empty
+// the loader tries a couple of common locations. Failure to load
+// the spec is logged and api-docs degrades to a placeholder, but
+// the rest of the shell still mounts.
 func New(logger *zap.Logger) (*Handler, error) {
 	if logger == nil {
 		logger = zap.NewNop()
@@ -119,6 +133,7 @@ func New(logger *zap.Logger) (*Handler, error) {
 	tmpl, err := template.ParseFS(embedFS,
 		"templates/shell.html",
 		"templates/sidebar.html",
+		"templates/api_docs.html",
 	)
 	if err != nil {
 		return nil, err
@@ -130,7 +145,36 @@ func New(logger *zap.Logger) (*Handler, error) {
 			idx[s.Name] = s
 		}
 	}
-	return &Handler{tmpl: tmpl, logger: logger, index: idx}, nil
+	h := &Handler{tmpl: tmpl, logger: logger, index: idx}
+	h.openAPIRaw = loadOpenAPI(logger)
+	return h, nil
+}
+
+// loadOpenAPI reads openapi.yaml from a couple of candidate locations
+// relative to the current working directory. Gateway boots with cwd
+// set by deploy/start scripts; the candidates cover repo-root runs and
+// CanaryGo-rooted runs. Returns nil if no file is found — the api-docs
+// page degrades gracefully.
+func loadOpenAPI(logger *zap.Logger) []byte {
+	candidates := []string{
+		"services/canary-protocol/openapi/openapi.yaml",
+		"../services/canary-protocol/openapi/openapi.yaml",
+		"../../services/canary-protocol/openapi/openapi.yaml",
+	}
+	for _, c := range candidates {
+		abs, _ := filepath.Abs(c)
+		data, err := os.ReadFile(c)
+		if err == nil && len(data) > 0 {
+			logger.Info("api-docs: openapi.yaml loaded",
+				zap.String("path", abs),
+				zap.Int("bytes", len(data)),
+			)
+			return data
+		}
+	}
+	logger.Warn("api-docs: openapi.yaml not found in any candidate location " +
+		"(api-docs page will render placeholder)")
+	return nil
 }
 
 // Mount registers a route per known service. The runner registers
@@ -138,8 +182,19 @@ func New(logger *zap.Logger) (*Handler, error) {
 // chi can detect collisions cleanly during boot and so the existing
 // internal/devops/ package's specific routes (/devops/square,
 // /devops/api, /devops/releases) keep working.
+//
+// Special services with custom handlers (api-docs renders Redoc, not
+// the generic shell) are routed before the generic loop.
 func (h *Handler) Mount(r chi.Router) {
+	// Special routes — rendered with custom handlers, NOT the generic
+	// six-zone shell. T2.35: api-docs serves Redoc + raw openapi.yaml.
+	r.Get("/devops/api-docs", h.apiDocsPage)
+	r.Get("/devops/api-docs/openapi.yaml", h.apiDocsSpec)
+
 	for name := range h.index {
+		if name == "api-docs" {
+			continue // already mounted with the Redoc handler above
+		}
 		path := "/devops/" + name
 		r.Get(path, h.servicePage)
 	}
@@ -186,4 +241,34 @@ func (h *Handler) servicePage(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error("shell template", zap.Error(err))
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
+}
+
+func (h *Handler) apiDocsPage(w http.ResponseWriter, r *http.Request) {
+	svc := h.index["api-docs"]
+	view := map[string]any{
+		"Service":     svc,
+		"Categories":  Categories,
+		"Active":      "api-docs",
+		"Tenant":      "all",
+		"Env":         "lab",
+		"SpecURL":     "/devops/api-docs/openapi.yaml",
+		"SpecLoaded":  len(h.openAPIRaw) > 0,
+		"SpecBytes":   len(h.openAPIRaw),
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := h.tmpl.ExecuteTemplate(w, "api_docs.html", view); err != nil {
+		h.logger.Error("api-docs template", zap.Error(err))
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) apiDocsSpec(w http.ResponseWriter, r *http.Request) {
+	if len(h.openAPIRaw) == 0 {
+		http.Error(w, "openapi.yaml not loaded", http.StatusServiceUnavailable)
+		return
+	}
+	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	_, _ = w.Write(h.openAPIRaw)
 }
