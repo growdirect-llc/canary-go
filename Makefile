@@ -1,5 +1,5 @@
 .PHONY: migrate-up migrate-down migrate-test-up sqlc-gen test \
-        build-identity build-all build-edge-windows lint \
+        build-identity build-all build-edge-windows lint vulncheck \
         db-reset db-reset-test db-seed db-seed-test \
         dev dev-down dev-logs
 
@@ -87,6 +87,14 @@ build-edge-windows:
 
 lint:
 	go vet ./...
+
+# vulncheck — scan dependencies for known CVEs via govulncheck.
+# Installs the tool if missing. Runs against the loaded module graph.
+# Wire into CI (cloudbuild.gateway.yaml) as a deploy gate before staging.
+# GRO-849 / Sprint 2 T-G.
+vulncheck:
+	@command -v govulncheck >/dev/null 2>&1 || go install golang.org/x/vuln/cmd/govulncheck@latest
+	@govulncheck ./...
 
 test-cockroach:
 	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test -tags integration ./internal/protocol/cockroach/... -v -timeout 60s
