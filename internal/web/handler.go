@@ -221,17 +221,11 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/customers/{id}/risk", h.customerRiskPage)
 	r.Get("/customers/{id}/context", h.customerContextPage)
 
-	// Settings sub-pages
-	r.Get("/settings/allowlist/dead-count", h.page("settings", "settings_allowlist_dead_count", func(_ *http.Request) any { return map[string]any{"Entries": nil, "StoreID": "—"} }))
-	r.Get("/settings/allowlist/discounts", h.page("settings", "settings_allowlist_discounts", func(_ *http.Request) any { return map[string]any{"Entries": nil} }))
-	r.Get("/settings/allowlist/voids", h.page("settings", "settings_allowlist_voids", func(_ *http.Request) any { return map[string]any{"Entries": nil} }))
-	r.Get("/settings/allowlist/comps", h.page("settings", "settings_allowlist_comps", func(_ *http.Request) any { return map[string]any{"Entries": nil} }))
-	r.Get("/settings/training-mode", h.page("settings", "settings_training_mode", func(_ *http.Request) any { return map[string]any{"Enabled": false, "ActiveWindow": nil, "RecentWindows": nil} }))
-	r.Get("/settings/alert-routing", h.page("settings", "settings_alert_routing", func(_ *http.Request) any { return map[string]any{"Routes": nil} }))
-	r.Get("/settings/store/drawer", h.page("settings", "settings_store_drawer", func(_ *http.Request) any { return map[string]any{"Thresholds": nil} }))
-	r.Get("/settings/store/discounts", h.page("settings", "settings_store_discounts", func(_ *http.Request) any { return map[string]any{"Caps": nil} }))
-	r.Get("/settings/store/void-reasons", h.page("settings", "settings_store_void_reasons", func(_ *http.Request) any { return map[string]any{"Codes": nil} }))
-	r.Get("/settings/store/comp-reasons", h.page("settings", "settings_store_comp_reasons", func(_ *http.Request) any { return map[string]any{"Codes": nil} }))
+	// Settings — LP allow-list + N.4 thresholds + training mode + alert routing.
+	// 10 screens, each backed by detection.allow_list with a pattern type+kind
+	// discriminator. CRUD wired via h.mountLPSettings (handler_lp_settings.go).
+	// W1 dispatch: GRO-814.
+	h.mountLPSettings(r)
 	r.Get("/settings/devices", h.page("settings", "settings_devices", func(_ *http.Request) any {
 		return map[string]any{"Online": 0, "Offline": 0, "Degraded": 0, "Devices": nil}
 	}))
