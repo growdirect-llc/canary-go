@@ -54,6 +54,8 @@ import (
 	"github.com/ruptiv/canary/internal/identity"
 	"github.com/ruptiv/canary/internal/identity/jwks"
 	"github.com/ruptiv/canary/internal/identity/keystore"
+	"github.com/ruptiv/canary/internal/identity/me"
+	"github.com/ruptiv/canary/internal/identity/tokenverify"
 	"github.com/ruptiv/canary/internal/manifest/routewalk"
 	"github.com/ruptiv/canary/internal/mcp"
 	"github.com/ruptiv/canary/internal/protocol/anchor"
@@ -130,6 +132,13 @@ func main() {
 	bootstrapSigningKeyIfEmpty(ctx, keyStore, logger)
 	jwksHandler := jwks.New(keyStore, logger)
 
+	// Token verifier + WhoAmI RPC (T-3 / GRO-863). Pin issuer to
+	// "canary" and audience to "canary" — internal tokens are
+	// canary-audience by default; AtlasView-audience tokens are
+	// for AtlasView's middleware to verify, not ours.
+	tokenVerifier := tokenverify.New(keyStore, "canary", "canary")
+	meHandler := me.New(tokenVerifier, logger)
+
 	// .jeffe namespace registration — Node identity layer.
 	// ORDINALSBOT_API_KEY env var selects real vs stub inscriber.
 	inscriber := sub3.NewOrdinalsBot(os.Getenv("ORDINALSBOT_API_KEY"), "signet")
@@ -181,6 +190,10 @@ func main() {
 	// (RFC 5785 + RFC 7517) so AtlasView and other consumers can
 	// auto-discover. Reads from the rotation-aware keystore.
 	jwksHandler.Mount(r)
+
+	// /v1/me — WhoAmI RPC. T-3 / GRO-863. Bearer-auth-gated; reads
+	// claims from a JWT minted by canary's keystore (T-1 will mint).
+	meHandler.Mount(r)
 
 	// Bilateral verification APIs — read-only, mounted outside the
 	// audit group. Reads don't need state-mutation audit semantics.
