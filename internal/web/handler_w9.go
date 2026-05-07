@@ -41,7 +41,13 @@ func (h *Handler) adminAuditPage(w http.ResponseWriter, r *http.Request) {
 
 	if h.deps.AuditReader != nil {
 		ctx := r.Context()
+		// T-C / GRO-849: clamp the audit query to the caller's tenant.
+		// requireTenantMiddleware (T-B) guarantees a non-nil tenant on
+		// this route, so ListByMerchant always filters — no leak of
+		// other tenants' audit rows from the /admin/audit surface.
+		tenantID := tenantIDFromCtx(ctx)
 		rows, err := h.deps.AuditReader.ListByMerchant(ctx, audit.ListFilters{
+			MerchantID: &tenantID,
 			SourceCode: source,
 			Action:     action,
 			Limit:      limit,

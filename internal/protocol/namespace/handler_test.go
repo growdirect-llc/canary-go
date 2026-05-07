@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/ruptiv/canary/internal/identity"
 	"github.com/ruptiv/canary/internal/protocol/sub3"
 )
 
@@ -70,7 +71,12 @@ func (s *stubStore) UpdateInscription(_ context.Context, regID uuid.UUID,
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 // handlerWithStub returns an http.Handler for the two namespace routes
-// backed by a stubStore, bypassing the real *Store.
+// backed by a stubStore, bypassing the real *Store. Existing tests
+// don't exercise the T-C ownership check, so the wrapper injects
+// platform-scope claims (TenantID == uuid.Nil) into every request —
+// which the auth gate accepts. Tests that DO exercise the ownership
+// check (TestHandler_POST_*_OwnerMismatch / _Unauthenticated) build
+// requests directly without this wrapper.
 func handlerWithStub(stub *stubStore) http.Handler {
 	h := &Handler{
 		store:     stub,
@@ -78,8 +84,22 @@ func handlerWithStub(stub *stubStore) http.Handler {
 		logger:    nil,
 	}
 	r := chi.NewRouter()
+	r.Use(injectPlatformClaims)
 	h.Mount(r)
 	return r
+}
+
+// injectPlatformClaims adds platform-scope identity.Claims to every
+// request — used by handlerWithStub so the existing test suite
+// doesn't have to thread auth context through every NewRequest call.
+func injectPlatformClaims(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := identity.InjectClaims(r.Context(), identity.Claims{
+			TenantID:   uuid.Nil,
+			AuthMethod: identity.AuthMethodAPIKey,
+		})
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // ─── POST tests ──────────────────────────────────────────────────────────────
@@ -225,5 +245,116 @@ func TestHandler_GET_404_UnknownName(t *testing.T) {
 
 	if getW.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d; body=%s", getW.Code, getW.Body.String())
+	}
+}
+
+// ─── T-C / GRO-849 ownership-proof tests ─────────────────────────────────────
+
+// TestHandler_POST_401_NoClaims verifies that the register endpoint
+// rejects requests with no identity.Claims — the production wiring
+// places APIKeyMiddleware in front, so a missing-key 401 is what
+// genuine unauthenticated traffic returns.
+func TestHandler_POST_401_NoClaims(t *testing.T) {
+	t.Parallel()
+	stub := newStubStore()
+	h := &Handler{store: stub, inscriber: &sub3.StubInscriber{}}
+	r := chi.NewRouter()
+	h.Mount(r) // no claims-injection middleware
+
+	body, _ := json.Marshal(map[string]string{
+		"name":       "ghost.jeffe",
+		"owner_id":   uuid.New().String(),
+		"owner_type": "merchant",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/v1/protocol/namespace", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d; body=%s", w.Code, w.Body.String())
+	}
+	var resp map[string]string
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["code"] != "unauthenticated" {
+		t.Errorf("error code: got %q, want unauthenticated", resp["code"])
+	}
+}
+
+// TestHandler_POST_403_OwnerMismatch verifies that a tenant-scoped
+// API key cannot register a name claiming a different tenant's
+// owner_id — prevents impersonation via spoofed registration.
+func TestHandler_POST_403_OwnerMismatch(t *testing.T) {
+	t.Parallel()
+	stub := newStubStore()
+	h := &Handler{store: stub, inscriber: &sub3.StubInscriber{}}
+	r := chi.NewRouter()
+	caller := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			ctx := identity.InjectClaims(req.Context(), identity.Claims{
+				TenantID:   caller,
+				AuthMethod: identity.AuthMethodAPIKey,
+			})
+			next.ServeHTTP(w, req.WithContext(ctx))
+		})
+	})
+	h.Mount(r)
+
+	other := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	body, _ := json.Marshal(map[string]string{
+		"name":       "spoofed.jeffe",
+		"owner_id":   other.String(),
+		"owner_type": "merchant",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/v1/protocol/namespace", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d; body=%s", w.Code, w.Body.String())
+	}
+	var resp map[string]string
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["code"] != "owner_mismatch" {
+		t.Errorf("error code: got %q, want owner_mismatch", resp["code"])
+	}
+	if _, exists := stub.regs["spoofed.jeffe"]; exists {
+		t.Error("forbidden registration was nonetheless inserted into the store")
+	}
+}
+
+// TestHandler_POST_201_OwnTenant verifies the happy path: tenant-
+// scoped key registering a name with matching owner_id succeeds.
+func TestHandler_POST_201_OwnTenant(t *testing.T) {
+	t.Parallel()
+	stub := newStubStore()
+	h := &Handler{store: stub, inscriber: &sub3.StubInscriber{}}
+	r := chi.NewRouter()
+	caller := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			ctx := identity.InjectClaims(req.Context(), identity.Claims{
+				TenantID:   caller,
+				AuthMethod: identity.AuthMethodAPIKey,
+			})
+			next.ServeHTTP(w, req.WithContext(ctx))
+		})
+	})
+	h.Mount(r)
+
+	body, _ := json.Marshal(map[string]string{
+		"name":       "owner.jeffe",
+		"owner_id":   caller.String(),
+		"owner_type": "merchant",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/v1/protocol/namespace", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d; body=%s", w.Code, w.Body.String())
 	}
 }

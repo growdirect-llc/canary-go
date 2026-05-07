@@ -171,11 +171,12 @@ func main() {
 	evidenceHandler.Mount(r)
 	anchorHandler.Mount(r)
 
-	// .jeffe namespace — POST (register) + GET (lookup).
-	// Mounted outside the audit group; the POST writes one row but
-	// carries its own payload_hash + inscription_id as the audit
-	// trail. GRO-751.
-	nsHandler.Mount(r)
+	// .jeffe namespace — GET (lookup) public, POST (register)
+	// gated below behind APIKeyMiddleware (T-C / GRO-849: prevents
+	// spoofed registrations claiming someone else's owner_id).
+	// The POST writes one row but carries its own payload_hash +
+	// inscription_id as the audit trail. GRO-751.
+	nsHandler.MountPublic(r)
 
 	// L402 sat-gated verification — POST issues challenge, GET consumes.
 	// Mounted outside audit group; the payment record IS the audit trail.
@@ -213,6 +214,12 @@ func main() {
 		}))
 		r.Use(auditMW)
 		admin.Mount(r)
+
+		// T-C / GRO-849: POST /v1/protocol/namespace requires
+		// API-key auth + tenant-match on owner_id. Mounted here so
+		// it inherits the same APIKeyMiddleware + audit pair as the
+		// admin endpoints.
+		nsHandler.MountProtected(r)
 	})
 
 	// POST /mcp — MCP JSON-RPC 2.0 endpoint. API-key auth, tenant-scoped.
