@@ -8,6 +8,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/growdirect-llc/rapidpos/internal/owl"
+	"github.com/growdirect-llc/rapidpos/internal/testutil"
 )
 
 // TestOwlPortalPeriod_Day pins a known UTC midpoint and verifies the
@@ -211,5 +214,59 @@ func TestOwlLPPerformance_PeriodSelector(t *testing.T) {
 		if rr.Code != http.StatusOK {
 			t.Errorf("period=%s: expected 200 got %d", period, rr.Code)
 		}
+	}
+}
+
+// TestOwlDashboards_WithStore_RendersAgainstRealDB — DashboardStore wired
+// against canary_gcp_test. With no seed data the queries return empty
+// results; render must still 200 and surface the empty-state copy.
+func TestOwlDashboards_WithStore_RendersAgainstRealDB(t *testing.T) {
+	pool := testutil.MustConnect(t)
+	deps := Deps{OwlDashboard: owl.NewDashboardStore(pool)}
+	h := New(deps, nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/owl/dashboards", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d body=%s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "Dashboards") {
+		t.Errorf("expected page header copy")
+	}
+}
+
+// TestOwlParties_WithStore_RendersAgainstRealDB — same shape as dashboards.
+func TestOwlParties_WithStore_RendersAgainstRealDB(t *testing.T) {
+	pool := testutil.MustConnect(t)
+	deps := Deps{OwlDashboard: owl.NewDashboardStore(pool)}
+	h := New(deps, nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/owl/parties?limit=25", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d", rr.Code)
+	}
+}
+
+// TestOwlLPPerformance_WithStore_RendersAgainstRealDB — same shape.
+func TestOwlLPPerformance_WithStore_RendersAgainstRealDB(t *testing.T) {
+	pool := testutil.MustConnect(t)
+	deps := Deps{OwlDashboard: owl.NewDashboardStore(pool)}
+	h := New(deps, nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/owl/lp-performance?period=month", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d", rr.Code)
 	}
 }
