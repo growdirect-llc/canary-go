@@ -173,6 +173,7 @@ func New(deps Deps, logger *zap.Logger) *Handler {
 	h.mustParse("mcp_tools", "templates/mcp/tools.html")
 	h.mustParse("protocol_overview", "templates/protocol/overview.html")
 	h.mustParse("owl_dashboards", "templates/owl/dashboards.html")
+	h.mustParse("owl_parties", "templates/owl/parties.html")
 	return h
 }
 
@@ -213,6 +214,7 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/settings", h.page("settings", "settings", stubSettings))
 	r.Get("/owl", h.owlPage)
 	r.Get("/owl/dashboards", h.owlDashboardsPage)
+	r.Get("/owl/parties", h.owlPartiesPage)
 	r.Get("/rules", h.rulesListPage)
 	r.Get("/connect", h.page("connect", "connect", stubConnect))
 	r.Get("/welcome", h.page("welcome", "welcome", nil))
@@ -471,6 +473,61 @@ func (h *Handler) owlDashboardsPage(w http.ResponseWriter, r *http.Request) {
 // formatOwlPct renders a 0..1 ratio as a percentage with one decimal.
 func formatOwlPct(r float64) string {
 	return strconv.FormatFloat(r*100, 'f', 1, 64) + "%"
+}
+
+// owlPartiesPage renders the tenant's RFM party list, ordered by
+// party_value DESC. Reads party.decisioning_facts via DashboardStore.
+// Wired W6 / GRO-825.
+func (h *Handler) owlPartiesPage(w http.ResponseWriter, r *http.Request) {
+	limit := parseOwlLimit(r.URL.Query().Get("limit"), 50)
+	view := map[string]any{
+		"Limit":        limit,
+		"LimitOptions": []int{25, 50, 100, 250, 500},
+		"PartyCount":   0,
+		"Parties":      nil,
+	}
+
+	if h.deps.OwlDashboard != nil {
+		ctx := r.Context()
+		tenantID := tenantIDFromCtx(ctx)
+		parties, err := h.deps.OwlDashboard.ListPartyRFM(ctx, tenantID, limit)
+		if err != nil {
+			h.logger.Error("owlPartiesPage: list", zap.Error(err))
+		} else {
+			rows := make([]map[string]any, 0, len(parties))
+			for _, p := range parties {
+				rows = append(rows, map[string]any{
+					"PartyShort":     p.PartyID.String()[:8],
+					"Confidence":     p.Confidence,
+					"PartyValue":     p.PartyValue,
+					"PartyFrequency": p.PartyFrequency,
+					"PartyMonetary":  p.PartyMonetary,
+					"PartyRecency":   p.PartyRecency,
+					"PartyFraudRisk": p.PartyFraudRisk,
+					"PartyChurnRisk": p.PartyChurnRisk,
+				})
+			}
+			view["Parties"] = rows
+			view["PartyCount"] = len(parties)
+		}
+	}
+
+	h.render(w, r, "owl_parties", "owl_intel", view)
+}
+
+// parseOwlLimit clamps the limit query param to [1, 500] with a fallback.
+func parseOwlLimit(raw string, def int) int {
+	if raw == "" {
+		return def
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return def
+	}
+	if n > 500 {
+		return 500
+	}
+	return n
 }
 
 func (h *Handler) hawkDetailPage(w http.ResponseWriter, r *http.Request) {

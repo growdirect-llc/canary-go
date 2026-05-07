@@ -142,3 +142,37 @@ func TestOwlDashboards_PeriodSelector(t *testing.T) {
 		}
 	}
 }
+
+// TestOwlParties_NoStore_RendersEmptyState — parties page renders the
+// empty-state copy when the store is nil.
+func TestOwlParties_NoStore_RendersEmptyState(t *testing.T) {
+	h := New(Deps{}, nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/owl/parties", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d body=%s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "No parties tracked yet") {
+		t.Errorf("expected empty-state copy")
+	}
+}
+
+// TestOwlParties_LimitClamp — limit is clamped + falls back; never errors.
+func TestOwlParties_LimitClamp(t *testing.T) {
+	h := New(Deps{}, nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	for _, q := range []string{"limit=9999", "limit=abc", "limit=0", "limit=25", ""} {
+		req := httptest.NewRequest(http.MethodGet, "/owl/parties?"+q, nil)
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Errorf("query=%q: expected 200 got %d", q, rr.Code)
+		}
+	}
+}
