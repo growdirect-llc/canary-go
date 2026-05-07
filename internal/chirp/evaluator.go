@@ -58,13 +58,15 @@ func (r *Registry) RegisteredTypes() []string {
 // Engine is the public surface: load rules + context, dispatch to
 // registered evaluators, persist matched detections.
 type Engine struct {
-	store    Store
-	registry *Registry
-	logger   *zap.Logger
-	now      func() time.Time // overridable for tests
+	store     Store
+	registry  *Registry
+	logger    *zap.Logger
+	allowList AllowListLookup // optional — when set, used for suppression (W3 / GRO-822)
+	now       func() time.Time
 }
 
-// NewEngine wires a store + registry + logger.
+// NewEngine wires a store + registry + logger. Suppression is
+// disabled until SetAllowListStore is called.
 func NewEngine(s Store, r *Registry, l *zap.Logger) *Engine {
 	if l == nil {
 		l = zap.NewNop()
@@ -75,6 +77,14 @@ func NewEngine(s Store, r *Registry, l *zap.Logger) *Engine {
 		logger:   l,
 		now:      func() time.Time { return time.Now().UTC() },
 	}
+}
+
+// SetAllowListStore enables W3 allow-list suppression. When set, the
+// engine consults the allow-list before persisting each detection;
+// matched detections are still written but flipped to status='dismissed'
+// with a suppression reason captured in attributes.
+func (e *Engine) SetAllowListStore(a AllowListLookup) {
+	e.allowList = a
 }
 
 // EvaluateTransaction runs every active on_event rule for the
@@ -124,6 +134,22 @@ func (e *Engine) EvaluateTransaction(ctx context.Context, transactionID uuid.UUI
 		}
 		for _, m := range matches {
 			det := e.buildDetection(rule, ec, m)
+			// W3 / GRO-822: check allow-list suppression. Match → status='dismissed'
+			// + suppression reason in attributes; mismatch → fire normally.
+			if sup, err := CheckSuppression(ctx, e.allowList, rule, m); err != nil {
+				e.logger.Warn("allow-list lookup failed",
+					zap.String("rule_code", rule.RuleCode),
+					zap.Error(err),
+				)
+			} else if sup != nil {
+				det.Status = "dismissed"
+				if attrs, mErr := json.Marshal(map[string]any{
+					"suppressed":  true,
+					"suppression": sup,
+				}); mErr == nil {
+					det.Attributes = attrs
+				}
+			}
 			if err := e.store.InsertDetection(ctx, &det); err != nil {
 				e.logger.Error("insert detection failed",
 					zap.String("rule_code", rule.RuleCode),

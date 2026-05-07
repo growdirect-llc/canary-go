@@ -1,0 +1,133 @@
+{{template "base.html" .}}
+
+{{define "title"}}Protocol — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Protocol</h1>
+  <p class="page-subtitle">Cryptographic substrate &middot; Bitcoin L2 anchors, .jeffe namespace, sat-gated validation</p>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.AnchorCount}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Anchors</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.NamespaceCount}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">.jeffe Names</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--health-green);">{{.SatsCollected}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Sats Collected</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--signal-yellow);">{{.PendingTokens}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Pending Tokens</div>
+  </div>
+</div>
+
+<div class="ops-card" style="margin-bottom:24px;">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Recent Bitcoin L2 Anchors</div>
+  {{if .Anchors}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Merkle Root</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Events</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Network</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Status</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Anchored</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Anchors}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;font-family:'Space Grotesk',monospace;font-size:11px;color:var(--text-muted);">{{.MerkleRootShort}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.EventCount}}</td>
+        <td style="padding:10px 12px;color:var(--text-secondary);">{{.Network}}</td>
+        <td style="padding:10px 12px;">
+          <span class="badge" style="{{if eq .Status "confirmed"}}background:rgba(16,185,129,0.1);color:var(--health-green);{{else if eq .Status "inscribed"}}background:rgba(59,130,246,0.15);color:var(--accent-blue);{{else if eq .Status "failed"}}background:rgba(239,68,68,0.12);color:var(--critical-red);{{else}}background:rgba(234,179,8,0.12);color:var(--signal-yellow);{{end}}">
+            {{.Status}}
+          </span>
+        </td>
+        <td style="padding:10px 0;color:var(--text-muted);font-size:12px;">{{.AnchoredAt}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No anchors yet. The Sub3 worker batches evidence into Merkle roots and inscribes them on Bitcoin L2.</p>
+  {{end}}
+</div>
+
+<div class="ops-card" style="margin-bottom:24px;">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Recent .jeffe Namespace Registrations</div>
+  {{if .Namespaces}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Name</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Owner Type</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Status</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Network</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Registered</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Namespaces}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;font-family:'Space Grotesk',monospace;color:var(--text-primary);">{{.Name}}</td>
+        <td style="padding:10px 12px;color:var(--text-secondary);">{{.OwnerType}}</td>
+        <td style="padding:10px 12px;">
+          <span class="badge" style="{{if eq .Status "active"}}background:rgba(16,185,129,0.1);color:var(--health-green);{{else if eq .Status "pending"}}background:rgba(234,179,8,0.12);color:var(--signal-yellow);{{else if eq .Status "expired"}}background:rgba(107,114,128,0.15);color:var(--text-muted);{{else}}background:rgba(239,68,68,0.12);color:var(--critical-red);{{end}}">
+            {{.Status}}
+          </span>
+        </td>
+        <td style="padding:10px 12px;color:var(--text-secondary);">{{.Network}}</td>
+        <td style="padding:10px 0;color:var(--text-muted);font-size:12px;">{{.RegisteredAt}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No namespace registrations yet.</p>
+  {{end}}
+</div>
+
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">L402 Verification Tokens (sat-gated charges)</div>
+  {{if .Tokens}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Token</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Event</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Sats</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Status</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Created</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Tokens}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;font-family:'Space Grotesk',monospace;font-size:11px;color:var(--text-muted);">{{.TokenShort}}</td>
+        <td style="padding:10px 12px;font-family:'Space Grotesk',monospace;font-size:11px;color:var(--text-muted);">{{.EventShort}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-primary);font-weight:600;">{{.Sats}}</td>
+        <td style="padding:10px 12px;">
+          <span class="badge" style="{{if eq .Status "consumed"}}background:rgba(16,185,129,0.1);color:var(--health-green);{{else if eq .Status "paid"}}background:rgba(59,130,246,0.15);color:var(--accent-blue);{{else if eq .Status "expired"}}background:rgba(107,114,128,0.15);color:var(--text-muted);{{else}}background:rgba(234,179,8,0.12);color:var(--signal-yellow);{{end}}">
+            {{.Status}}
+          </span>
+        </td>
+        <td style="padding:10px 0;color:var(--text-muted);font-size:12px;">{{.CreatedAt}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No L402 tokens issued yet.</p>
+  {{end}}
+</div>
+{{end}}
+{{end}}

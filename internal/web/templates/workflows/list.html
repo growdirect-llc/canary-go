@@ -1,0 +1,74 @@
+{{template "base.html" .}}
+
+{{define "title"}}Workflows — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Workflows</h1>
+  <p class="page-subtitle">Three-way match · L402 charge cycle · investigation lifecycle &middot; {{.RunningCount}} running &middot; {{.TotalCount}} total</p>
+</div>
+
+<div class="ops-card" style="margin-bottom:24px;">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Registered Definitions</div>
+  {{if .Definitions}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Code</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Display Name</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Version</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Definitions}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;font-family:'Space Grotesk',monospace;color:var(--text-primary);">{{.Code}}</td>
+        <td style="padding:10px 12px;color:var(--text-secondary);">{{.DisplayName}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">v{{.Version}}</td>
+        <td style="padding:10px 0;"><span class="badge">{{.Status}}</span></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No workflow definitions registered.</p>
+  {{end}}
+</div>
+
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Recent Executions</div>
+  {{if .Executions}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Execution</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Workflow</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Step</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Status</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Started</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Executions}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;font-family:'Space Grotesk',monospace;font-size:12px;color:var(--text-muted);">{{.ShortID}}</td>
+        <td style="padding:10px 12px;color:var(--text-primary);">{{.WorkflowCode}}</td>
+        <td style="padding:10px 12px;color:var(--text-secondary);">{{.Step}}</td>
+        <td style="padding:10px 12px;">
+          <span class="badge" style="{{if eq .Status "running"}}background:rgba(234,179,8,0.15);color:var(--signal-yellow);{{else if eq .Status "succeeded"}}background:rgba(16,185,129,0.1);color:var(--health-green);{{else if eq .Status "failed"}}background:rgba(239,68,68,0.12);color:var(--critical-red);{{else}}background:rgba(107,114,128,0.15);color:var(--text-muted);{{end}}">
+            {{.Status}}
+          </span>
+        </td>
+        <td style="padding:10px 0;color:var(--text-muted);font-size:12px;">{{.StartedAt}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No executions in flight.</p>
+  {{end}}
+</div>
+{{end}}
+{{end}}
