@@ -261,11 +261,11 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/items", h.itemListPage)
 	r.Get("/items/{id}", h.itemDetailPage)
 
-	// Finance reports
-	r.Get("/reports/finance", h.page("reports", "report_finance", func(_ *http.Request) any {
-		return map[string]any{"GrossSales": "—", "NetSales": "—", "COGS": "—", "GrossMargin": "—", "TenderRows": nil}
-	}))
+	// Finance + payments — wired W2e / GRO-819.
+	r.Get("/reports/finance", h.reportFinancePage)
 	r.Get("/reports/payments", h.page("reports", "report_payments", func(_ *http.Request) any {
+		// Tender mix requires a tender_mix aggregation method on transaction.Store
+		// (per-transaction GetByID is too expensive). Filed as a follow-on.
 		return map[string]any{"TotalTransactions": 0, "CashPct": "—", "CardPct": "—", "OtherPct": "—", "Tenders": nil, "SecurePayEnabled": false, "LastGatewaySync": "—"}
 	}))
 	r.Get("/reports/tax", h.page("reports", "report_tax", func(_ *http.Request) any {
@@ -316,10 +316,8 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/cases/{id}/correlation", h.casesCorrelationPage)
 	r.Get("/cases/{id}/remediate", h.casesRemediatePage)
 
-	// Case analytics report
-	r.Get("/reports/cases", h.page("reports", "report_cases", func(_ *http.Request) any {
-		return map[string]any{"TotalCases": 0, "OpenCases": 0, "AvgResolutionDays": "—", "RemediationsDispatched": 0, "ByDomain": nil, "BySeverity": nil}
-	}))
+	// Cases analytics — wired W2e / GRO-819.
+	r.Get("/reports/cases", h.reportCasesPage)
 
 	// Error pages (also reachable programmatically via Render403/404/500)
 	r.Get("/errors/403", h.errPage(403))
@@ -1468,6 +1466,134 @@ func (h *Handler) itemDetailPage(w http.ResponseWriter, r *http.Request) {
 			"DriftAlertCount": 0, // wires after S.5.1 drift detection lands
 			"LastDriftAt":     "—",
 		},
+	})
+}
+
+// reportFinancePage aggregates gross/net/discount/tax totals from the recent
+// transaction set. Wired W2e / GRO-819. Uses an in-memory aggregate over the
+// transaction.Store.List result (capped at 200 txns) until a dedicated
+// totals-by-period aggregation method lands.
+func (h *Handler) reportFinancePage(w http.ResponseWriter, r *http.Request) {
+	if h.deps.TransactionStore == nil {
+		h.render(w, r, "report_finance", "reports", map[string]any{
+			"GrossSales": "—", "NetSales": "—", "COGS": "—", "GrossMargin": "—", "TenderRows": nil,
+		})
+		return
+	}
+	ctx := r.Context()
+	tenantID := tenantIDFromCtx(ctx)
+	txns, err := h.deps.TransactionStore.List(ctx, transaction.ListFilters{
+		TenantID: tenantID,
+		Limit:    200,
+	})
+	if err != nil {
+		h.logger.Error("reportFinancePage: list", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		h.render(w, r, "err500", "reports", nil)
+		return
+	}
+	var gross, tax, discount float64
+	for _, t := range txns {
+		gross += parseDecimal(t.GrandTotal.String())
+		tax += parseDecimal(t.TaxTotal.String())
+		discount += parseDecimal(t.DiscountTotal.String())
+	}
+	net := gross - tax
+	h.render(w, r, "report_finance", "reports", map[string]any{
+		"GrossSales":  formatMoney(gross),
+		"NetSales":    formatMoney(net),
+		"COGS":        "—",
+		"GrossMargin": "—",
+		"TenderRows":  nil,
+	})
+	_ = discount
+}
+
+// parseDecimal coerces a string-decimal into float64. Returns 0 on parse error.
+func parseDecimal(s string) float64 {
+	if s == "" {
+		return 0
+	}
+	f, _ := strconv.ParseFloat(s, 64)
+	return f
+}
+
+// reportCasesPage aggregates case counts by domain + severity from the
+// casemgmt store. Wired W2e / GRO-819.
+func (h *Handler) reportCasesPage(w http.ResponseWriter, r *http.Request) {
+	if h.deps.CaseStore == nil {
+		h.render(w, r, "report_cases", "reports", map[string]any{
+			"TotalCases": 0, "OpenCases": 0, "AvgResolutionDays": "—",
+			"RemediationsDispatched": 0, "ByDomain": nil, "BySeverity": nil,
+		})
+		return
+	}
+	ctx := r.Context()
+	tenantID := tenantIDFromCtx(ctx)
+	cases, err := h.deps.CaseStore.ListCases(ctx, casemgmt.ListFilters{
+		TenantID: tenantID,
+		Limit:    500,
+	})
+	if err != nil {
+		h.logger.Error("reportCasesPage: list", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		h.render(w, r, "err500", "reports", nil)
+		return
+	}
+	open := 0
+	for _, c := range cases {
+		if c.Status == "open" || c.Status == "investigating" {
+			open++
+		}
+	}
+	// Bucket by case_type (used as "domain") and severity.
+	domainCounts := map[string]int{}
+	domainOpen := map[string]int{}
+	severityCounts := map[string]int{}
+	for _, c := range cases {
+		domain := c.CaseType
+		if domain == "" {
+			domain = "uncategorized"
+		}
+		domainCounts[domain]++
+		if c.Status == "open" || c.Status == "investigating" {
+			domainOpen[domain]++
+		}
+		sev := c.Severity
+		if sev == "" {
+			sev = "—"
+		}
+		severityCounts[sev]++
+	}
+	byDomain := make([]map[string]any, 0, len(domainCounts))
+	for d, total := range domainCounts {
+		byDomain = append(byDomain, map[string]any{
+			"Domain":            d,
+			"Total":             total,
+			"Open":              domainOpen[d],
+			"AvgResolutionDays": "—",
+		})
+	}
+	bySeverity := make([]map[string]any, 0, len(severityCounts))
+	for sev, count := range severityCounts {
+		pct := "0%"
+		if len(cases) > 0 {
+			pct = strconv.FormatFloat(float64(count)/float64(len(cases))*100, 'f', 1, 64) + "%"
+		}
+		bySeverity = append(bySeverity, map[string]any{
+			"Severity": sev,
+			"Count":    count,
+			"Pct":      pct,
+		})
+	}
+
+	h.render(w, r, "report_cases", "reports", map[string]any{
+		"TotalCases":             len(cases),
+		"OpenCases":              open,
+		"AvgResolutionDays":      "—",
+		"RemediationsDispatched": 0,
+		"ByDomain":               byDomain,
+		"BySeverity":             bySeverity,
 	})
 }
 
