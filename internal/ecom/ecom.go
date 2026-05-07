@@ -16,13 +16,6 @@
 
 package ecom
 
-import (
-	"context"
-	"time"
-
-	"github.com/google/uuid"
-)
-
 // Channel describes a registered ecom channel adapter.
 type Channel struct {
 	Code        string // e.g. "shopify", "bigcommerce"
@@ -31,42 +24,11 @@ type Channel struct {
 	Note        string
 }
 
-// Order is the wire-shape for one channel-delivered order.
-type Order struct {
-	ID            uuid.UUID
-	TenantID      uuid.UUID
-	ChannelCode   string
-	ChannelOrder  string // channel-side order id
-	OrderedAt     time.Time
-	Status        string
-	TotalCost     string
-	LineCount     int
-}
-
-// Adapter is the interface every channel adapter implements. Mirrors
-// the shape of `internal/squareauth` for the OAuth surfaces.
-//
-// Adapter implementations do NOT live in this package — they ship as
-// `internal/ecom/shopify`, `internal/ecom/bigcommerce`, etc.
-type Adapter interface {
-	// Code returns the channel discriminator stored on Order rows.
-	Code() string
-	// Connect runs the OAuth / API-key handshake for a tenant.
-	Connect(ctx context.Context, tenantID uuid.UUID, opts map[string]string) error
-	// SyncOrders pulls orders since a watermark and returns them.
-	SyncOrders(ctx context.Context, tenantID uuid.UUID, since time.Time) ([]Order, error)
-	// Health returns connection status + last-sync timestamp.
-	Health(ctx context.Context, tenantID uuid.UUID) (ChannelHealth, error)
-}
-
-// ChannelHealth is what /ecom/sync renders per channel.
-type ChannelHealth struct {
-	Code         string
-	Connected    bool
-	LastSyncAt   *time.Time
-	LastError    string
-	OrdersToday  int
-}
+// The Adapter interface, Order struct, and ChannelHealth struct that
+// previously lived here have been removed — they had no callers and
+// the contract is better authored from real adapter use rather than
+// pre-declared. Re-add when the first real adapter (Shopify) ships
+// and the contract is informed by use.
 
 // Registry returns the static channel inventory the portal renders.
 // Real adapters get added here as they ship; today this is the

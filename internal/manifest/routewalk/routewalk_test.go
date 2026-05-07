@@ -39,9 +39,6 @@ func TestWalk_emitsAllRoutes(t *testing.T) {
 	if got.Service != "test-svc" {
 		t.Errorf("service: got %q, want %q", got.Service, "test-svc")
 	}
-	if got.GeneratedAt == "" {
-		t.Errorf("generated_at empty")
-	}
 
 	seen := map[string]bool{}
 	for _, r := range got.Routes {

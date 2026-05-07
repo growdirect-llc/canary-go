@@ -22,7 +22,6 @@ import (
 	"reflect"
 	"runtime"
 	"sort"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -36,11 +35,15 @@ type Route struct {
 
 // Output is the top-level JSON document. The reconcile script consumes
 // this shape verbatim — keep field names stable.
+//
+// Deliberately no GeneratedAt field — gateway boot runs frequently in dev
+// and a wall-clock timestamp churned the file on every restart for no
+// reproducibility benefit. The output is content-addressable from the
+// (sorted) route list itself.
 type Output struct {
-	GeneratedAt string  `json:"generated_at"`
-	Service     string  `json:"service"`
-	Count       int     `json:"count"`
-	Routes      []Route `json:"routes"`
+	Service string  `json:"service"`
+	Count   int     `json:"count"`
+	Routes  []Route `json:"routes"`
 }
 
 // DefaultOutPath is where Walk writes when no path is provided.
@@ -77,10 +80,9 @@ func Walk(r chi.Routes, service, outPath string) error {
 	})
 
 	out := Output{
-		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
-		Service:     service,
-		Count:       len(routes),
-		Routes:      routes,
+		Service: service,
+		Count:   len(routes),
+		Routes:  routes,
 	}
 
 	if dir := filepath.Dir(outPath); dir != "" && dir != "." {

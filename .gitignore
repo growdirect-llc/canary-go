@@ -30,5 +30,10 @@
 /tsp
 /raas
 
+# Build artifacts — manifest pipeline routewalk dumps, drift reports, etc.
+# Regenerated on demand via `make manifest` (repo root) or gateway boot
+# under MANIFEST_ROUTEWALK=1.
+build/
+
 # macOS
 .DS_Store
