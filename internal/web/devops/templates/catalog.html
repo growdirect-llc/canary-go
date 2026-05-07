@@ -155,7 +155,6 @@
             <th>Category</th>
             <th>Cells</th>
             <th>Endpoints</th>
-            <th>Card</th>
           </tr>
         </thead>
         <tbody>
@@ -167,7 +166,6 @@
             <td>{{.Category}}</td>
             <td>{{range .Cells}}<span class="pill">{{.}}</span>{{end}}</td>
             <td>{{.EndpointCount}}</td>
-            <td class="mono" style="color: var(--text-muted); font-size: 11px;">{{.Card}}</td>
           </tr>
           {{end}}
         </tbody>

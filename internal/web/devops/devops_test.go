@@ -92,12 +92,11 @@ func TestServicePage_renders_serviceMetadata(t *testing.T) {
 	r.ServeHTTP(rr, req)
 	body := rr.Body.String()
 	for _, want := range []string{
-		":9103",                                  // port
-		"P0",                                     // priority
-		"cross-tenant infra",                     // category
-		"Brain/wiki/cards/pipeline.md",           // card path
-		"B × change-feed",                        // cell
-		"Canary/canary/services/devops_monitor.py", // python prior art
+		":9103",              // port
+		"P0",                 // priority
+		"cross-tenant infra", // category
+		"B × change-feed",    // cell
+		"TSP pipeline",       // status text snippet
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("pipeline page missing %q", want)

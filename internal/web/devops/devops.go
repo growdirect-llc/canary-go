@@ -66,10 +66,8 @@ type CatalogSvc struct {
 	Category       string   `json:"category"`
 	Scope          string   `json:"scope"`
 	Owner          string   `json:"owner"`
-	Card           string   `json:"card"`
 	Cells          []string `json:"cells"`
 	EndpointCount  int      `json:"endpoint_count"`
-	PythonPriorArt *string  `json:"python_prior_art"`
 }
 
 type CatalogTotals struct {
@@ -88,13 +86,11 @@ type Service struct {
 	Name           string   // catalog
 	Port           int      // 9100
 	Owner          string   // ALX
-	Card           string   // Brain/wiki/cards/catalog.md
 	Priority       string   // P0
 	Scope          string   // cross-tenant
 	Category       string   // cross-tenant infra
 	Cells          []string // ["B × reference"]
-	PythonPriorArt string   // Canary/canary/services/devops_monitor.py
-	BodyTODO       string   // one-line description of what Phase 3 wires
+	Status         string   // one-line description of the service surface
 }
 
 // Group is a sidebar grouping. Order in the sidebar follows the
@@ -113,70 +109,66 @@ var Categories = []Group{
 		Services: []Service{
 			{
 				Name: "catalog", Port: 9100, Owner: "ALX",
-				Card: "Brain/wiki/cards/catalog.md", Priority: "P0",
+				Priority: "P0",
 				Scope: "cross-tenant", Category: "cross-tenant infra",
 				Cells:    []string{"B × reference"},
-				BodyTODO: "3×5 grid heat-map of every endpoint by axis × tier — wired in T2.34.",
+				Status: "3×5 grid heat-map of every endpoint by axis × tier — wired in T2.34.",
 			},
 			{
 				Name: "manifest", Port: 9101, Owner: "ALX",
-				Card: "Brain/wiki/cards/manifest.md", Priority: "P0",
+				Priority: "P0",
 				Scope: "cross-tenant", Category: "cross-tenant infra",
 				Cells:    []string{"B × reference"},
-				BodyTODO: "Manifest editor + validator + history viewer — wired in T3B.1.",
+				Status: "Manifest editor + validator + history viewer — wired in T3B.1.",
 			},
 			{
 				Name: "observability", Port: 9102, Owner: "ALX",
-				Card: "Brain/wiki/cards/observability.md", Priority: "P0",
+				Priority: "P0",
 				Scope: "cross-tenant", Category: "cross-tenant infra",
 				Cells:    []string{"B × change-feed", "B × reference"},
-				BodyTODO: "Five-tier health rollup with per-service drill-down — wired in T3B.2.",
+				Status: "Five-tier health rollup with per-service drill-down — wired in T3B.2.",
 			},
 			{
 				Name: "pipeline", Port: 9103, Owner: "ALX",
-				Card: "Brain/wiki/cards/pipeline.md", Priority: "P0",
+				Priority: "P0",
 				Scope: "cross-tenant", Category: "cross-tenant infra",
 				Cells:          []string{"B × change-feed"},
-				PythonPriorArt: "Canary/canary/services/devops_monitor.py",
-				BodyTODO:       "TSP pipeline visualization (Webhook → Sub1 → Sub2 → Sub3) — wired in T3B.3.",
+				Status:       "TSP pipeline visualization (Webhook → Sub1 → Sub2 → Sub3) — wired in T3B.3.",
 			},
 			{
 				Name: "qa-agent", Port: 9104, Owner: "ALX",
-				Card: "Brain/wiki/cards/qa-agent.md", Priority: "P0",
+				Priority: "P0",
 				Scope: "cross-tenant", Category: "cross-tenant infra",
 				Cells:          []string{"C × change-feed"},
-				PythonPriorArt: "Canary/canary/qa_agent/",
-				BodyTODO:       "Page-aware operator agent with cross-service MCP tools — wired in T3B.4.",
+				Status:       "Page-aware operator agent with cross-service MCP tools — wired in T3B.4.",
 			},
 			{
 				Name: "api-docs", Port: 9105, Owner: "ALX",
-				Card: "Brain/wiki/cards/api-docs.md", Priority: "P0",
+				Priority: "P0",
 				Scope: "cross-tenant", Category: "cross-tenant infra",
 				Cells:    []string{"B × reference"},
-				BodyTODO: "Redoc-rendered OpenAPI 3.0 spec — wired in T2.35.",
+				Status: "Redoc-rendered OpenAPI 3.0 spec — wired in T2.35.",
 			},
 			{
 				Name: "evidence", Port: 9201, Owner: "ALX",
-				Card: "Brain/wiki/cards/evidence.md", Priority: "P0",
+				Priority: "P0",
 				Scope: "cross-tenant", Category: "cross-tenant infra",
 				Cells:          []string{"B × reference"},
-				PythonPriorArt: "Canary/canary/services/evidence_service.py",
-				BodyTODO:       "Append-only protocol audit log query UI — Phase 3 wires the operator workflow.",
+				Status:       "Append-only protocol audit log query UI — Phase 3 wires the operator workflow.",
 			},
 			{
 				Name: "anchor", Port: 9202, Owner: "ALX",
-				Card: "Brain/wiki/cards/anchor.md", Priority: "P0",
+				Priority: "P0",
 				Scope: "cross-tenant", Category: "cross-tenant infra",
 				Cells:          []string{"B × reference"},
-				PythonPriorArt: "Canary/canary/services/anchor_service.py",
-				BodyTODO:       "Merkle anchor batch viewer + Bitcoin L2 proof inspector — Phase 3.",
+				Status:       "Merkle anchor batch viewer + Bitcoin L2 proof inspector — Phase 3.",
 			},
 			{
 				Name: "mcp", Port: 9203, Owner: "ALX",
-				Card: "Brain/wiki/cards/mcp.md", Priority: "P0",
+				Priority: "P0",
 				Scope: "cross-tenant", Category: "cross-tenant infra",
 				Cells:    []string{"C × change-feed"},
-				BodyTODO: "MCP tool catalog + per-tenant usage rollup — Phase 3 builds drill-down.",
+				Status: "MCP tool catalog + per-tenant usage rollup — Phase 3 builds drill-down.",
 			},
 		},
 	},

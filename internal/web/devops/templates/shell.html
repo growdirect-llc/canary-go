@@ -99,9 +99,7 @@
       <div class="zone-title">Capability</div>
       <dl class="capability">
         <dt>Owner</dt><dd>{{.Service.Owner}}</dd>
-        <dt>Card</dt><dd class="mono">{{.Service.Card}}</dd>
         <dt>Cells</dt><dd>{{range .Service.Cells}}<span class="pill">{{.}}</span>{{end}}</dd>
-        {{if .Service.PythonPriorArt}}<dt>Prior art</dt><dd class="mono">{{.Service.PythonPriorArt}}</dd>{{end}}
       </dl>
     </div>
 
@@ -127,7 +125,7 @@
       <div class="zone-title">Service body</div>
       <div class="service-body">
         <div class="todo-tag">TODO</div>
-        <div>{{.Service.BodyTODO}}</div>
+        <div>{{.Service.Status}}</div>
       </div>
     </div>
 
