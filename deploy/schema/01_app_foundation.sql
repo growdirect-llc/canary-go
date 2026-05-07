@@ -434,6 +434,9 @@ CREATE TABLE IF NOT EXISTS app.api_keys (
     tenant_id       UUID        REFERENCES app.tenants(id),
     agent_name      TEXT        NOT NULL,
     key_hash        TEXT        NOT NULL UNIQUE,
+    -- key_prefix: first 11 plaintext characters (cy_<8 random>) used to
+    -- bucket the verify loop. NULL on legacy rows pre-T-L. GRO-860.
+    key_prefix      TEXT,
     scopes          TEXT[]      NOT NULL DEFAULT '{}',
     rate_limit_rpm  INT         NOT NULL DEFAULT 600,
     status          TEXT        NOT NULL DEFAULT 'active'
@@ -446,6 +449,7 @@ CREATE TABLE IF NOT EXISTS app.api_keys (
 );
 CREATE INDEX IF NOT EXISTS idx_api_keys_tenant_status ON app.api_keys(tenant_id, status);
 CREATE INDEX IF NOT EXISTS idx_api_keys_agent ON app.api_keys(agent_name);
+CREATE INDEX IF NOT EXISTS idx_api_keys_key_prefix ON app.api_keys(key_prefix) WHERE key_prefix IS NOT NULL;
 
 -- ─────────────────────────────────────────────────────────────────────
 -- Workflow substrate.
