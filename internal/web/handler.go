@@ -280,9 +280,9 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/reports/range", h.page("reports", "report_range", func(_ *http.Request) any {
 		return map[string]any{"ActiveRanges": 0, "AvgSellThrough": "—", "AvgTurn": "—", "AvgGMROI": "—", "Ranges": nil}
 	}))
-	r.Get("/promotions", h.page("promotions", "promotions_calendar", func(_ *http.Request) any {
-		return map[string]any{"Promotions": nil, "ActiveCount": 0, "UpcomingCount": 0}
-	}))
+	// Promotions calendar — wired W2f / GRO-820. Pricing reports remain stub
+	// until market-price + price-history + markdown source data lands.
+	r.Get("/promotions", h.promotionsCalendarPage)
 	r.Get("/reports/pricing", h.page("reports", "report_pricing", func(_ *http.Request) any {
 		return map[string]any{"ItemsTracked": 0, "AboveMarket": 0, "AtMarket": 0, "BelowMarket": 0, "Items": nil}
 	}))
@@ -1466,6 +1466,52 @@ func (h *Handler) itemDetailPage(w http.ResponseWriter, r *http.Request) {
 			"DriftAlertCount": 0, // wires after S.5.1 drift detection lands
 			"LastDriftAt":     "—",
 		},
+	})
+}
+
+// promotionsCalendarPage lists active promotions for the tenant.
+// Wired W2f / GRO-820. Uses uuid.Nil location which only matches promotions
+// with NULL active_locations (i.e. tenant-wide promotions).
+func (h *Handler) promotionsCalendarPage(w http.ResponseWriter, r *http.Request) {
+	if h.deps.PricingStore == nil {
+		h.render(w, r, "promotions_calendar", "promotions", map[string]any{
+			"Promotions": nil, "ActiveCount": 0, "UpcomingCount": 0,
+		})
+		return
+	}
+	ctx := r.Context()
+	tenantID := tenantIDFromCtx(ctx)
+	promos, err := h.deps.PricingStore.ListActivePromotions(ctx, tenantID, uuid.Nil, time.Now())
+	if err != nil {
+		h.logger.Error("promotionsCalendarPage: list", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		h.render(w, r, "err500", "promotions", nil)
+		return
+	}
+	rows := make([]map[string]any, 0, len(promos))
+	for _, p := range promos {
+		end := "—"
+		if p.EffectiveEnd != nil {
+			end = p.EffectiveEnd.Format("2006-01-02")
+		}
+		stores := "All"
+		if p.ActiveLocations != nil && len(p.ActiveLocations) > 0 {
+			stores = strconv.Itoa(len(p.ActiveLocations))
+		}
+		rows = append(rows, map[string]any{
+			"ID":       p.ID.String(),
+			"Name":     p.Name,
+			"Type":     p.PromotionType,
+			"Start":    p.EffectiveStart.Format("2006-01-02"),
+			"End":      end,
+			"Discount": p.PromotionType, // detail comes from PromotionRules; out of scope
+			"Stores":   stores,
+		})
+	}
+	h.render(w, r, "promotions_calendar", "promotions", map[string]any{
+		"Promotions":    rows,
+		"ActiveCount":   len(rows),
+		"UpcomingCount": 0,
 	})
 }
 

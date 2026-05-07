@@ -8,6 +8,7 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/inventory"
 	"github.com/growdirect-llc/rapidpos/internal/item"
 	lpPkg "github.com/growdirect-llc/rapidpos/internal/lp"
+	"github.com/growdirect-llc/rapidpos/internal/pricing"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
 	"github.com/growdirect-llc/rapidpos/internal/transaction"
 )
@@ -24,5 +25,6 @@ type Deps struct {
 	TransactionStore *transaction.Store
 	ValidateStore    validate.ValidationStore // interface
 	InventoryStore   *inventory.Store
-	ItemStore        item.Store // interface
+	ItemStore        item.Store    // interface
+	PricingStore     pricing.Store // interface
 }
