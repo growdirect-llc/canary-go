@@ -1,4 +1,4 @@
-.PHONY: migrate-up migrate-down migrate-test-up sqlc-gen test \
+.PHONY: migrate-up migrate-down migrate-test-up sqlc-gen test test-integration \
         build-identity build-all build-edge-windows lint vulncheck \
         db-reset db-reset-test db-seed db-seed-test \
         dev dev-down dev-logs
@@ -62,12 +62,21 @@ migrate-test-up:
 sqlc-gen:
 	sqlc generate
 
+# test — run pure unit tests (no DB / no integration tag).
+# Bare `go test ./...` works for this — the integration-shaped tests
+# under //go:build integration are skipped without the tag.
 test:
+	go test ./... -v -count=1
+
+# test-integration — run the full corpus including integration tests.
+# Requires Postgres + Valkey reachable per the URLs below.
+# GRO-857 / Sprint 2 T-K — integration tests gated on //go:build integration.
+test-integration:
 	DATABASE_URL="$(TEST_DATABASE_URL)" \
 	VALKEY_URL=redis://:valkey_dev@localhost:6379/2 \
 	SESSION_SECRET="test-session-secret-at-least-32-bytes!" \
 	INTERNAL_SERVICE_SECRET=test-internal-secret \
-	go test ./... -v -count=1
+	go test -tags integration ./... -v -count=1
 
 build-identity:
 	go build -o bin/identity ./cmd/identity

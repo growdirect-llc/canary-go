@@ -1,3 +1,5 @@
+//go:build integration
+
 package lp_test
 
 import (

@@ -39,7 +39,8 @@ customer :8091 · employee :8092 · returns :8093 · report :8094
 - Run: `make sqlc-gen` (requires sqlc binary installed)
 - Full convention: `docs/conventions.md`
 
-## Migrations
-- Path: `deploy/migrations/` (flat numbered, 001–014 for M1)
-- Run: `make migrate-up DATABASE_URL=...`
+## Migrations — two-tier model
+- **`deploy/schema/`** — declarative full schema. The canonical source-of-truth for what the database *should* look like at HEAD. Use `make db-reset` (LOCAL ONLY) to drop + recreate from `deploy/schema/*.sql` in order. Edit these files when changing the schema for greenfield discipline.
+- **`deploy/migrations/`** — incremental forward migrations (golang-migrate format, `NNN_<slug>.{up,down}.sql`). Numbering is flat: 001–018 covered M1 foundation, 019+ are post-M1 additions. Each migration has a `.up.sql` + `.down.sql` pair. Use `make migrate-up DATABASE_URL=...` against deployed databases (CI / staging / production) where `db-reset` would lose data.
+- **Both must agree at HEAD.** A new feature ships an incremental migration AND updates the corresponding declarative schema file so a fresh `db-reset` produces the same result as `migrate-up` on an existing database.
 - Dirty state fix: `migrate -path=deploy/migrations -database=$DATABASE_URL force <version>`
