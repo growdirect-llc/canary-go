@@ -171,6 +171,7 @@ func New(deps Deps, logger *zap.Logger) *Handler {
 	h.mustParse("report_cases", "templates/reports/cases.html")
 	h.mustParse("workflows_list", "templates/workflows/list.html")
 	h.mustParse("mcp_tools", "templates/mcp/tools.html")
+	h.mustParse("protocol_overview", "templates/protocol/overview.html")
 	return h
 }
 
@@ -328,6 +329,12 @@ func (h *Handler) Mount(r chi.Router) {
 	// MCP tool catalog — wired W12 / GRO-831. Reads the in-process
 	// registry; usage log + playground are follow-on dispatches.
 	r.Get("/mcp/tools", h.mcpToolsPage)
+
+	// Protocol portal — wired W7 / GRO-826. Unified overview of Bitcoin L2
+	// anchors, .jeffe namespace registrations, and L402 verification tokens.
+	// Per-surface drilldowns (anchor proof viewer, charge dispute, evidence
+	// chain per case) are follow-on dispatches.
+	r.Get("/protocol", h.protocolOverviewPage)
 
 	// Error pages (also reachable programmatically via Render403/404/500)
 	r.Get("/errors/403", h.errPage(403))
@@ -1572,6 +1579,106 @@ func parseDecimal(s string) float64 {
 	}
 	f, _ := strconv.ParseFloat(s, 64)
 	return f
+}
+
+// protocolOverviewPage renders a unified read-out of the cryptographic
+// substrate — recent Bitcoin L2 anchors, .jeffe namespace registrations,
+// and L402 verification tokens. Wired W7 / GRO-826.
+//
+// Cross-tenant view: anchors and tokens are platform-wide substrate, not
+// tenant-scoped. Operators with portal access see all recent activity.
+// Drill-down per surface (anchor proof viewer, charge dispute flow) is
+// out of scope for this dispatch.
+func (h *Handler) protocolOverviewPage(w http.ResponseWriter, r *http.Request) {
+	view := map[string]any{
+		"AnchorCount":    0,
+		"NamespaceCount": 0,
+		"SatsCollected":  "0",
+		"PendingTokens":  0,
+		"Anchors":        nil,
+		"Namespaces":     nil,
+		"Tokens":         nil,
+	}
+
+	ctx := r.Context()
+	if h.deps.ProtocolValidate != nil {
+		anchors, err := h.deps.ProtocolValidate.ListAnchors(ctx, 25)
+		if err != nil {
+			h.logger.Error("protocolOverviewPage: list anchors", zap.Error(err))
+		} else {
+			rows := make([]map[string]any, 0, len(anchors))
+			for _, a := range anchors {
+				rows = append(rows, map[string]any{
+					"AnchorID":        a.AnchorID.String(),
+					"MerkleRootShort": shortHex(a.MerkleRoot, 16),
+					"EventCount":      a.EventCount,
+					"Network":         a.Network,
+					"Status":          a.AnchorStatus,
+					"AnchoredAt":      a.AnchoredAt.Format(time.RFC3339),
+				})
+			}
+			view["Anchors"] = rows
+			view["AnchorCount"] = len(rows)
+		}
+
+		tokens, err := h.deps.ProtocolValidate.ListTokens(ctx, 25)
+		if err != nil {
+			h.logger.Error("protocolOverviewPage: list tokens", zap.Error(err))
+		} else {
+			var collected int64
+			pending := 0
+			tokRows := make([]map[string]any, 0, len(tokens))
+			for _, t := range tokens {
+				if t.Status == "paid" || t.Status == "consumed" {
+					collected += t.SatoshiPrice
+				}
+				if t.Status == "pending" {
+					pending++
+				}
+				tokRows = append(tokRows, map[string]any{
+					"TokenShort": t.TokenID.String()[:8],
+					"EventShort": shortHex(t.EventHash, 12),
+					"Sats":       t.SatoshiPrice,
+					"Status":     t.Status,
+					"CreatedAt":  t.CreatedAt.Format(time.RFC3339),
+				})
+			}
+			view["Tokens"] = tokRows
+			view["SatsCollected"] = strconv.FormatInt(collected, 10)
+			view["PendingTokens"] = pending
+		}
+	}
+
+	if h.deps.ProtocolNamespace != nil {
+		regs, err := h.deps.ProtocolNamespace.ListRecent(ctx, 25)
+		if err != nil {
+			h.logger.Error("protocolOverviewPage: list namespace", zap.Error(err))
+		} else {
+			rows := make([]map[string]any, 0, len(regs))
+			for _, n := range regs {
+				rows = append(rows, map[string]any{
+					"Name":         n.Name,
+					"OwnerType":    n.OwnerType,
+					"Status":       n.RegStatus,
+					"Network":      n.Network,
+					"RegisteredAt": n.RegisteredAt.Format(time.RFC3339),
+				})
+			}
+			view["Namespaces"] = rows
+			view["NamespaceCount"] = len(rows)
+		}
+	}
+
+	h.render(w, r, "protocol_overview", "protocol", view)
+}
+
+// shortHex truncates a hex string for display, appending an ellipsis when
+// truncated. Used for Merkle roots / event hashes in the protocol portal.
+func shortHex(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }
 
 // mcpToolsPage renders the catalog of registered MCP tools by reading

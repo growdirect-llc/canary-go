@@ -228,6 +228,78 @@ func (s *PgxStore) GetAnchorProof(ctx context.Context, eventHash string) (*Ancho
 	return &proof, nil
 }
 
+// AnchorSummary is a portal-shaped row from protocol.anchors.
+type AnchorSummary struct {
+	AnchorID       uuid.UUID
+	MerkleRoot     string
+	InscriptionID  *string
+	BtcTxID        *string
+	BtcBlockHeight *int64
+	Network        string
+	EventCount     int
+	AnchorStatus   string
+	AnchoredAt     time.Time
+}
+
+// ListAnchors returns the most recent batch anchors. Used by the protocol
+// portal overview (W7 / GRO-826). Default limit 50, max 200. Cross-tenant
+// — anchors batch evidence across the platform.
+func (s *PgxStore) ListAnchors(ctx context.Context, limit int) ([]AnchorSummary, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT anchor_id, merkle_root, inscription_id, btc_tx_id, btc_block_height,
+		       network, event_count, anchor_status, anchored_at
+		FROM protocol.anchors
+		ORDER BY anchored_at DESC
+		LIMIT $1`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("validate: list anchors: %w", err)
+	}
+	defer rows.Close()
+	out := make([]AnchorSummary, 0, limit)
+	for rows.Next() {
+		var a AnchorSummary
+		if err := rows.Scan(
+			&a.AnchorID, &a.MerkleRoot, &a.InscriptionID, &a.BtcTxID,
+			&a.BtcBlockHeight, &a.Network, &a.EventCount, &a.AnchorStatus, &a.AnchoredAt,
+		); err != nil {
+			return nil, fmt.Errorf("validate: list anchors scan: %w", err)
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// ListTokens returns the most recent L402 verification tokens (sat-gated
+// validation requests). Used by the protocol portal /protocol/charges
+// surface. Default limit 50, max 200.
+func (s *PgxStore) ListTokens(ctx context.Context, limit int) ([]VerificationToken, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT token_id, event_hash, satoshi_price, status, preimage_hash,
+		       created_at, expires_at, consumed_at
+		FROM protocol.l402_verification_tokens
+		ORDER BY created_at DESC
+		LIMIT $1`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("validate: list tokens: %w", err)
+	}
+	defer rows.Close()
+	out := make([]VerificationToken, 0, limit)
+	for rows.Next() {
+		tok, err := scanToken(rows)
+		if err != nil {
+			return nil, fmt.Errorf("validate: list tokens scan: %w", err)
+		}
+		out = append(out, *tok)
+	}
+	return out, rows.Err()
+}
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 func scanToken(row pgx.Row) (*VerificationToken, error) {

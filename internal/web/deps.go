@@ -11,6 +11,7 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/mcp"
 	lpPkg "github.com/growdirect-llc/rapidpos/internal/lp"
 	"github.com/growdirect-llc/rapidpos/internal/pricing"
+	"github.com/growdirect-llc/rapidpos/internal/protocol/namespace"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
 	"github.com/growdirect-llc/rapidpos/internal/transaction"
 	"github.com/growdirect-llc/rapidpos/internal/workflow"
@@ -33,4 +34,10 @@ type Deps struct {
 	EmployeeStore    *employee.Store
 	WorkflowStore    *workflow.Store
 	MCPRegistry      *mcp.Registry
+
+	// Protocol portal — concrete pgx-backed stores for the cryptographic
+	// substrate readouts. Separate from ValidateStore (which is the
+	// L402 charge-flow interface used by gateway POST /v1/validate).
+	ProtocolValidate  *validate.PgxStore
+	ProtocolNamespace *namespace.Store
 }
