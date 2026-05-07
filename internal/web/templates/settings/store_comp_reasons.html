@@ -1,0 +1,70 @@
+{{template "base.html" .}}
+
+{{define "title"}}Store Config — Comp Reason Codes — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">
+    <a href="/settings" style="color:var(--text-muted);text-decoration:none;">Settings</a>
+    <span style="margin:0 6px;">/</span>
+    <span style="color:var(--text-secondary);">Store Config — Comp Reason Codes</span>
+  </div>
+  <h1>Store Config — Comp Reason Codes</h1>
+  <p class="page-subtitle">Valid comp reason codes; unauthorized codes trigger Q Q-CO-01</p>
+</div>
+
+<div style="display:grid;gap:24px;max-width:760px;">
+
+  <div class="ops-card">
+    <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:16px;">Current Codes</h3>
+    {{if .Codes}}
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <th style="text-align:left;padding:8px 12px 8px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Reason Code</th>
+          <th style="text-align:left;padding:8px 12px 8px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Description</th>
+          <th style="text-align:left;padding:8px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Active</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Codes}}
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <td style="padding:10px 12px 10px 0;color:var(--text-primary);font-family:'Space Grotesk',sans-serif;">{{.ReasonCode}}</td>
+          <td style="padding:10px 12px 10px 0;color:var(--text-secondary);">{{.Description}}</td>
+          <td style="padding:10px 0;">
+            <span class="badge" style="{{if .Active}}background:rgba(16,185,129,0.1);color:var(--health-green);{{else}}background:rgba(107,114,128,0.15);color:var(--text-muted);{{end}}">
+              {{if .Active}}Active{{else}}Inactive{{end}}
+            </span>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No entries configured.</p>
+    {{end}}
+  </div>
+
+  <div class="ops-card">
+    <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:16px;">Add Code</h3>
+    <form action="#" method="POST" style="display:grid;gap:16px;">
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;">
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Reason Code</label>
+          <input type="text" name="reason_code" placeholder="e.g. COMP-MGR" style="width:100%;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:4px;color:var(--text-primary);font-size:13px;box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Description</label>
+          <input type="text" name="description" placeholder="e.g. Manager-authorized comp" style="width:100%;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:4px;color:var(--text-primary);font-size:13px;box-sizing:border-box;">
+        </div>
+      </div>
+      <div>
+        <button type="submit" class="ops-btn">Add Code</button>
+      </div>
+    </form>
+  </div>
+
+</div>
+{{end}}
+{{end}}

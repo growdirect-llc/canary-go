@@ -1,0 +1,56 @@
+# deploy/Dockerfile.gateway
+#
+# Multi-stage build for the Canary Protocol API Gateway (Node 2 of patent
+# Application 63/991,596). Final image is distroless/static — no shell,
+# no package manager, ~2-5 MB layered on top of the Go binary.
+#
+# Build context: CanaryGo/ (parent of deploy/). Match deploy/Dockerfile.identity.
+#
+# Build (local):
+#   docker build -f deploy/Dockerfile.gateway -t canarygo-gateway:dev .
+# Build (Cloud Build): see deploy/cloudbuild.gateway.yaml.
+
+# ---- Stage 1: builder ----
+# Pin to the Go version declared in go.mod (1.25).
+FROM golang:1.24-alpine AS builder
+
+# Build-time hardening: no cgo, deterministic builds, strip symbols.
+# GOTOOLCHAIN=auto lets Go download the required toolchain version when
+# a dependency requires a newer Go than the base image provides.
+ENV CGO_ENABLED=0 \
+    GOOS=linux \
+    GOARCH=amd64 \
+    GOFLAGS="-trimpath" \
+    GOTOOLCHAIN=auto
+
+WORKDIR /src
+
+# Cache module downloads in their own layer.
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy the rest of the source tree.
+COPY . .
+
+# Build the gateway binary. -ldflags "-s -w" strips DWARF + symbol table
+# (no debugger attach; smaller binary). Output: /out/gateway.
+RUN go build -ldflags "-s -w" -o /out/gateway ./cmd/gateway
+
+# ---- Stage 2: runtime ----
+# Distroless static (no shell, no libc, just CA roots + tzdata + nonroot user).
+# Pinned by digest at deploy time via the Cloud Build step that resolves
+# `gcr.io/distroless/static-debian12:nonroot` to its current digest. For
+# local builds, the floating tag is fine.
+FROM gcr.io/distroless/static-debian12:nonroot
+
+# nonroot user (UID 65532) is preconfigured in the base image.
+USER nonroot:nonroot
+
+# Cloud Run sends $PORT (default 8080); the gateway honors it via
+# internal/config.getOr("PORT", "8080").
+ENV PORT=8080
+EXPOSE 8080
+
+COPY --from=builder /out/gateway /gateway
+
+ENTRYPOINT ["/gateway"]

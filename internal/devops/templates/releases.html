@@ -1,0 +1,231 @@
+{{template "base.html" .}}
+
+{{define "title"}}Releases — Canary Devops{{end}}
+
+{{define "content"}}
+<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:4px;">
+  <h1 class="page-title">Releases</h1>
+  <div class="refresh-indicator" id="refresh-indicator">
+    <div class="refresh-spinner" id="refresh-spinner"></div>
+    <span id="refresh-ts">—</span>
+  </div>
+</div>
+<p class="page-subtitle">
+  LangGraph pending approvals · <span id="server-url" class="ts"></span>
+  <span id="server-badge" class="badge" style="margin-left:6px;"></span>
+</p>
+
+<div class="ops-grid-4" style="grid-template-columns:repeat(2,1fr);margin-bottom:16px;">
+  <div class="stat-tile">
+    <div class="stat-value" id="stat-pending">—</div>
+    <div class="stat-label">Pending Approval</div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-value" id="stat-server">—</div>
+    <div class="stat-label">Server Status</div>
+  </div>
+</div>
+
+<div class="ops-card">
+  <div class="ops-section-title">Pending Releases</div>
+  <div id="releases-wrap">
+    <div class="empty-state">Loading…</div>
+  </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+const fmtTime = ts => {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return d.toLocaleString([], {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+};
+
+function artifactsHtml(values) {
+  const artifacts = values?.artifacts || {};
+  const keys = Object.keys(artifacts);
+  if (!keys.length) return '<span class="ts">no artifacts yet</span>';
+  return keys.map(k =>
+    `<div class="artifact-file">
+      <div class="artifact-path">${k}</div>
+      <pre class="artifact-content">${escHtml(artifacts[k] || '').slice(0, 800)}${artifacts[k]?.length > 800 ? '\n… (truncated)' : ''}</pre>
+    </div>`
+  ).join('');
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderReleases(threads) {
+  const wrap = document.getElementById('releases-wrap');
+  if (!threads || threads.length === 0) {
+    wrap.innerHTML = '<div class="empty-state">No pending releases. Run a codegen graph to generate one.</div>';
+    return;
+  }
+  wrap.innerHTML = threads.map(t => `
+    <div class="release-card" id="card-${t.thread_id}">
+      <div class="release-header">
+        <div>
+          <span class="hash">${t.thread_id}</span>
+          <span class="badge badge-amber" style="margin-left:8px">awaiting approval</span>
+        </div>
+        <span class="ts">${fmtTime(t.updated_at)}</span>
+      </div>
+      <div class="release-task">
+        <span class="ts">Task:</span> ${escHtml(t.values?.task || '—')}
+        &nbsp;·&nbsp;
+        <span class="ts">Service:</span> ${escHtml(t.values?.service || '—')}
+      </div>
+      <div class="release-artifacts">${artifactsHtml(t.values)}</div>
+      <div class="release-actions">
+        <button class="approve-btn" onclick="decide('${t.thread_id}', '${t.values?.assistant_id || 'codegen'}', 'approved', this)">
+          ✓ Approve
+        </button>
+        <button class="reject-btn" onclick="decide('${t.thread_id}', '${t.values?.assistant_id || 'codegen'}', 'rejected', this)">
+          ✗ Reject
+        </button>
+        <span class="decision-result" id="decision-${t.thread_id}"></span>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function decide(threadID, assistantID, decision, btn) {
+  const resultEl = document.getElementById('decision-' + threadID);
+  btn.disabled = true;
+  resultEl.textContent = '…';
+  try {
+    const resp = await fetch(`/devops/releases/${threadID}/${decision === 'approved' ? 'approve' : 'reject'}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'assistant_id=' + encodeURIComponent(assistantID),
+    });
+    const d = await resp.json();
+    if (d.ok) {
+      resultEl.textContent = decision === 'approved' ? '✓ approved — graph resuming' : '✗ rejected';
+      resultEl.style.color = decision === 'approved' ? 'var(--green)' : 'var(--red)';
+      document.getElementById('card-' + threadID).style.opacity = '0.5';
+    } else {
+      resultEl.textContent = '✗ ' + (d.error || 'failed');
+      resultEl.style.color = 'var(--red)';
+      btn.disabled = false;
+    }
+  } catch(e) {
+    resultEl.textContent = '✗ ' + e.message;
+    resultEl.style.color = 'var(--red)';
+    btn.disabled = false;
+  }
+}
+
+async function refresh() {
+  const spinner = document.getElementById('refresh-spinner');
+  const tsEl    = document.getElementById('refresh-ts');
+  spinner.style.display = 'block';
+  try {
+    const resp = await fetch('/devops/releases/state');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const d = await resp.json();
+
+    document.getElementById('server-url').textContent = d.server || '';
+    const badge = document.getElementById('server-badge');
+    if (d.online) {
+      badge.textContent = 'online';
+      badge.className = 'badge badge-green';
+    } else {
+      badge.textContent = 'offline';
+      badge.className = 'badge badge-red';
+    }
+
+    const pending = (d.pending || []).length;
+    const pendEl = document.getElementById('stat-pending');
+    pendEl.textContent = pending;
+    pendEl.className = 'stat-value ' + (pending > 0 ? 'amber' : 'green');
+
+    const srvEl = document.getElementById('stat-server');
+    srvEl.textContent = d.online ? 'online' : 'offline';
+    srvEl.className = 'stat-value ' + (d.online ? 'green' : 'red');
+
+    renderReleases(d.pending);
+    tsEl.textContent = 'updated ' + new Date().toLocaleTimeString();
+  } catch(e) {
+    tsEl.textContent = 'error: ' + e.message;
+  } finally {
+    spinner.style.display = 'none';
+  }
+}
+
+refresh();
+setInterval(refresh, 15000);
+</script>
+
+<style>
+.release-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 12px;
+  background: var(--surface-2);
+}
+.release-card:last-child { margin-bottom: 0; }
+.release-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.release-task { font-size: 13px; margin-bottom: 12px; }
+.release-artifacts { margin-bottom: 12px; }
+.artifact-file { margin-bottom: 8px; }
+.artifact-path {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+.artifact-content {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-x: auto;
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre;
+}
+.release-actions { display: flex; align-items: center; gap: 8px; }
+.approve-btn {
+  background: rgba(52,211,153,0.15);
+  border: 1px solid rgba(52,211,153,0.3);
+  color: #34d399;
+  padding: 4px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 600;
+}
+.approve-btn:hover { background: rgba(52,211,153,0.25); }
+.approve-btn:disabled { opacity: 0.5; cursor: default; }
+.reject-btn {
+  background: rgba(248,113,113,0.1);
+  border: 1px solid rgba(248,113,113,0.3);
+  color: #f87171;
+  padding: 4px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+}
+.reject-btn:hover { background: rgba(248,113,113,0.2); }
+.reject-btn:disabled { opacity: 0.5; cursor: default; }
+.decision-result { font-size: 12px; }
+.badge-amber { background: rgba(251,191,36,0.15); color: #fbbf24; }
+.badge-green { background: rgba(52,211,153,0.15); color: #34d399; }
+.badge-red   { background: rgba(248,113,113,0.15); color: #f87171; }
+</style>
+{{end}}

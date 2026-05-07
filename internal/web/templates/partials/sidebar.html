@@ -1,0 +1,128 @@
+{{define "sidebar"}}
+<aside class="sidebar">
+  <button class="sidebar-close" id="sidebar-close" aria-label="Close navigation">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <div class="sidebar-logo">
+    <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="42" cy="33" r="18" fill="#FBBF24"/>
+      <ellipse cx="50" cy="58" rx="25" ry="19" fill="#FBBF24"/>
+      <path d="M36 47 Q16 56 26 74 Q38 66 48 54 Z" fill="#F59E0B"/>
+      <circle cx="48" cy="30" r="4" fill="#0d1117"/>
+      <circle cx="46.5" cy="28.8" r="1.5" fill="#FBBF24"/>
+      <path d="M58 30 L73 24 L63 34 Z" fill="#E8A317"/>
+      <path d="M28 66 Q12 78 18 88 Q28 80 36 72 Z" fill="#F59E0B"/>
+    </svg>
+    <div class="sidebar-logo-text">
+      <h2>Canary</h2>
+      <div class="tagline">Early Warning System</div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Canary</div>
+      <a href="/dashboard" class="sidebar-item{{if eq .Page "dashboard"}} active{{end}}" data-color="dashboard">
+        <span class="nav-icon" style="background: var(--nav-dashboard);"></span>
+        Dashboard
+      </a>
+      <a href="/chirps" class="sidebar-item{{if eq .Page "chirps"}} active{{end}}" data-color="chirps">
+        <span class="nav-icon" style="background: var(--nav-chirps);"></span>
+        Chirps
+      </a>
+      <a href="/transactions" class="sidebar-item{{if eq .Page "transactions"}} active{{end}}" data-color="transactions">
+        <span class="nav-icon" style="background: var(--nav-transactions);"></span>
+        Transactions
+      </a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Fox (LP)</div>
+      <a href="/alerts" class="sidebar-item{{if eq .Page "alerts"}} active{{end}}" data-color="alerts">
+        <span class="nav-icon" style="background: var(--nav-audit);"></span>
+        Alerts
+      </a>
+      <a href="/rules" class="sidebar-item{{if eq .Page "rules"}} active{{end}}" data-color="rules">
+        <span class="nav-icon" style="background: var(--nav-reports);"></span>
+        Rules
+      </a>
+      <a href="/cases" class="sidebar-item{{if eq .Page "cases"}} active{{end}}" data-color="cases">
+        <span class="nav-icon" style="background: var(--nav-cases);"></span>
+        Cases
+      </a>
+      <a href="/customers" class="sidebar-item{{if eq .Page "customers"}} active{{end}}" data-color="customers">
+        <span class="nav-icon" style="background: var(--nav-employees);"></span>
+        Customers
+      </a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Ops</div>
+      <a href="/transfers" class="sidebar-item{{if eq .Page "transfers"}} active{{end}}" data-color="transfers">
+        <span class="nav-icon" style="background: var(--nav-transactions);"></span>
+        Transfers
+      </a>
+      <a href="/receiving" class="sidebar-item{{if eq .Page "receiving"}} active{{end}}" data-color="receiving">
+        <span class="nav-icon" style="background: var(--nav-chirps);"></span>
+        Receiving
+      </a>
+      <a href="/returns" class="sidebar-item{{if eq .Page "returns"}} active{{end}}" data-color="returns">
+        <span class="nav-icon" style="background: var(--nav-audit);"></span>
+        Returns
+      </a>
+      <a href="/items" class="sidebar-item{{if eq .Page "items"}} active{{end}}" data-color="items">
+        <span class="nav-icon" style="background: var(--nav-dashboard);"></span>
+        Items
+      </a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Reports</div>
+      <a href="/reports" class="sidebar-item{{if eq .Page "reports"}} active{{end}}" data-color="reports">
+        <span class="nav-icon" style="background: var(--nav-reports);"></span>
+        Reports
+      </a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">System</div>
+      <a href="/employees" class="sidebar-item{{if eq .Page "employees"}} active{{end}}" data-color="employees">
+        <span class="nav-icon" style="background: var(--nav-employees);"></span>
+        Employees
+      </a>
+      {{if .User.IsAdmin}}
+      <a href="/settings" class="sidebar-item{{if eq .Page "settings"}} active{{end}}" data-color="settings">
+        <span class="nav-icon" style="background: var(--nav-settings);"></span>
+        Settings
+      </a>
+      {{end}}
+      <a href="/owl" class="sidebar-item{{if eq .Page "owl"}} active{{end}}" data-color="owl">
+        <span class="nav-icon" style="background: var(--nav-chirps);"></span>
+        Owl
+      </a>
+      {{if .User.IsAdmin}}
+      <a href="/devops" class="sidebar-item{{if eq .Page "devops"}} active{{end}}" data-color="pipeline">
+        <span class="nav-icon" style="background: var(--nav-audit);"></span>
+        Ops Console
+      </a>
+      {{end}}
+    </div>
+  </nav>
+
+  <div class="sidebar-user">
+    <div class="sidebar-user-avatar">{{if .User.DisplayName}}{{slice .User.DisplayName 0 1}}{{else}}A{{end}}</div>
+    <div class="sidebar-user-info">
+      <div class="name">{{if .User.DisplayName}}{{.User.DisplayName}}{{else}}Unknown{{end}}</div>
+      <div class="role">{{if .User.Role}}{{.User.Role}}{{else}}viewer{{end}}</div>
+    </div>
+    <a href="/auth/logout" class="sidebar-logout-btn" title="Sign out">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3M10.5 11.5L14 8l-3.5-3.5M14 8H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </a>
+  </div>
+</aside>
+{{end}}

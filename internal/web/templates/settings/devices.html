@@ -1,0 +1,73 @@
+{{template "base.html" .}}
+
+{{define "title"}}Devices — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h1>Devices</h1>
+    <p class="page-subtitle">POS terminal and peripheral health</p>
+  </div>
+  <a href="/settings/devices/new" style="padding:8px 16px;background:var(--signal-yellow);color:#000;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;">Register new device →</a>
+</div>
+
+<!-- Status summary -->
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;">
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--health-green);">{{.Online}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Online</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--critical-red);">{{.Offline}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Offline</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--signal-yellow);">{{.Degraded}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Degraded</div>
+  </div>
+</div>
+
+<!-- Device table -->
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Registered Devices</div>
+  {{if .Devices}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Device ID</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Type</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Store</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Status</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Last Seen</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Devices}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:12px 12px 12px 0;font-family:'Space Grotesk',monospace;font-size:12px;color:var(--text-muted);">{{.DeviceID}}</td>
+        <td style="padding:12px;color:var(--text-primary);">{{.Type}}</td>
+        <td style="padding:12px;color:var(--text-secondary);">{{.Store}}</td>
+        <td style="padding:12px;">
+          {{if eq .Status "online"}}
+          <span class="badge" style="background:rgba(34,197,94,0.15);color:var(--health-green);">online</span>
+          {{else if eq .Status "offline"}}
+          <span class="badge" style="background:rgba(239,68,68,0.15);color:var(--critical-red);">offline</span>
+          {{else}}
+          <span class="badge" style="background:rgba(234,179,8,0.15);color:var(--signal-yellow);">degraded</span>
+          {{end}}
+        </td>
+        <td style="padding:12px 0;color:var(--text-muted);">{{.LastSeen}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div style="text-align:center;padding:40px 0;color:var(--text-muted);">
+    <p style="font-size:13px;">No devices registered.</p>
+    <p style="font-size:12px;margin-top:6px;"><a href="/settings/devices/new" style="color:var(--signal-yellow);">Register the first device →</a></p>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

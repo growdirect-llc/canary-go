@@ -1,0 +1,114 @@
+{{template "base.html" .}}
+
+{{define "title"}}Audit Proof {{.Data.Transaction.ShortID}} — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:20px;">
+  <a href="/transactions/{{.Transaction.ID}}" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← Transaction {{.Transaction.ShortID}}</a>
+</div>
+
+<div style="margin-bottom:24px;">
+  <h1 class="page-header">Audit Proof — {{.Transaction.ShortID}}</h1>
+  <p class="page-subtitle" style="margin-top:6px;">Hash-chained audit proof. Any mutation invalidates the root.</p>
+</div>
+
+<!-- Proof status banner -->
+{{if eq .ProofStatus "valid"}}
+<div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-radius:8px;background:rgba(16,185,129,0.1);border:1px solid var(--health-green);margin-bottom:24px;">
+  <span style="font-size:16px;font-weight:700;color:var(--health-green);">VALID</span>
+  <span style="font-size:13px;color:var(--text-secondary);">Merkle proof verified — transaction is tamper-evident and anchored.</span>
+</div>
+{{else if eq .ProofStatus "invalid"}}
+<div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-radius:8px;background:rgba(239,68,68,0.1);border:1px solid var(--critical-red);margin-bottom:24px;">
+  <span style="font-size:16px;font-weight:700;color:var(--critical-red);">INVALID</span>
+  <span style="font-size:13px;color:var(--text-secondary);">Proof verification failed — this record may have been altered.</span>
+</div>
+{{else}}
+<div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-radius:8px;background:rgba(234,179,8,0.08);border:1px solid var(--signal-yellow);margin-bottom:24px;">
+  <span style="font-size:16px;font-weight:700;color:var(--signal-yellow);">PENDING</span>
+  <span style="font-size:13px;color:var(--text-secondary);">Transaction not yet anchored to the chain. Proof will be available after the next anchor cycle.</span>
+</div>
+{{end}}
+
+<div style="display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start;">
+
+  <!-- Main column: merkle path + transaction hash -->
+  <div style="display:grid;gap:20px;">
+
+    <!-- Merkle path -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Merkle Path</h3>
+      {{if .MerklePath}}
+      <div style="display:grid;gap:2px;">
+        {{range .MerklePath}}
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);min-width:24px;text-align:center;background:rgba(255,255,255,0.06);border-radius:4px;padding:2px 6px;">{{.Index}}</div>
+          <div style="font-family:'Space Grotesk',monospace;font-size:11px;color:var(--text-secondary);word-break:break-all;">{{.Hash}}</div>
+        </div>
+        {{end}}
+      </div>
+      {{else}}
+      <div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;border:1px dashed var(--border-subtle);border-radius:6px;">
+        Proof pending — transaction not yet anchored.
+      </div>
+      {{end}}
+    </div>
+
+    <!-- Transaction hash -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:10px;">Transaction Hash</h3>
+      <div style="font-family:'Space Grotesk',monospace;font-size:12px;color:var(--text-secondary);word-break:break-all;line-height:1.6;padding:12px;background:rgba(0,0,0,0.2);border-radius:6px;border:1px solid var(--border-subtle);">{{.Transaction.Hash}}</div>
+    </div>
+
+  </div>
+
+  <!-- Sidebar: root hash + anchor metadata -->
+  <div style="display:grid;gap:12px;">
+
+    <!-- Root hash -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:10px;">Anchor Root</h3>
+      {{if eq .RootHash "—"}}
+      <div style="font-size:13px;color:var(--text-muted);">Not yet anchored.</div>
+      {{else}}
+      <div style="font-family:'Space Grotesk',monospace;font-size:11px;color:var(--accent-blue);word-break:break-all;line-height:1.6;padding:10px;background:rgba(59,130,246,0.06);border-radius:6px;border:1px solid rgba(59,130,246,0.2);">{{.RootHash}}</div>
+      {{end}}
+    </div>
+
+    <!-- Anchor metadata -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Anchor Metadata</h3>
+      <div style="display:grid;gap:10px;font-size:13px;">
+        <div>
+          <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">Block / Ordinal</div>
+          <div style="font-family:'Space Grotesk',monospace;font-size:12px;color:var(--text-primary);">{{.AnchorRef}}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">Anchored At</div>
+          <div style="color:var(--text-secondary);">{{.AnchoredAt}}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">Transaction</div>
+          <div style="color:var(--text-secondary);">{{.Transaction.CreatedAt}}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Proof status detail -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:10px;">Status</h3>
+      {{if eq .ProofStatus "valid"}}
+      <span class="badge" style="background:rgba(16,185,129,0.15);color:var(--health-green);border-color:var(--health-green);">verified</span>
+      {{else if eq .ProofStatus "invalid"}}
+      <span class="badge" style="background:rgba(239,68,68,0.12);color:var(--critical-red);border-color:var(--critical-red);">invalid</span>
+      {{else}}
+      <span class="badge" style="background:rgba(234,179,8,0.12);color:var(--signal-yellow);border-color:var(--signal-yellow);">pending</span>
+      {{end}}
+    </div>
+
+  </div>
+
+</div>
+{{end}}
+{{end}}

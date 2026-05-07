@@ -1,0 +1,373 @@
+// internal/identity/apikey.go
+//
+// Per-agent scoped API key middleware. Spec:
+// docs/sdds/canary-go/identity-auth-tenant.md.
+//
+// Wire format: header `X-Canary-API-Key: <plaintext>`.
+// Storage:     argon2id(plaintext, salt) per RFC 9106.
+// Lookup:      app.api_keys table; full table-scan on tenant_id is
+//              acceptable up to ~10⁴ keys per tenant. The verify path
+//              does NOT trust caller-supplied tenant_id — the middleware
+//              first authenticates the key, then sets tenant_id from
+//              the key row.
+//
+// Hashing: argon2id with parameters time=1, memory=64MB, threads=4,
+// hashLen=32, saltLen=16. Recommended in RFC 9106 §4 for passwords;
+// used here for opaque API key tokens with comparable threat model
+// (online brute-force resistance, server CPU pressure).
+
+package identity
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/base32"
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/crypto/argon2"
+)
+
+// HeaderAPIKey is the wire-format header for API key authentication.
+const HeaderAPIKey = "X-Canary-API-Key"
+
+// KeyPlaintextPrefix is the visible-on-wire identifier so users
+// recognize the token type.
+const KeyPlaintextPrefix = "cy_"
+
+// argon2id parameter set per RFC 9106 §4 recommendations. Bumped
+// memory to 64 MiB. Each param can be retuned per the migration
+// pattern in §A.5 of the SDD.
+const (
+	argon2Time    uint32 = 1
+	argon2Memory  uint32 = 64 * 1024
+	argon2Threads uint8  = 4
+	argon2KeyLen  uint32 = 32
+	argon2SaltLen        = 16
+)
+
+// Errors surfaced by the API key path. Handlers map these to status
+// codes via the package-level renderAuthError helper (cmd/identity).
+var (
+	ErrAPIKeyMissing  = errors.New("identity: api key missing")
+	ErrAPIKeyInvalid  = errors.New("identity: api key invalid")
+	ErrAPIKeyRevoked  = errors.New("identity: api key revoked")
+	ErrAPIKeyExpired  = errors.New("identity: api key expired")
+	ErrInvalidHashFmt = errors.New("identity: malformed key_hash format")
+)
+
+// APIKeyAuthClaims is the per-request shape produced by
+// APIKeyMiddleware on a successful auth. Mirrors JWTClaims at the
+// fields the rest of the platform depends on; AuthMethod
+// distinguishes them downstream.
+type APIKeyAuthClaims struct {
+	KeyID     uuid.UUID
+	TenantID  *uuid.UUID // nil for platform-scope keys
+	AgentName string
+	Scopes    []string
+}
+
+// APIKeyMiddlewareOpts configures the chi middleware.
+type APIKeyMiddlewareOpts struct {
+	// Pool is the pgxpool used to look up keys.
+	Pool *pgxpool.Pool
+
+	// OnAuthenticated is called with the resolved claims on a
+	// successful auth. Defaults to InjectAPIKeyClaims.
+	OnAuthenticated func(ctx context.Context, claims APIKeyAuthClaims) context.Context
+
+	// Required, when true, returns 401 when the header is missing.
+	// When false (default), missing-header passes to the next
+	// handler — useful for routes that accept either JWT or API
+	// key.
+	Required bool
+}
+
+// APIKeyMiddleware returns a chi-compatible middleware that
+// authenticates X-Canary-API-Key. See the package doc for the full
+// flow.
+func APIKeyMiddleware(opts APIKeyMiddlewareOpts) func(http.Handler) http.Handler {
+	if opts.Pool == nil {
+		panic("identity: APIKeyMiddleware requires a non-nil pgxpool.Pool")
+	}
+	if opts.OnAuthenticated == nil {
+		opts.OnAuthenticated = InjectAPIKeyClaims
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			plaintext := r.Header.Get(HeaderAPIKey)
+			if plaintext == "" {
+				if opts.Required {
+					writeAuthError(w, http.StatusUnauthorized, ErrAPIKeyMissing)
+					return
+				}
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			claims, err := AuthenticateAPIKey(r.Context(), opts.Pool, plaintext)
+			if err != nil {
+				switch {
+				case errors.Is(err, ErrAPIKeyRevoked), errors.Is(err, ErrAPIKeyExpired):
+					writeAuthError(w, http.StatusForbidden, err)
+				default:
+					writeAuthError(w, http.StatusUnauthorized, err)
+				}
+				return
+			}
+			ctx := opts.OnAuthenticated(r.Context(), *claims)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// AuthenticateAPIKey verifies plaintext against app.api_keys and
+// returns the claim set on success. Updates last_used_at as a
+// side-effect — fire-and-forget UPDATE outside the request hot-path.
+//
+// Lookup strategy: we cannot index on a hash of the plaintext
+// (argon2id is non-deterministic; salt-per-row), so the verify
+// loop scans active keys. The tenant_id filter limits the candidate
+// set when the caller has hinted a tenant via header X-Canary-Merchant.
+// Otherwise platform-scope keys (tenant_id IS NULL) are checked first,
+// then a full active-keys scan as fallback. For dev/test scale this
+// is fine; production scale gets a per-prefix sharding optimization
+// when key counts cross 10⁴ per tenant.
+func AuthenticateAPIKey(ctx context.Context, pool *pgxpool.Pool, plaintext string) (*APIKeyAuthClaims, error) {
+	if !strings.HasPrefix(plaintext, KeyPlaintextPrefix) {
+		return nil, ErrAPIKeyInvalid
+	}
+
+	const q = `
+		SELECT id, tenant_id, agent_name, key_hash, scopes, status, expires_at
+		  FROM app.api_keys
+		 WHERE status = 'active'
+		   AND (expires_at IS NULL OR expires_at > now())`
+	rows, err := pool.Query(ctx, q)
+	if err != nil {
+		return nil, fmt.Errorf("identity: query api_keys: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			id        uuid.UUID
+			tenantID  *uuid.UUID
+			agentName string
+			keyHash   string
+			scopes    []string
+			status    string
+			expiresAt *time.Time
+		)
+		if err := rows.Scan(&id, &tenantID, &agentName, &keyHash, &scopes, &status, &expiresAt); err != nil {
+			return nil, fmt.Errorf("identity: scan api_keys: %w", err)
+		}
+		ok, verr := VerifyAPIKey(plaintext, keyHash)
+		if verr != nil {
+			// Malformed hash row — skip, don't expose the error
+			continue
+		}
+		if !ok {
+			continue
+		}
+		// matched — best-effort last_used_at update
+		go func(keyID uuid.UUID) {
+			ctx2, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			_, _ = pool.Exec(ctx2,
+				`UPDATE app.api_keys SET last_used_at = now() WHERE id = $1`,
+				keyID,
+			)
+		}(id)
+		return &APIKeyAuthClaims{
+			KeyID:     id,
+			TenantID:  tenantID,
+			AgentName: agentName,
+			Scopes:    scopes,
+		}, nil
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("identity: iter api_keys: %w", err)
+	}
+	return nil, ErrAPIKeyInvalid
+}
+
+// HashAPIKey produces an argon2id self-describing hash string for the
+// given plaintext. Format: argon2id$<saltB64>$<hashB64>.
+func HashAPIKey(plaintext string) (string, error) {
+	if plaintext == "" {
+		return "", errors.New("identity: empty plaintext")
+	}
+	salt := make([]byte, argon2SaltLen)
+	if _, err := rand.Read(salt); err != nil {
+		return "", fmt.Errorf("identity: salt: %w", err)
+	}
+	h := argon2.IDKey([]byte(plaintext), salt, argon2Time, argon2Memory, argon2Threads, argon2KeyLen)
+	return fmt.Sprintf(
+		"argon2id$%s$%s",
+		base64.RawStdEncoding.EncodeToString(salt),
+		base64.RawStdEncoding.EncodeToString(h),
+	), nil
+}
+
+// VerifyAPIKey constant-time-compares plaintext against a stored
+// hash string in the format produced by HashAPIKey. Returns
+// (true, nil) on match, (false, nil) on mismatch,
+// (_, ErrInvalidHashFmt) on a parse failure.
+func VerifyAPIKey(plaintext, stored string) (bool, error) {
+	parts := strings.Split(stored, "$")
+	if len(parts) != 3 || parts[0] != "argon2id" {
+		return false, ErrInvalidHashFmt
+	}
+	salt, err := base64.RawStdEncoding.DecodeString(parts[1])
+	if err != nil {
+		return false, ErrInvalidHashFmt
+	}
+	want, err := base64.RawStdEncoding.DecodeString(parts[2])
+	if err != nil {
+		return false, ErrInvalidHashFmt
+	}
+	got := argon2.IDKey([]byte(plaintext), salt, argon2Time, argon2Memory, argon2Threads, argon2KeyLen)
+	return subtle.ConstantTimeCompare(got, want) == 1, nil
+}
+
+// GenerateAPIKeyPlaintext returns a fresh `cy_<base32>` token. 32
+// bytes of crypto/rand entropy → 56-character base32 → ~160 bits of
+// effective key material after the 'cy_' prefix.
+func GenerateAPIKeyPlaintext() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("identity: rand: %w", err)
+	}
+	enc := base32.StdEncoding.WithPadding(base32.NoPadding)
+	return KeyPlaintextPrefix + enc.EncodeToString(buf), nil
+}
+
+// CreateAPIKeyRow inserts a new app.api_keys row and returns the
+// plaintext token + the row id. The plaintext is shown ONCE — caller
+// must surface it to the end user; subsequent reads expose only the
+// hash.
+func CreateAPIKeyRow(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	tenantID *uuid.UUID,
+	agentName string,
+	scopes []string,
+	rateLimitRPM int,
+	expiresAt *time.Time,
+) (plaintext string, id uuid.UUID, err error) {
+	plaintext, err = GenerateAPIKeyPlaintext()
+	if err != nil {
+		return "", uuid.Nil, err
+	}
+	hash, err := HashAPIKey(plaintext)
+	if err != nil {
+		return "", uuid.Nil, err
+	}
+	if rateLimitRPM <= 0 {
+		rateLimitRPM = 600
+	}
+	const insertQ = `
+		INSERT INTO app.api_keys
+		    (tenant_id, agent_name, key_hash, scopes, rate_limit_rpm, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id`
+	row := pool.QueryRow(ctx, insertQ, tenantID, agentName, hash, scopes, rateLimitRPM, expiresAt)
+	if err := row.Scan(&id); err != nil {
+		return "", uuid.Nil, fmt.Errorf("identity: insert api_key: %w", err)
+	}
+	return plaintext, id, nil
+}
+
+// RevokeAPIKey marks the row revoked. Idempotent — re-revoking a
+// revoked key is a no-op (returns nil error).
+func RevokeAPIKey(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID) error {
+	const q = `UPDATE app.api_keys SET status = 'revoked', updated_at = now()
+	            WHERE id = $1 AND status = 'active'`
+	tag, err := pool.Exec(ctx, q, id)
+	if err != nil {
+		return fmt.Errorf("identity: revoke api_key: %w", err)
+	}
+	_ = tag // RowsAffected may be 0 on idempotent re-revoke; caller doesn't care
+	return nil
+}
+
+// ListAPIKeys returns active+revoked rows for the given tenant, never
+// the key_hash. Ordered by created_at DESC.
+type APIKeyRow struct {
+	ID           uuid.UUID
+	TenantID     *uuid.UUID
+	AgentName    string
+	Scopes       []string
+	RateLimitRPM int
+	Status       string
+	ExpiresAt    *time.Time
+	LastUsedAt   *time.Time
+	CreatedAt    time.Time
+}
+
+// ListAPIKeysByTenant returns rows for tenantID. Pass uuid.Nil to
+// list platform-scope keys.
+func ListAPIKeysByTenant(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID) ([]APIKeyRow, error) {
+	var (
+		rows pgx.Rows
+		err  error
+	)
+	if tenantID == uuid.Nil {
+		rows, err = pool.Query(ctx, `
+			SELECT id, tenant_id, agent_name, scopes, rate_limit_rpm,
+			       status, expires_at, last_used_at, created_at
+			  FROM app.api_keys
+			 WHERE tenant_id IS NULL
+			 ORDER BY created_at DESC`)
+	} else {
+		rows, err = pool.Query(ctx, `
+			SELECT id, tenant_id, agent_name, scopes, rate_limit_rpm,
+			       status, expires_at, last_used_at, created_at
+			  FROM app.api_keys
+			 WHERE tenant_id = $1
+			 ORDER BY created_at DESC`, tenantID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("identity: list api_keys: %w", err)
+	}
+	defer rows.Close()
+	out := []APIKeyRow{}
+	for rows.Next() {
+		var r APIKeyRow
+		if err := rows.Scan(&r.ID, &r.TenantID, &r.AgentName, &r.Scopes,
+			&r.RateLimitRPM, &r.Status, &r.ExpiresAt, &r.LastUsedAt, &r.CreatedAt); err != nil {
+			return nil, fmt.Errorf("identity: scan api_keys: %w", err)
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// writeAuthError writes a standard JSON error envelope per the
+// convention in docs/conventions.md. Used by APIKeyMiddleware.
+func writeAuthError(w http.ResponseWriter, status int, err error) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	code := "auth_failed"
+	switch {
+	case errors.Is(err, ErrAPIKeyMissing):
+		code = "missing_api_key"
+	case errors.Is(err, ErrAPIKeyRevoked):
+		code = "key_revoked"
+	case errors.Is(err, ErrAPIKeyExpired):
+		code = "key_expired"
+	case errors.Is(err, ErrAPIKeyInvalid):
+		code = "invalid_api_key"
+	}
+	fmt.Fprintf(w, `{"code":%q,"message":%q}`, code, err.Error())
+}

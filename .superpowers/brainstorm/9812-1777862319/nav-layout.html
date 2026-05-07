@@ -1,0 +1,68 @@
+<h2>Devops Console — Top-Level Navigation</h2>
+<p class="subtitle">How should the three panels be organized? Gateway serves all of these at <code>/devops/*</code></p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock-nav" style="margin-bottom:8px">⚡ Canary Devops</div>
+      <div style="display:flex;gap:8px;height:120px">
+        <div class="mock-sidebar" style="width:130px;font-size:11px;line-height:1.8">
+          📊 Pipeline<br>
+          🔍 Events<br>
+          📖 API Explorer<br>
+          ─────────<br>
+          <span style="color:#888">v1.0.0</span>
+        </div>
+        <div class="mock-content" style="flex:1;font-size:11px">
+          Main content area changes<br>
+          when you click a nav item.<br><br>
+          Works well for dense data views.
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Sidebar Nav</h3>
+      <p>Persistent left rail, content pane on right. Classic ops console layout. Easy to add sections later without restructuring.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock-nav" style="margin-bottom:8px">⚡ Canary Devops &nbsp;|&nbsp; <strong>Pipeline</strong> &nbsp;|&nbsp; Events &nbsp;|&nbsp; API</div>
+      <div class="mock-content" style="height:128px;font-size:11px">
+        Tab content renders here.<br><br>
+        Simple. Shallow hierarchy.<br>
+        Three tabs = three pages.
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Horizontal Tabs</h3>
+      <p>Top nav with three tabs: Pipeline · Events · API Explorer. Fewest decisions, easiest to implement in plain Go HTML templates.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock-nav" style="margin-bottom:8px">⚡ Canary Devops</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:8px">
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:8px;font-size:10px;text-align:center">
+          📊<br><strong>Pipeline</strong><br><span style="color:#94a3b8">4 stages</span>
+        </div>
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:8px;font-size:10px;text-align:center">
+          🔍<br><strong>Events</strong><br><span style="color:#94a3b8">live stream</span>
+        </div>
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:8px;font-size:10px;text-align:center">
+          📖<br><strong>API</strong><br><span style="color:#94a3b8">28 endpoints</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Dashboard Landing</h3>
+      <p>Home page with metric cards + quick-links into sub-pages. Extra click to get to data, but gives an at-a-glance overview of system health up front.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px">Click a card to select, then confirm in the terminal.</p>

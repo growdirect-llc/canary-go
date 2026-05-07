@@ -1,0 +1,73 @@
+name: canarygo
+
+networks:
+  growdirect:
+    external: true
+
+services:
+  canarygo-dbinit:
+    image: postgres:17
+    networks: [growdirect]
+    entrypoint: >
+      sh -c "
+        psql -h growdirect_postgres -U growdirect -c 'CREATE DATABASE canary_gcp;' || true &&
+        psql -h growdirect_postgres -U growdirect -c 'CREATE DATABASE canary_gcp_test;' || true
+      "
+    environment:
+      PGPASSWORD: growdirect_dev
+
+  canarygo-migrate:
+    image: migrate/migrate:v4.17.0
+    networks: [growdirect]
+    volumes:
+      - ./migrations:/migrations
+    command: >
+      -path=/migrations
+      -database=postgres://growdirect:growdirect_dev@growdirect_postgres:5432/canary_gcp?sslmode=disable
+      up
+    depends_on:
+      canarygo-dbinit:
+        condition: service_completed_successfully
+
+  canarygo-gateway:
+    image: canarygo-gateway
+    build:
+      context: ../
+      dockerfile: deploy/Dockerfile.gateway
+    networks: [growdirect]
+    ports:
+      - "9080:8080"
+    environment:
+      DATABASE_URL: postgres://growdirect:growdirect_dev@growdirect_postgres:5432/canary_gcp?sslmode=disable
+      VALKEY_URL: redis://:valkey_dev@growdirect_valkey:6379/2
+      INTERNAL_SERVICE_SECRET: dev-internal-secret
+      SESSION_SECRET: dev-session-secret
+      LOG_LEVEL: info
+      PORT: "8080"
+      SECRET_BACKEND: pgx
+      LNURL_STUB: "true"
+      LNURL_SCHEME: http
+      LNURL_HOST: localhost:8080
+      DEV_CONSOLE: "1"
+    depends_on:
+      canarygo-migrate:
+        condition: service_completed_successfully
+
+  canarygo-identity:
+    image: canarygo-identity
+    build:
+      context: ../
+      dockerfile: deploy/Dockerfile.identity
+    networks: [growdirect]
+    ports:
+      - "8086:8086"
+    environment:
+      DATABASE_URL: postgres://growdirect:growdirect_dev@growdirect_postgres:5432/canary_gcp?sslmode=disable
+      VALKEY_URL: redis://:valkey_dev@growdirect_valkey:6379/2
+      INTERNAL_SERVICE_SECRET: dev-internal-secret
+      SESSION_SECRET: dev-session-secret
+      LOG_LEVEL: info
+      PORT: "8086"
+    depends_on:
+      canarygo-dbinit:
+        condition: service_completed_successfully

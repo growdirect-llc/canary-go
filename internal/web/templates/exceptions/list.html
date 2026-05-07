@@ -1,0 +1,80 @@
+{{template "base.html" .}}
+
+{{define "title"}}Exceptions — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h1>Exceptions</h1>
+    <p class="page-subtitle">Cross-domain exception detection</p>
+  </div>
+  <div style="font-size:13px;color:var(--text-secondary);">
+    {{.OpenCount}} open &middot; {{.TotalCount}} total
+  </div>
+</div>
+
+<!-- Domain filter tabs -->
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">
+  {{$filter := .DomainFilter}}
+  {{range $label, $value := (printf "%s" "")}}{{end}}
+  <a href="/exceptions"
+     style="padding:6px 12px;border-radius:20px;font-size:12px;font-weight:500;text-decoration:none;border:1px solid {{if eq $filter ""}}var(--signal-yellow){{else}}var(--border-subtle){{end}};color:{{if eq $filter ""}}var(--signal-yellow){{else}}var(--text-secondary){{end}};background:{{if eq $filter ""}}rgba(251,191,36,.08){{else}}transparent{{end}};">
+    All
+  </a>
+  <a href="/exceptions?domain=lp"
+     style="padding:6px 12px;border-radius:20px;font-size:12px;font-weight:500;text-decoration:none;border:1px solid {{if eq $filter "lp"}}var(--signal-yellow){{else}}var(--border-subtle){{end}};color:{{if eq $filter "lp"}}var(--signal-yellow){{else}}var(--text-secondary){{end}};background:{{if eq $filter "lp"}}rgba(251,191,36,.08){{else}}transparent{{end}};">
+    LP
+  </a>
+  <a href="/exceptions?domain=inventory"
+     style="padding:6px 12px;border-radius:20px;font-size:12px;font-weight:500;text-decoration:none;border:1px solid {{if eq $filter "inventory"}}var(--signal-yellow){{else}}var(--border-subtle){{end}};color:{{if eq $filter "inventory"}}var(--signal-yellow){{else}}var(--text-secondary){{end}};background:{{if eq $filter "inventory"}}rgba(251,191,36,.08){{else}}transparent{{end}};">
+    Inventory
+  </a>
+  <a href="/exceptions?domain=finance"
+     style="padding:6px 12px;border-radius:20px;font-size:12px;font-weight:500;text-decoration:none;border:1px solid {{if eq $filter "finance"}}var(--signal-yellow){{else}}var(--border-subtle){{end}};color:{{if eq $filter "finance"}}var(--signal-yellow){{else}}var(--text-secondary){{end}};background:{{if eq $filter "finance"}}rgba(251,191,36,.08){{else}}transparent{{end}};">
+    Finance
+  </a>
+  <a href="/exceptions?domain=receiving"
+     style="padding:6px 12px;border-radius:20px;font-size:12px;font-weight:500;text-decoration:none;border:1px solid {{if eq $filter "receiving"}}var(--signal-yellow){{else}}var(--border-subtle){{end}};color:{{if eq $filter "receiving"}}var(--signal-yellow){{else}}var(--text-secondary){{end}};background:{{if eq $filter "receiving"}}rgba(251,191,36,.08){{else}}transparent{{end}};">
+    Receiving
+  </a>
+</div>
+
+{{if .Exceptions}}
+<div class="ops-card" style="overflow-x:auto;">
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="border-bottom:1px solid var(--border-subtle);">
+        <th style="text-align:left;padding:10px 12px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Exception ID</th>
+        <th style="text-align:left;padding:10px 12px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Domain</th>
+        <th style="text-align:left;padding:10px 12px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Type</th>
+        <th style="text-align:left;padding:10px 12px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Severity</th>
+        <th style="text-align:left;padding:10px 12px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Store</th>
+        <th style="text-align:left;padding:10px 12px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Detected At</th>
+        <th style="text-align:left;padding:10px 12px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Exceptions}}
+      <tr style="border-bottom:1px solid var(--border-subtle);">
+        <td style="padding:12px;"><a href="/exceptions/{{.ID}}" style="color:var(--accent-blue);text-decoration:none;font-family:monospace;font-size:12px;">{{.ShortID}}</a></td>
+        <td style="padding:12px;"><span class="badge">{{.Domain}}</span></td>
+        <td style="padding:12px;color:var(--text-secondary);">{{.Type}}</td>
+        <td style="padding:12px;"><span class="badge">{{.Severity}}</span></td>
+        <td style="padding:12px;color:var(--text-secondary);">{{.Store}}</td>
+        <td style="padding:12px;color:var(--text-muted);font-size:12px;">{{.DetectedAt}}</td>
+        <td style="padding:12px;"><span class="badge">{{.Status}}</span></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+  <div style="font-size:2.5rem;margin-bottom:12px;opacity:0.3;">&#9888;</div>
+  <p style="font-size:14px;">No exceptions detected.</p>
+  <p style="font-size:12px;margin-top:6px;">Exceptions surface automatically when detection rules fire across domains.</p>
+</div>
+{{end}}
+{{end}}
+{{end}}

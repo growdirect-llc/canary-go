@@ -1,0 +1,270 @@
+{{template "base.html" .}}
+
+{{define "title"}}Square — Canary Devops{{end}}
+
+{{define "content"}}
+<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:4px;">
+  <h1 class="page-title">Square Connection Panel</h1>
+  <div class="refresh-indicator" id="refresh-indicator">
+    <div class="refresh-spinner" id="refresh-spinner"></div>
+    <span id="refresh-ts">—</span>
+  </div>
+</div>
+<p class="page-subtitle">OAuth token status · webhook feed · rate limit · auto-refreshes every 15s</p>
+
+<!-- Stat tiles (5 columns) -->
+<div class="ops-grid-4" id="stat-tiles" style="grid-template-columns:repeat(5,1fr)">
+  <div class="stat-tile">
+    <div class="stat-value" id="stat-connected">—</div>
+    <div class="stat-label">Connected Merchants</div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-value" id="stat-expiring">—</div>
+    <div class="stat-label">Expiring Soon</div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-value" id="stat-expired">—</div>
+    <div class="stat-label">Expired</div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-value" id="stat-webhooks">—</div>
+    <div class="stat-label">Webhooks Received</div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-value" id="stat-ratelimit">—</div>
+    <div class="stat-label">Rate Limit Headroom</div>
+    <div id="ratelimit-bar-wrap" style="margin-top:6px;height:4px;background:var(--surface-3);border-radius:2px;display:none">
+      <div id="ratelimit-bar" style="height:4px;border-radius:2px;transition:width 0.3s"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Connection panel -->
+<div class="ops-card" style="margin-bottom:16px;">
+  <div class="ops-section-title">Connections</div>
+  <div id="connections-wrap">
+    <div class="empty-state">Loading…</div>
+  </div>
+</div>
+
+<!-- Webhook feed -->
+<div class="ops-card" style="margin-bottom:16px;">
+  <div class="ops-section-title">
+    Webhook Feed <span class="ts" style="margin-left:6px;">(source=square · last 20)</span>
+    <span class="ts" id="webhook-count-label"></span>
+  </div>
+  <div id="webhook-wrap">
+    <div class="empty-state">Loading…</div>
+  </div>
+</div>
+
+<!-- Audit tail -->
+<div class="ops-card">
+  <div class="ops-section-title">
+    Audit Log <span class="ts" style="margin-left:6px;">(source=square · last 50)</span>
+    <span class="ts" id="audit-count-label"></span>
+  </div>
+  <div id="audit-wrap">
+    <div class="empty-state">Loading…</div>
+  </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+const fmtTime = ts => {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return d.toLocaleString([], {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+};
+const fmtNum = n => (n == null ? '—' : n.toLocaleString());
+const truncate = (s, n) => s && s.length > n ? s.slice(0, n) + '…' : (s || '—');
+
+function statusBadge(status, expired, expiringSoon) {
+  if (expired)      return '<span class="badge badge-red">expired</span>';
+  if (expiringSoon) return '<span class="badge badge-amber">expiring soon</span>';
+  if (status === 'active') return '<span class="badge badge-green">active</span>';
+  return `<span class="badge">${status}</span>`;
+}
+
+function renderConnections(rows) {
+  const wrap = document.getElementById('connections-wrap');
+  if (!rows || rows.length === 0) {
+    wrap.innerHTML = '<div class="empty-state">No Square merchants connected yet. Complete the OAuth flow at <a href="/auth/square" target="_blank">/auth/square</a>.</div>';
+    return;
+  }
+  const html = `<table class="ops-table">
+    <thead><tr>
+      <th>Merchant ID</th><th>Status</th><th>Expires At</th><th>Last Tested</th><th>Updated</th><th></th>
+    </tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td class="hash">${r.merchant_id}</td>
+      <td>${statusBadge(r.status, r.expired, r.expiring_soon)}</td>
+      <td class="ts">${fmtTime(r.expires_at)}</td>
+      <td class="ts">${fmtTime(r.last_tested_at)}</td>
+      <td class="ts">${fmtTime(r.updated_at)}</td>
+      <td>
+        <button class="test-btn" onclick="testConnection('${r.merchant_id}', this)">
+          Test
+        </button>
+        <span class="test-result" id="result-${r.merchant_id}"></span>
+      </td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+  wrap.innerHTML = html;
+}
+
+function renderWebhooks(rows) {
+  const wrap  = document.getElementById('webhook-wrap');
+  const label = document.getElementById('webhook-count-label');
+  if (!rows || rows.length === 0) {
+    wrap.innerHTML = '<div class="empty-state">No Square webhook events received yet. Trigger an event from the Square sandbox dashboard or complete an OAuth flow.</div>';
+    label.textContent = '';
+    return;
+  }
+  label.textContent = rows.length + ' shown';
+  const html = `<table class="ops-table">
+    <thead><tr>
+      <th>Time</th><th>Event Type</th><th>Merchant</th><th>Event Hash</th>
+    </tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td class="ts">${fmtTime(r.ingested_at)}</td>
+      <td><span class="evt-type">${r.event_type || '—'}</span></td>
+      <td class="hash">${truncate(r.merchant_id, 8)}</td>
+      <td class="hash">${truncate(r.event_hash, 16)}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+  wrap.innerHTML = html;
+}
+
+function renderRateLimit(rl) {
+  if (!rl) return;
+  const el   = document.getElementById('stat-ratelimit');
+  const bar  = document.getElementById('ratelimit-bar');
+  const wrap = document.getElementById('ratelimit-bar-wrap');
+  const pct  = rl.headroom_pct ?? 100;
+  const used = rl.calls_last_60s ?? 0;
+  const lim  = rl.limit_per_min ?? 500;
+  el.textContent = pct + '%';
+  el.className = 'stat-value ' + (pct < 20 ? 'red' : pct < 50 ? 'amber' : 'green');
+  wrap.style.display = 'block';
+  bar.style.width = pct + '%';
+  bar.style.background = pct < 20 ? 'var(--red)' : pct < 50 ? 'var(--amber)' : 'var(--green)';
+  bar.title = `${used} / ${lim} calls in last 60s`;
+}
+
+function renderAudit(rows) {
+  const wrap = document.getElementById('audit-wrap');
+  const label = document.getElementById('audit-count-label');
+  if (!rows || rows.length === 0) {
+    wrap.innerHTML = '<div class="empty-state">No audit events with source=square yet.</div>';
+    label.textContent = '';
+    return;
+  }
+  label.textContent = rows.length + ' shown';
+  const html = `<table class="ops-table">
+    <thead><tr>
+      <th>Time</th><th>Action</th><th>Resource</th><th>Status</th><th>Latency</th>
+    </tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td class="ts">${fmtTime(r.created_at)}</td>
+      <td>${r.action || '—'}</td>
+      <td class="hash">${r.resource || '—'}</td>
+      <td><span class="badge ${r.status_code >= 400 ? 'badge-red' : 'badge-green'}">${r.status_code}</span></td>
+      <td class="ts">${r.latency_ms}ms</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+  wrap.innerHTML = html;
+}
+
+async function testConnection(merchantID, btn) {
+  const resultEl = document.getElementById('result-' + merchantID);
+  btn.disabled = true;
+  btn.textContent = '…';
+  resultEl.textContent = '';
+  try {
+    const resp = await fetch('/devops/square/test', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'merchant_id=' + encodeURIComponent(merchantID),
+    });
+    const d = await resp.json();
+    if (d.ok) {
+      resultEl.textContent = '✓ ' + (d.business_name || 'OK');
+      resultEl.style.color = 'var(--green)';
+    } else {
+      resultEl.textContent = '✗ ' + (d.error || 'failed');
+      resultEl.style.color = 'var(--red)';
+    }
+  } catch(e) {
+    resultEl.textContent = '✗ ' + e.message;
+    resultEl.style.color = 'var(--red)';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Test';
+  }
+}
+
+async function refresh() {
+  const spinner = document.getElementById('refresh-spinner');
+  const tsEl    = document.getElementById('refresh-ts');
+  spinner.style.display = 'block';
+  try {
+    const resp = await fetch('/devops/square/state');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const d = await resp.json();
+
+    const conns        = d.connections   || [];
+    const webhooks     = d.webhook_feed  || [];
+    const expired      = conns.filter(c => c.expired).length;
+    const expiringSoon = conns.filter(c => c.expiring_soon).length;
+
+    document.getElementById('stat-connected').textContent = fmtNum(conns.length);
+
+    const expEl = document.getElementById('stat-expiring');
+    expEl.textContent = fmtNum(expiringSoon);
+    expEl.className   = 'stat-value ' + (expiringSoon > 0 ? 'amber' : 'green');
+
+    const expdEl = document.getElementById('stat-expired');
+    expdEl.textContent = fmtNum(expired);
+    expdEl.className   = 'stat-value ' + (expired > 0 ? 'red' : 'green');
+
+    document.getElementById('stat-webhooks').textContent = fmtNum(webhooks.length);
+
+    renderRateLimit(d.rate_limit);
+    renderConnections(conns);
+    renderWebhooks(webhooks);
+    renderAudit(d.audit_tail || []);
+
+    tsEl.textContent = 'updated ' + new Date().toLocaleTimeString();
+  } catch(e) {
+    tsEl.textContent = 'error: ' + e.message;
+  } finally {
+    spinner.style.display = 'none';
+  }
+}
+
+refresh();
+setInterval(refresh, 15000);
+</script>
+
+<style>
+.test-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 2px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: inherit;
+}
+.test-btn:hover { background: var(--surface-3); }
+.test-btn:disabled { opacity: 0.5; cursor: default; }
+.test-result { font-size: 11px; margin-left: 8px; }
+.badge-green { background: rgba(52,211,153,0.15); color: #34d399; }
+.badge-red   { background: rgba(248,113,113,0.15); color: #f87171; }
+.badge-amber { background: rgba(251,191,36,0.15);  color: #fbbf24; }
+.evt-type { font-family: var(--mono); font-size: 11px; color: var(--text-secondary); }
+</style>
+{{end}}

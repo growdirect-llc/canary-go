@@ -1,0 +1,52 @@
+{{template "base.html" .}}
+
+{{define "title"}}New Case — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div style="max-width:520px;margin:0 auto;padding:40px 0;">
+  <div style="margin-bottom:24px;">
+    <a href="/cases/hawk" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← Cases</a>
+  </div>
+
+  <h1 style="font-size:1.4rem;margin-bottom:8px;">Open a New Case</h1>
+  <p style="color:var(--text-secondary);font-size:14px;margin-bottom:32px;">
+    A case creates an evidence-backed investigation record. All activity is hash-anchored.
+  </p>
+
+  <form method="POST" action="/cases/hawk" style="display:grid;gap:20px;">
+
+    <div>
+      <label style="display:block;font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">Title</label>
+      <input type="text" name="title" placeholder="e.g. Repeated refund pattern — Jane D."
+        style="width:100%;padding:12px 14px;background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:14px;outline:none;font-family:inherit;"
+        required>
+    </div>
+
+    <div>
+      <label style="display:block;font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">Summary</label>
+      <textarea name="summary" rows="3" placeholder="Brief description of what triggered this case..."
+        style="width:100%;padding:12px 14px;background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:14px;outline:none;font-family:inherit;resize:vertical;"></textarea>
+    </div>
+
+    {{if .Alerts}}
+    <div>
+      <label style="display:block;font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">Link Alert (optional)</label>
+      <select name="alert_id"
+        style="width:100%;padding:12px 14px;background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:14px;outline:none;font-family:inherit;">
+        <option value="">— none —</option>
+        {{range .Alerts}}
+        <option value="{{.ID}}">{{.Title}} ({{.CreatedAt}})</option>
+        {{end}}
+      </select>
+    </div>
+    {{end}}
+
+    <button type="submit" class="ops-btn ops-btn-primary" style="padding:14px;font-size:15px;font-weight:700;">
+      Open Case
+    </button>
+
+  </form>
+</div>
+{{end}}
+{{end}}

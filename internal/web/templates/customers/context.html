@@ -1,0 +1,69 @@
+{{template "base.html" .}}
+
+{{define "title"}}Investigation Context — {{.Data.Customer.Name}} — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:20px;">
+  <a href="/customers/{{.Customer.ID}}" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← {{.Customer.Name}}</a>
+</div>
+
+<div class="page-header">
+  <h1>Investigation Context — {{.Customer.Name}}</h1>
+  <p class="page-subtitle">{{.Customer.ShortID}} &middot; <span style="text-transform:capitalize;">{{.Customer.RiskTier}} risk</span> &middot; score {{.Customer.RiskScore}}</p>
+</div>
+
+<!-- Cases section -->
+<div style="margin-bottom:28px;">
+  <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Cases</h3>
+  {{if .Cases}}
+  <div style="display:grid;gap:2px;">
+    {{range .Cases}}
+    <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px;">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:13px;font-weight:600;color:var(--text-primary);">{{.Title}}</span>
+          <span class="badge">{{.Status}}</span>
+          <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">{{.CreatedAt}}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">Role: {{.SubjectRole}}</div>
+      </div>
+      <a href="/cases/hawk/{{.ID}}" style="font-size:11px;color:var(--signal-yellow);white-space:nowrap;">View →</a>
+    </div>
+    {{end}}
+  </div>
+  {{else}}
+  <div style="padding:24px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px;text-align:center;color:var(--text-muted);font-size:13px;">
+    This customer does not appear as a subject in any open cases.
+  </div>
+  {{end}}
+</div>
+
+<!-- Chirps section -->
+<div>
+  <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Recent Chirps</h3>
+  {{if .Chirps}}
+  <div class="ops-card">
+    {{range .Chirps}}
+    <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--border-subtle);">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:13px;font-weight:600;color:var(--text-primary);">{{.EventType}}</span>
+          <span style="font-size:12px;color:var(--text-secondary);">{{.Amount}}</span>
+          <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">{{.CreatedAt}}</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:3px;font-family:'Space Grotesk',monospace;">{{.ShortID}} &middot; {{.StoreID}}</div>
+      </div>
+      <a href="/chirps/{{.ID}}" style="font-size:11px;color:var(--signal-yellow);white-space:nowrap;">View →</a>
+    </div>
+    {{end}}
+  </div>
+  {{else}}
+  <div style="padding:24px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px;text-align:center;color:var(--text-muted);font-size:13px;">
+    No chirps linked to this customer.
+  </div>
+  {{end}}
+</div>
+
+{{end}}
+{{end}}

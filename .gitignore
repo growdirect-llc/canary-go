@@ -1,0 +1,34 @@
+# Compiled Go binaries — built from cmd/* via `go build ./cmd/<name>`
+# Never commit these; build artifacts belong in the local workspace only.
+/alert
+/analytics
+/asset
+/bull
+/case
+/chirp
+/customer
+/dbcheck
+/edge
+/employee
+/fox
+/gateway
+/hawk
+/hello
+/identity
+/inventory
+/item
+/owl
+/pricing
+/receiving
+/report
+/returns
+/sub1-hash-seal
+/sub2-parse-route
+/sub3-merkle-ordinal
+/transaction
+/transfer
+/tsp
+/raas
+
+# macOS
+.DS_Store

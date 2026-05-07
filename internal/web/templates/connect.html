@@ -1,0 +1,75 @@
+{{template "base.html" .}}
+
+{{define "title"}}Connect Your Store — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+{{$data := .}}
+<div style="max-width:420px;margin:0 auto;padding:32px 20px 80px;">
+
+  <section style="margin-bottom:28px;">
+    <h2 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:16px;">Week Setup</h2>
+
+    <div style="margin-bottom:20px;">
+      <label style="display:block;font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">Week starts on</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;" id="weekStartPills">
+        {{range $i, $day := $data.WeekDays}}
+        <button type="button"
+          class="connect-pill{{if eq $data.WeekStart $i}} active{{end}}"
+          data-field="week_start_day" data-value="{{$i}}">{{$day}}</button>
+        {{end}}
+      </div>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <label style="display:block;font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">How far back</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;" id="lookbackPills">
+        {{range $data.LookbackOpts}}
+        <button type="button"
+          class="connect-pill{{if eq $data.Lookback .Value}} active{{end}}"
+          data-field="lookback_days" data-value="{{.Value}}">{{.Label}}</button>
+        {{end}}
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--text-muted);">We'll pull this much transaction history from your POS.</p>
+  </section>
+
+  <div style="padding-top:24px;border-top:1px solid var(--border);">
+    <form method="POST" action="/connect" id="connectForm">
+      <input type="hidden" name="week_start_day" id="inputWeekStartDay" value="{{$data.WeekStart}}">
+      <input type="hidden" name="lookback_days" id="inputLookbackDays" value="{{$data.Lookback}}">
+      <input type="hidden" name="choice" id="inputChoice" value="continue">
+      <button type="button" id="btnHealthCheck"
+        style="width:100%;padding:14px;border:none;border-radius:10px;background:linear-gradient(135deg,var(--signal-yellow),var(--signal-amber));color:#0a0a0a;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;display:block;text-align:center;font-family:inherit;">
+        Run a Health Check
+      </button>
+    </form>
+  </div>
+
+</div>
+{{end}}
+{{end}}
+
+{{define "scripts"}}
+<script>
+(function() {
+  document.querySelectorAll('[id$="Pills"]').forEach(function(group) {
+    group.addEventListener('click', function(e) {
+      var btn = e.target.closest('.connect-pill');
+      if (!btn) return;
+      group.querySelectorAll('.connect-pill').forEach(function(p) { p.classList.remove('active'); });
+      btn.classList.add('active');
+      var field = btn.dataset.field;
+      var val = btn.dataset.value;
+      if (field === 'week_start_day') document.getElementById('inputWeekStartDay').value = val;
+      if (field === 'lookback_days') document.getElementById('inputLookbackDays').value = val;
+    });
+  });
+  var btnHC = document.getElementById('btnHealthCheck');
+  if (btnHC) btnHC.addEventListener('click', function() {
+    document.getElementById('inputChoice').value = 'health_check';
+    document.getElementById('connectForm').submit();
+  });
+})();
+</script>
+{{end}}

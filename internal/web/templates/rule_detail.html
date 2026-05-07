@@ -1,0 +1,108 @@
+{{template "base.html" .}}
+
+{{define "title"}}Rule {{.Data.Rule.Name}} — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:20px;">
+  <a href="/rules" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← Rules</a>
+</div>
+
+<div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:24px;">
+  <div style="flex:1;min-width:0;">
+    <h1 style="font-size:1.3rem;">{{.Rule.Name}}</h1>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;">
+      <span class="badge" style="background:{{if eq .Rule.Severity "critical"}}var(--critical-red){{else if eq .Rule.Severity "high"}}var(--signal-yellow){{else if eq .Rule.Severity "medium"}}var(--accent-blue){{else}}var(--text-muted){{end}};color:#0d1117;">{{.Rule.Severity}}</span>
+      {{if .Rule.Enabled}}
+      <span class="badge" style="background:var(--health-green);color:#0d1117;">Enabled</span>
+      {{else}}
+      <span class="badge" style="background:var(--bg-surface);color:var(--text-muted);border:1px solid var(--border-subtle);">Disabled</span>
+      {{end}}
+      <span style="font-size:12px;color:var(--text-muted);">{{.Rule.Category}}</span>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 280px;gap:20px;align-items:start;">
+
+  <!-- Main -->
+  <div style="display:grid;gap:16px;">
+
+    <!-- Description -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Description</h3>
+      <p style="font-size:13px;color:var(--text-primary);line-height:1.6;">{{.Rule.Description}}</p>
+    </div>
+
+    <!-- Detection Logic -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Detection Logic</h3>
+      {{if .Rule.Parameters}}
+      <div style="display:grid;gap:6px;">
+        {{range .Rule.Parameters}}
+        <div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--bg-base);border:1px solid var(--border-subtle);border-radius:6px;font-size:12px;">
+          <span style="color:var(--text-muted);">{{.Key}}</span>
+          <span style="color:var(--text-primary);font-family:'Space Grotesk',monospace;">{{.Value}}</span>
+        </div>
+        {{end}}
+      </div>
+      {{else}}
+      <div style="font-size:13px;color:var(--text-muted);">No parameters configured.</div>
+      {{end}}
+    </div>
+
+  </div>
+
+  <!-- Sidebar -->
+  <div style="display:grid;gap:12px;">
+
+    <!-- Stats -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Fire Stats</h3>
+      <div style="display:grid;gap:8px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text-muted);">Today</span>
+          <span style="color:var(--text-primary);font-weight:600;">{{.Rule.FiresToday}}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text-muted);">This week</span>
+          <span style="color:var(--text-primary);font-weight:600;">{{.Rule.FiresThisWeek}}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding-top:8px;border-top:1px solid var(--border-subtle);">
+          <span style="color:var(--text-muted);">Total</span>
+          <span style="color:var(--text-primary);font-weight:600;">{{.Rule.FireCount}}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Allow-list -->
+    <div class="ops-card">
+      <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Allow-list</h3>
+      <div style="display:grid;gap:6px;">
+        <a href="/rules/{{.Rule.ID}}/allowlist/discounts" style="font-size:12px;color:var(--accent-blue);text-decoration:none;">Discounts</a>
+        <a href="/rules/{{.Rule.ID}}/allowlist/voids" style="font-size:12px;color:var(--accent-blue);text-decoration:none;">Voids</a>
+        <a href="/rules/{{.Rule.ID}}/allowlist/comps" style="font-size:12px;color:var(--accent-blue);text-decoration:none;">Comps</a>
+        <a href="/rules/{{.Rule.ID}}/allowlist/dead-count" style="font-size:12px;color:var(--accent-blue);text-decoration:none;">Dead Count</a>
+      </div>
+    </div>
+
+    <!-- Toggle -->
+    <div class="ops-card">
+      <form method="POST" action="/rules/{{.Rule.ID}}/toggle">
+        {{if .Rule.Enabled}}
+        <button type="submit" style="width:100%;padding:8px 12px;background:transparent;color:var(--critical-red);border:1px solid var(--critical-red);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
+          Disable Rule
+        </button>
+        {{else}}
+        <button type="submit" style="width:100%;padding:8px 12px;background:var(--health-green);color:#0d1117;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
+          Enable Rule
+        </button>
+        {{end}}
+      </form>
+    </div>
+
+  </div>
+
+</div>
+{{end}}
+{{end}}

@@ -1,0 +1,137 @@
+/* ═══════════════════════════════════════════════════════════════
+   WHITE-LABEL THEME — Light
+   Neutral palette — no canary yellow or branded module colors.
+   For merchants embedding Canary under their own brand.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+    /* Background */
+    --bg-ink: #FAFAFA;
+    --bg-surface: #F5F5F5;
+    --bg-card: #FFFFFF;
+    --bg-elevated: #EEEEEE;
+
+    /* Borders */
+    --border: #D4D4D8;
+    --border-subtle: #E4E4E7;
+
+    /* Text */
+    --text-primary: #18181B;
+    --text-secondary: #52525B;
+    --text-muted: #71717A;
+    --text-dim: #A1A1AA;
+
+    /* Signal Colors — neutral tones */
+    --signal-yellow: #71717A;
+    --signal-amber: #52525B;
+    --health-green: #16A34A;
+    --critical-red: #DC2626;
+    --warning-orange: #CA8A04;
+    --accent-blue: #2563EB;
+
+    /* Module Colors — all neutral */
+    --color-canary: #2563EB;
+    --color-fox: #2563EB;
+    --color-owl: #2563EB;
+    --color-bull: #16A34A;
+    --color-rooster: #2563EB;
+    --color-goose: #16A34A;
+
+    /* Sidebar Nav Item Colors — neutral */
+    --nav-dashboard: #71717A;
+    --nav-chirps: #CA8A04;
+    --nav-transactions: #2563EB;
+    --nav-cases: #EA580C;
+    --nav-employees: #16A34A;
+    --nav-reports: #7C3AED;
+    --nav-audit: #71717A;
+    --nav-settings: #71717A;
+
+    /* Spacing */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-7: 28px;
+    --space-8: 32px;
+
+    /* Radii */
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-pill: 20px;
+
+    /* Sidebar */
+    --sidebar-width: 240px;
+    --sidebar-collapsed: 64px;
+
+    /* v1 token aliases */
+    --ink: #FAFAFA;
+    --charcoal: #F5F5F5;
+    --card: #FFFFFF;
+    --border-light: #D4D4D8;
+    --beak-gold: #71717A;
+    --deep-amber: #52525B;
+    --health-yellow: #CA8A04;
+    --health-red: #DC2626;
+    --health-red-light: #F87171;
+    --health-green-light: #22C55E;
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-2xl: 48px;
+
+    /* Typography Scale */
+    --text-xs: 0.6875rem;
+    --text-sm: 0.75rem;
+    --text-base: 0.875rem;
+    --text-md: 0.9375rem;
+    --text-lg: 1.125rem;
+    --text-xl: 1.5rem;
+    --text-2xl: 2.25rem;
+
+    /* Font Families — system stack only */
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-heading: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'SF Mono', 'Fira Code', monospace;
+
+    /* Font Weights */
+    --weight-normal: 400;
+    --weight-medium: 500;
+    --weight-semibold: 600;
+    --weight-bold: 700;
+
+    /* Transitions */
+    --transition-fast: 0.15s ease;
+    --transition-base: 0.2s ease;
+    --transition-slow: 0.3s ease;
+    --transition-spring: 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    /* Shadows */
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05);
+    --shadow-elevated: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --shadow-sheet: 0 -8px 32px rgba(0, 0, 0, 0.10);
+
+    /* Severity */
+    --severity-critical-bg: rgba(220, 38, 38, 0.06);
+    --severity-critical-text: var(--critical-red);
+    --severity-warning-bg: rgba(202, 138, 4, 0.06);
+    --severity-warning-text: var(--warning-orange);
+    --severity-info-bg: rgba(37, 99, 235, 0.06);
+    --severity-info-text: var(--accent-blue);
+    --severity-healthy-bg: rgba(22, 163, 74, 0.06);
+    --severity-healthy-text: var(--health-green);
+
+    /* Module Identity — neutral */
+    --module-owl-bg: rgba(37, 99, 235, 0.05);
+    --module-owl-border: rgba(37, 99, 235, 0.12);
+    --module-fox-bg: rgba(234, 88, 12, 0.05);
+    --module-fox-border: rgba(234, 88, 12, 0.12);
+    --module-chirp-bg: rgba(202, 138, 4, 0.05);
+    --module-chirp-border: rgba(202, 138, 4, 0.12);
+}

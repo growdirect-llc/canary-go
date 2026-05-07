@@ -1,0 +1,137 @@
+/* ═══════════════════════════════════════════════════════════════
+   CANARY THEME — Dark (Default)
+   Extracted from canary.css v2.0 design tokens.
+   Loaded BEFORE canary.css so component styles resolve vars.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+    /* Background */
+    --bg-ink: #0D1117;
+    --bg-surface: #161B22;
+    --bg-card: #1C2128;
+    --bg-elevated: #21262D;
+
+    /* Borders */
+    --border: #30363D;
+    --border-subtle: #21262D;
+
+    /* Text */
+    --text-primary: #E6EDF3;
+    --text-secondary: #8B949E;
+    --text-muted: #6B7280;
+    --text-dim: #484F58;
+
+    /* Signal Colors */
+    --signal-yellow: #FBBF24;
+    --signal-amber: #F59E0B;
+    --health-green: #3FB950;
+    --critical-red: #F85149;
+    --warning-orange: #D29922;
+    --accent-blue: #58A6FF;
+
+    /* Module Colors */
+    --color-canary: #F59E0B;
+    --color-fox: #F97316;
+    --color-owl: #8B5CF6;
+    --color-bull: #22C55E;
+    --color-rooster: #3B82F6;
+    --color-goose: #10B981;
+
+    /* Sidebar Nav Item Colors */
+    --nav-dashboard: #FBBF24;
+    --nav-chirps: #FBBF24;
+    --nav-transactions: #3B82F6;
+    --nav-cases: #F97316;
+    --nav-employees: #22C55E;
+    --nav-reports: #8B5CF6;
+    --nav-audit: #8B949E;
+    --nav-settings: #8B949E;
+
+    /* Spacing */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-7: 28px;
+    --space-8: 32px;
+
+    /* Radii */
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-pill: 20px;
+
+    /* Sidebar */
+    --sidebar-width: 240px;
+    --sidebar-collapsed: 64px;
+
+    /* v1 token aliases — used by dashboard component styles */
+    --ink: #0D1117;
+    --charcoal: #161B22;
+    --card: #1C2128;
+    --border-light: #30363D;
+    --beak-gold: #E8A317;
+    --deep-amber: #D97706;
+    --health-yellow: #FBBF24;
+    --health-red: #EF4444;
+    --health-red-light: #f87171;
+    --health-green-light: #34d399;
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-2xl: 48px;
+
+    /* Typography Scale (11px floor for mobile readability) */
+    --text-xs: 0.6875rem;    /* 11px — minimum for touch UI */
+    --text-sm: 0.75rem;      /* 12px — meta, timestamps, badges */
+    --text-base: 0.875rem;   /* 14px — body text, nav items */
+    --text-md: 0.9375rem;    /* 15px — card titles, section headers */
+    --text-lg: 1.125rem;     /* 18px — page headings */
+    --text-xl: 1.5rem;       /* 24px — hero numbers, h1 */
+    --text-2xl: 2.25rem;     /* 36px — big stat values */
+
+    /* Font Families */
+    --font-body: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-heading: 'Space Grotesk', sans-serif;
+    --font-mono: 'SF Mono', 'Fira Code', monospace;
+
+    /* Font Weights */
+    --weight-normal: 400;
+    --weight-medium: 500;
+    --weight-semibold: 600;
+    --weight-bold: 700;
+
+    /* Transitions */
+    --transition-fast: 0.15s ease;
+    --transition-base: 0.2s ease;
+    --transition-slow: 0.3s ease;
+    --transition-spring: 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    /* Shadows */
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.4);
+    --shadow-sheet: 0 -8px 32px rgba(0, 0, 0, 0.5);
+
+    /* Severity (maps to detection confidence) */
+    --severity-critical-bg: rgba(248, 81, 73, 0.10);
+    --severity-critical-text: var(--critical-red);
+    --severity-warning-bg: rgba(251, 191, 36, 0.10);
+    --severity-warning-text: var(--signal-yellow);
+    --severity-info-bg: rgba(88, 166, 255, 0.10);
+    --severity-info-text: var(--accent-blue);
+    --severity-healthy-bg: rgba(63, 185, 80, 0.10);
+    --severity-healthy-text: var(--health-green);
+
+    /* Module Identity (for branding agent-specific UI) */
+    --module-owl-bg: rgba(139, 92, 246, 0.08);
+    --module-owl-border: rgba(139, 92, 246, 0.20);
+    --module-fox-bg: rgba(249, 115, 22, 0.08);
+    --module-fox-border: rgba(249, 115, 22, 0.20);
+    --module-chirp-bg: rgba(245, 158, 11, 0.08);
+    --module-chirp-border: rgba(245, 158, 11, 0.20);
+}

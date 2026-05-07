@@ -1,0 +1,70 @@
+{{template "base.html" .}}
+
+{{define "title"}}Items — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Items</h1>
+  <p class="page-subtitle">Item catalog lookup</p>
+</div>
+
+<div style="margin-bottom:20px;">
+  <form method="GET" action="/items" style="display:flex;gap:8px;align-items:center;">
+    <input
+      type="text"
+      name="q"
+      value="{{.Query}}"
+      placeholder="Search by SKU or description…"
+      style="flex:1;max-width:420px;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"
+    />
+    <button type="submit" style="padding:8px 16px;background:var(--signal-yellow);color:#000;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Search</button>
+  </form>
+</div>
+
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">
+    {{if .Query}}Results for "{{.Query}}" — {{.TotalCount}} items{{else}}All Items — {{.TotalCount}} items{{end}}
+  </div>
+  {{if .Items}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">SKU</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Description</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Category</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Unit Price</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Margin %</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Items}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:12px 12px 12px 0;font-family:'Space Grotesk',monospace;font-size:12px;color:var(--text-muted);">{{.SKU}}</td>
+        <td style="padding:12px;color:var(--text-primary);">
+          <a href="/items/{{.ID}}" style="color:var(--text-primary);text-decoration:none;">{{.Description}}</a>
+        </td>
+        <td style="padding:12px;color:var(--text-secondary);">{{.Category}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.UnitPrice}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.Margin}}</td>
+        <td style="padding:12px 0;">
+          {{if eq .Status "active"}}
+          <span class="badge" style="background:rgba(34,197,94,0.15);color:var(--health-green);">active</span>
+          {{else}}
+          <span class="badge" style="background:rgba(107,114,128,0.15);color:var(--text-muted);">discontinued</span>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+    <p style="font-size:14px;">No items found{{if .Query}} for "{{.Query}}"{{end}}.</p>
+    <p style="font-size:12px;margin-top:6px;">Search by SKU or description to find catalog items.</p>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

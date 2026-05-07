@@ -1,0 +1,60 @@
+{{template "base.html" .}}
+
+{{define "title"}}Suggested Orders — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Suggested Orders</h1>
+  <p class="page-subtitle">System-generated reorder recommendations</p>
+</div>
+
+<div style="margin-bottom:16px;padding:10px 14px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;font-size:12px;color:var(--text-muted);">
+  Orders require buyer approval before PO creation.
+</div>
+
+<div class="ops-card">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);">Pending Recommendations</div>
+    {{if .PendingCount}}
+    <span class="badge" style="background:var(--signal-yellow);color:#000;">{{.PendingCount}} pending</span>
+    {{end}}
+  </div>
+  {{if .Orders}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Item</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Supplier</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Current Stock</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Reorder Point</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Suggested Qty</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Est. Cost</th>
+        <th style="padding:6px 0;text-align:right;font-weight:500;">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Orders}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:12px 12px 12px 0;color:var(--text-primary);">{{.Item}}</td>
+        <td style="padding:12px;color:var(--text-secondary);">{{.Supplier}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.CurrentStock}}</td>
+        <td style="padding:12px;text-align:right;color:var(--signal-yellow);">{{.ReorderPoint}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-primary);font-weight:600;">{{.SuggestedQty}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.EstCost}}</td>
+        <td style="padding:12px 0;text-align:right;">
+          <span style="font-size:11px;color:var(--health-green);cursor:pointer;margin-right:8px;">Approve</span>
+          <span style="font-size:11px;color:var(--text-muted);cursor:pointer;">Dismiss</span>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div style="text-align:center;padding:40px 0;color:var(--text-muted);">
+    <p style="font-size:13px;">No suggested orders at this time.</p>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

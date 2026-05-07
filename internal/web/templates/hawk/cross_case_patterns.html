@@ -1,0 +1,103 @@
+{{template "base.html" .}}
+
+{{define "title"}}Cross-Case Patterns — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Cross-Case Patterns</h1>
+  <p class="page-subtitle">Multi-case subject and rule correlation</p>
+</div>
+
+<div style="padding:10px 14px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-left:3px solid var(--signal-yellow);border-radius:6px;margin-bottom:24px;">
+  <p style="font-size:13px;color:var(--text-secondary);margin:0;">Subjects appearing in multiple cases indicate coordinated activity.</p>
+</div>
+
+<div style="display:grid;gap:20px;">
+
+  <!-- Top subjects -->
+  <div class="ops-card">
+    <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Top Subjects</h3>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Subjects appearing in 2 or more cases.</p>
+    {{if .TopSubjects}}
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <th style="text-align:left;padding:6px 12px 6px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Subject</th>
+          <th style="text-align:right;padding:6px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Case Count</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .TopSubjects}}
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <td style="padding:9px 12px 9px 0;color:var(--text-primary);">{{.Subject}}</td>
+          <td style="padding:9px 0;text-align:right;">
+            <span class="badge" style="background:var(--critical-red);color:#fff;">{{.CaseCount}} cases</span>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <div style="padding:20px 0;color:var(--text-muted);font-size:13px;text-align:center;">
+      No multi-case subjects detected.
+    </div>
+    {{end}}
+  </div>
+
+  <!-- Rule co-occurrence -->
+  <div class="ops-card">
+    <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Rule Co-Occurrence</h3>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Rule pairs that fire together frequently across cases.</p>
+    {{if .RulePairs}}
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <th style="text-align:left;padding:6px 12px 6px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Rule A</th>
+          <th style="text-align:left;padding:6px 12px 6px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Rule B</th>
+          <th style="text-align:right;padding:6px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Co-fires</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .RulePairs}}
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <td style="padding:9px 12px 9px 0;color:var(--text-primary);">{{.RuleA}}</td>
+          <td style="padding:9px 12px 9px 0;color:var(--text-primary);">{{.RuleB}}</td>
+          <td style="padding:9px 0;text-align:right;color:var(--accent-blue);font-weight:600;">{{.CoFireCount}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <div style="padding:20px 0;color:var(--text-muted);font-size:13px;text-align:center;">
+      No co-occurrence patterns detected yet.
+    </div>
+    {{end}}
+  </div>
+
+  <!-- Subject timeline -->
+  <div class="ops-card">
+    <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Recent Subject Timeline</h3>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Last 10 subject events across all cases.</p>
+    {{if .SubjectTimeline}}
+    <div style="display:grid;gap:2px;">
+      {{range .SubjectTimeline}}
+      <div style="display:flex;gap:12px;padding:10px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;">
+        <div style="font-size:10px;color:var(--text-muted);white-space:nowrap;padding-top:2px;min-width:80px;">{{.Timestamp}}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:600;color:var(--text-secondary);">{{.Subject}}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">{{.CaseID}} · {{.EventType}}</div>
+        </div>
+      </div>
+      {{end}}
+    </div>
+    {{else}}
+    <div style="padding:20px 0;color:var(--text-muted);font-size:13px;text-align:center;">
+      No subject events recorded yet.
+    </div>
+    {{end}}
+  </div>
+
+</div>
+{{end}}
+{{end}}

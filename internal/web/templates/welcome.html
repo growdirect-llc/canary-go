@@ -1,0 +1,33 @@
+{{template "base.html" .}}
+
+{{define "title"}}Welcome — Canary{{end}}
+
+{{define "content"}}
+<div style="max-width:480px;margin:0 auto;padding:48px 20px;">
+  <div style="text-align:center;margin-bottom:40px;">
+    <svg width="64" height="58" viewBox="0 0 130 100" fill="none" style="margin-bottom:16px;">
+      <circle cx="42" cy="33" r="18" fill="var(--signal-yellow)"/>
+      <ellipse cx="50" cy="58" rx="25" ry="19" fill="var(--signal-yellow)"/>
+      <path d="M36 47 Q16 56 26 74 Q38 66 48 54 Z" fill="var(--signal-amber)"/>
+      <circle cx="48" cy="30" r="4" fill="var(--bg-ink)"/>
+      <circle cx="46.5" cy="28.8" r="1.5" fill="var(--signal-yellow)"/>
+      <path d="M58 30 L73 24 L63 34 Z" fill="#E8A317"/>
+      <path d="M28 66 Q12 78 18 88 Q28 80 36 72 Z" fill="var(--signal-amber)"/>
+    </svg>
+    <h1 style="font-family:'Space Grotesk',sans-serif;font-size:1.6rem;font-weight:700;color:var(--text-primary);margin-bottom:8px;">Welcome to Canary</h1>
+    <p style="color:var(--text-secondary);font-size:0.95rem;">Your store is connected. Let's set things up.</p>
+  </div>
+
+  <!-- TODO: wire week-start + lookback form to config module -->
+  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:16px;">
+    <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:16px;">Setup</h3>
+    <p style="color:var(--text-secondary);font-size:14px;line-height:1.6;">
+      Configuration options will appear here once the config module is wired. For now, proceed to your dashboard.
+    </p>
+  </div>
+
+  <a href="/dashboard" style="display:block;text-align:center;padding:14px;border-radius:10px;background:linear-gradient(135deg,var(--signal-yellow),var(--signal-amber));color:#0a0a0a;font-size:15px;font-weight:700;text-decoration:none;">
+    Go to Dashboard
+  </a>
+</div>
+{{end}}

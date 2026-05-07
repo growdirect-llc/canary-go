@@ -1,0 +1,72 @@
+{{template "base.html" .}}
+
+{{define "title"}}Competitive Pricing — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Competitive Pricing</h1>
+  <p class="page-subtitle">Price position vs market</p>
+</div>
+
+<!-- Summary tiles -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.ItemsTracked}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Items Tracked</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--critical-red);">{{.AboveMarket}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Above Market</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--health-green);">{{.AtMarket}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">At Market</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--accent-blue);">{{.BelowMarket}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Below Market</div>
+  </div>
+</div>
+
+<!-- Price position table -->
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Price Position Detail</div>
+  {{if .Items}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">SKU</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Description</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Our Price</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Market Low</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Market High</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Position</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Items}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:12px 12px 12px 0;font-family:'Space Grotesk',monospace;font-size:12px;color:var(--text-muted);">{{.SKU}}</td>
+        <td style="padding:12px;color:var(--text-primary);">{{.Description}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.OurPrice}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.MarketLow}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.MarketHigh}}</td>
+        <td style="padding:12px 0;">
+          {{if eq .Position "above"}}<span class="badge" style="background:var(--critical-red);color:#fff;">above</span>
+          {{else if eq .Position "at"}}<span class="badge" style="background:var(--health-green);color:#000;">at</span>
+          {{else}}<span class="badge" style="background:var(--accent-blue);color:#fff;">below</span>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div style="text-align:center;padding:40px 0;color:var(--text-muted);">
+    <p style="font-size:13px;">No pricing data available. Market feeds connect in a future release.</p>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

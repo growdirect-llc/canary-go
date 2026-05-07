@@ -1,0 +1,86 @@
+{{template "base.html" .}}
+
+{{define "title"}}Receiving Session — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:16px;">
+  <a href="/receiving" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← Receiving</a>
+</div>
+
+<div class="page-header" style="margin-bottom:8px;">
+  <h1>Receiving Session {{.Session.ShortID}}</h1>
+</div>
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+  <span style="font-size:13px;color:var(--text-secondary);">PO {{.Session.PONumber}}</span>
+  <span style="color:var(--border-subtle);">·</span>
+  <span style="font-size:13px;color:var(--text-secondary);">{{.Session.Vendor}}</span>
+  <span class="badge">{{.Session.Status}}</span>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 280px;gap:24px;align-items:start;">
+
+  <!-- Main: line entry table -->
+  <div class="ops-card">
+    <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">PO Lines</div>
+    {{if .Lines}}
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+          <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">PO Line</th>
+          <th style="padding:6px 12px;text-align:left;font-weight:500;">SKU</th>
+          <th style="padding:6px 12px;text-align:left;font-weight:500;">Description</th>
+          <th style="padding:6px 12px;text-align:right;font-weight:500;">PO Qty</th>
+          <th style="padding:6px 12px;text-align:right;font-weight:500;">Received Qty</th>
+          <th style="padding:6px 0;text-align:center;font-weight:500;">Discrepancy</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Lines}}
+        <tr style="border-top:1px solid var(--border-subtle);">
+          <td style="padding:12px 12px 12px 0;font-family:'Space Grotesk',monospace;font-size:12px;color:var(--text-muted);">{{.POLine}}</td>
+          <td style="padding:12px;font-family:'Space Grotesk',monospace;font-size:12px;color:var(--text-muted);">{{.SKU}}</td>
+          <td style="padding:12px;color:var(--text-primary);">{{.Description}}</td>
+          <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.POQty}}</td>
+          <td style="padding:12px;text-align:right;">
+            <input type="number" value="{{.ReceivedQty}}" style="width:64px;padding:4px 6px;font-size:12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:4px;color:var(--text-primary);text-align:right;" />
+          </td>
+          <td style="padding:12px 0;text-align:center;">
+            {{if .Discrepancy}}
+            <span class="badge" style="background:var(--critical-red);color:#fff;">{{.Discrepancy}}</span>
+            {{else}}
+            <span style="color:var(--health-green);font-size:12px;">—</span>
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <div style="text-align:center;padding:40px 0;color:var(--text-muted);">
+      <p style="font-size:13px;">No lines on this session.</p>
+    </div>
+    {{end}}
+  </div>
+
+  <!-- Sidebar: session metadata + close -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <div class="ops-card">
+      <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:12px;">Session Details</div>
+      <dl style="margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12px;">
+        <dt style="color:var(--text-muted);">Vendor</dt>
+        <dd style="color:var(--text-primary);margin:0;">{{.Session.Vendor}}</dd>
+        <dt style="color:var(--text-muted);">PO</dt>
+        <dd style="color:var(--text-primary);margin:0;">{{.Session.PONumber}}</dd>
+        <dt style="color:var(--text-muted);">Opened</dt>
+        <dd style="color:var(--text-secondary);margin:0;">{{.Session.OpenedAt}}</dd>
+        <dt style="color:var(--text-muted);">Received by</dt>
+        <dd style="color:var(--text-secondary);margin:0;">{{.Session.ReceivedBy}}</dd>
+      </dl>
+    </div>
+    <a href="/receiving/{{.Session.ID}}/close" style="display:block;padding:10px 16px;background:var(--signal-yellow);color:#000;font-size:12px;font-weight:600;border-radius:4px;text-decoration:none;text-align:center;">Close &amp; Post</a>
+  </div>
+
+</div>
+{{end}}
+{{end}}

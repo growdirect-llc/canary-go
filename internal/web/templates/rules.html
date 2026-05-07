@@ -1,0 +1,41 @@
+{{template "base.html" .}}
+
+{{define "title"}}Detection Rules — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h1>Detection Rules</h1>
+    <p class="page-subtitle">{{.ActiveCount}} active &middot; {{.TotalCount}} total</p>
+  </div>
+</div>
+
+{{if .Rules}}
+<div style="display:grid;gap:8px;">
+  {{range .Rules}}
+  <div class="ops-card" style="display:flex;align-items:center;gap:12px;padding:14px;">
+    <div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:{{if .Enabled}}var(--health-green){{else}}var(--text-dim){{end}};"></div>
+    <div style="flex:1;min-width:0;">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="font-size:13px;font-weight:600;color:var(--text-primary);">{{.Name}}</span>
+        <span class="badge" style="font-size:10px;">{{.Severity}}</span>
+        <span style="font-size:11px;color:var(--text-muted);">{{.Category}}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-top:3px;">{{.Description}}</div>
+    </div>
+    <div style="text-align:right;flex-shrink:0;">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:var(--text-primary);">{{.FireCount}}</div>
+      <div style="font-size:10px;color:var(--text-muted);">fires</div>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{else}}
+<div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+  <div style="font-size:3rem;margin-bottom:12px;opacity:0.3;">⚡</div>
+  <p style="font-size:14px;">No detection rules configured.</p>
+</div>
+{{end}}
+{{end}}
+{{end}}

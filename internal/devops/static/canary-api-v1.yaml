@@ -1,0 +1,201 @@
+openapi: 3.0.3
+info:
+  title: Canary Protocol API
+  version: 1.0.0
+  description: |
+    **Canary Protocol Gateway** — Patent Application 63/991,596.
+
+    Receives webhook POSTs from source networks, validates HMAC-SHA256 signatures,
+    computes payload hashes, and publishes canonical events to the Triple Subscriber
+    pipeline via Valkey Streams.
+
+    Full spec generation is in progress. This stub covers the shipped surface.
+  contact:
+    name: GrowDirect LLC
+servers:
+  - url: http://localhost:9080
+    description: Local dev (Docker)
+
+tags:
+  - name: Health
+  - name: Protocol — Evidence
+  - name: Protocol — Anchor
+  - name: Protocol — Namespace
+  - name: Protocol — Validate
+  - name: Protocol — Webhook
+  - name: Auth — LNURL
+  - name: Devops
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Gateway health check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:      { type: boolean }
+                  service: { type: string }
+                  version: { type: string }
+
+  /v1/protocol/evidence/{event_hash}:
+    get:
+      tags: [Protocol — Evidence]
+      summary: Retrieve sealed evidence record
+      description: Bilateral verification — returns the L1 evidence chain record for a given event hash.
+      parameters:
+        - in: path
+          name: event_hash
+          required: true
+          schema: { type: string }
+          description: SHA-256 hex hash of the canonical payload
+      responses:
+        "200":
+          description: Evidence record found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvidenceRecord'
+        "404":
+          description: Event hash not found
+
+  /v1/protocol/anchor/{event_hash}:
+    get:
+      tags: [Protocol — Anchor]
+      summary: Retrieve Merkle anchor proof
+      parameters:
+        - in: path
+          name: event_hash
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Anchor proof
+        "404":
+          description: No anchor found for this hash
+
+  /v1/protocol/namespace:
+    post:
+      tags: [Protocol — Namespace]
+      summary: Register a .jeffe namespace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, owner_id, owner_type]
+              properties:
+                name:       { type: string }
+                owner_id:   { type: string, format: uuid }
+                owner_type: { type: string }
+      responses:
+        "201": { description: Namespace registered }
+        "409": { description: Name already taken }
+
+  /v1/protocol/namespace/{name}:
+    get:
+      tags: [Protocol — Namespace]
+      summary: Lookup a .jeffe namespace
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Namespace record }
+        "404": { description: Not found }
+
+  /v1/protocol/validate:
+    post:
+      tags: [Protocol — Validate]
+      summary: Issue L402 validation challenge
+      description: Returns a Lightning invoice (or stub) gating proof verification.
+      responses:
+        "200": { description: Challenge issued }
+
+  /v1/protocol/validate/{token}:
+    get:
+      tags: [Protocol — Validate]
+      summary: Consume validated proof token
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Proof verified }
+        "402": { description: Payment required }
+        "404": { description: Token not found }
+
+  /lnurl/auth:
+    get:
+      tags: [Auth — LNURL]
+      summary: Generate LNURL-auth QR challenge
+      responses:
+        "200": { description: LNURL encoded challenge }
+
+  /lnurl/auth/callback:
+    get:
+      tags: [Auth — LNURL]
+      summary: LNURL-auth wallet callback
+      responses:
+        "200": { description: Session JWT issued }
+
+  /devops/api/pipeline-state:
+    get:
+      tags: [Devops]
+      summary: Pipeline state snapshot
+      description: Returns evidence counts, Valkey stream depth, DLQ summary, and sequence gap log. Dev/sandbox only.
+      responses:
+        "200":
+          description: Pipeline state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineState'
+
+components:
+  schemas:
+    EvidenceRecord:
+      type: object
+      properties:
+        event_id:        { type: string, format: uuid }
+        event_hash:      { type: string }
+        chain_hash:      { type: string }
+        prev_chain_hash: { type: string }
+        source_code:     { type: string }
+        merchant_id:     { type: string, format: uuid }
+        ingested_at:     { type: string, format: date-time }
+        raw_payload:     { type: object }
+
+    PipelineState:
+      type: object
+      properties:
+        timestamp: { type: string, format: date-time }
+        evidence:
+          type: object
+          properties:
+            total:  { type: integer }
+            recent: { type: array, items: { $ref: '#/components/schemas/EvidenceRecord' } }
+        stream:
+          type: object
+          properties:
+            length:          { type: integer }
+            consumer_groups: { type: array, items: { type: object } }
+        dlq:
+          type: object
+          properties:
+            pending:   { type: integer }
+            abandoned: { type: integer }
+            replayed:  { type: integer }
+        sequence:
+          type: object
+          properties:
+            gaps:        { type: integer }
+            recent_gaps: { type: array, items: { type: object } }

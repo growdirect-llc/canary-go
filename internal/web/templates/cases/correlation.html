@@ -1,0 +1,78 @@
+{{template "base.html" .}}
+
+{{define "title"}}Subject Correlation — Case {{with .Data}}{{with .Case}}{{.ShortID}}{{end}}{{end}} — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:16px;">
+  <a href="/cases/{{with .Case}}{{.ID}}{{end}}" style="font-size:13px;color:var(--text-secondary);text-decoration:none;">&larr; Case {{with .Case}}{{.ShortID}}{{end}}</a>
+</div>
+
+<div class="page-header" style="margin-bottom:8px;">
+  <h1>Subject Correlation — Case {{with .Case}}{{.ShortID}}{{end}}</h1>
+</div>
+<p style="font-size:13px;color:var(--text-secondary);margin-bottom:24px;">Subject patterns across LP, Inventory, and Finance signals.</p>
+
+<!-- Subjects -->
+<div class="ops-card" style="margin-bottom:24px;">
+  <h3 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;">Subjects</h3>
+
+  {{if .Subjects}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="border-bottom:1px solid var(--border-subtle);">
+        <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Subject ID</th>
+        <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">LP</th>
+        <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Inventory</th>
+        <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Finance</th>
+        <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Receiving</th>
+        <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">First Seen</th>
+        <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Last Seen</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Subjects}}
+      <tr style="border-bottom:1px solid var(--border-subtle);">
+        <td style="padding:10px;font-family:monospace;font-size:12px;color:var(--accent-blue);">{{.SubjectID}}</td>
+        <td style="padding:10px;color:var(--text-secondary);">{{.LP}}</td>
+        <td style="padding:10px;color:var(--text-secondary);">{{.Inventory}}</td>
+        <td style="padding:10px;color:var(--text-secondary);">{{.Finance}}</td>
+        <td style="padding:10px;color:var(--text-secondary);">{{.Receiving}}</td>
+        <td style="padding:10px;font-size:12px;color:var(--text-muted);">{{.FirstSeen}}</td>
+        <td style="padding:10px;font-size:12px;color:var(--text-muted);">{{.LastSeen}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div style="text-align:center;padding:40px 20px;color:var(--text-muted);">
+    <p style="font-size:13px;">No subjects identified.</p>
+    <p style="font-size:12px;margin-top:4px;">Subjects are linked as evidence is attached across domains.</p>
+  </div>
+  {{end}}
+</div>
+
+<!-- Signal timeline -->
+<div class="ops-card">
+  <h3 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;">Signal Timeline</h3>
+
+  {{if .Timeline}}
+  <div style="display:flex;flex-direction:column;gap:0;">
+    {{range .Timeline}}
+    <div style="display:flex;gap:16px;padding:12px 0;border-bottom:1px solid var(--border-subtle);">
+      <div style="width:140px;flex-shrink:0;font-size:12px;color:var(--text-muted);padding-top:1px;">{{.Timestamp}}</div>
+      <div style="width:80px;flex-shrink:0;"><span class="badge">{{.Domain}}</span></div>
+      <div style="flex:1;font-size:13px;color:var(--text-secondary);">{{.Event}}</div>
+      <div style="font-size:12px;color:var(--text-muted);font-family:monospace;">{{.SubjectID}}</div>
+    </div>
+    {{end}}
+  </div>
+  {{else}}
+  <div style="text-align:center;padding:40px 20px;color:var(--text-muted);">
+    <p style="font-size:13px;">No timeline events.</p>
+    <p style="font-size:12px;margin-top:4px;">Events populate as cross-domain signals are correlated for this case's subjects.</p>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

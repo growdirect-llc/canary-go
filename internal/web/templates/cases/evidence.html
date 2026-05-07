@@ -1,0 +1,82 @@
+{{template "base.html" .}}
+
+{{define "title"}}Evidence — Case {{with .Data}}{{with .Case}}{{.ShortID}}{{end}}{{end}} — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:16px;">
+  <a href="/cases/{{with .Case}}{{.ID}}{{end}}" style="font-size:13px;color:var(--text-secondary);text-decoration:none;">&larr; Case {{with .Case}}{{.ShortID}}{{end}}</a>
+</div>
+
+<div class="page-header" style="margin-bottom:24px;">
+  <h1>Evidence — Case {{with .Case}}{{.ShortID}}{{end}}</h1>
+  <p class="page-subtitle">{{with .Case}}{{.Title}}{{end}}</p>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 240px;gap:24px;align-items:start;">
+
+  <!-- Evidence items -->
+  <div>
+    <div class="ops-card">
+      <h3 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;">Evidence Items</h3>
+
+      {{if .Evidence}}
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border-subtle);">
+            <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Source Domain</th>
+            <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Type</th>
+            <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Hash</th>
+            <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Attached At</th>
+            <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Attached By</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Evidence}}
+          <tr style="border-bottom:1px solid var(--border-subtle);">
+            <td style="padding:10px;"><span class="badge">{{.Domain}}</span></td>
+            <td style="padding:10px;color:var(--text-secondary);">{{.Type}}</td>
+            <td style="padding:10px;font-family:monospace;font-size:11px;color:var(--text-muted);">{{.Hash}}</td>
+            <td style="padding:10px;font-size:12px;color:var(--text-muted);">{{.AttachedAt}}</td>
+            <td style="padding:10px;font-size:12px;color:var(--text-secondary);">{{.AttachedBy}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+      {{else}}
+      <div style="text-align:center;padding:40px 20px;color:var(--text-muted);">
+        <p style="font-size:13px;">No evidence attached.</p>
+        <p style="font-size:12px;margin-top:4px;">Evidence is attached programmatically as the investigation progresses.</p>
+      </div>
+      {{end}}
+    </div>
+  </div>
+
+  <!-- Domain summary -->
+  <div>
+    <div class="ops-card">
+      <h3 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;">By Domain</h3>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:var(--text-secondary);">LP</span>
+          <span style="font-size:13px;font-weight:600;color:var(--text-primary);">{{with .DomainCounts}}{{.lp}}{{else}}0{{end}}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:var(--text-secondary);">Inventory</span>
+          <span style="font-size:13px;font-weight:600;color:var(--text-primary);">{{with .DomainCounts}}{{.inventory}}{{else}}0{{end}}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:var(--text-secondary);">Finance</span>
+          <span style="font-size:13px;font-weight:600;color:var(--text-primary);">{{with .DomainCounts}}{{.finance}}{{else}}0{{end}}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:var(--text-secondary);">Receiving</span>
+          <span style="font-size:13px;font-weight:600;color:var(--text-primary);">{{with .DomainCounts}}{{.receiving}}{{else}}0{{end}}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{{end}}
+{{end}}

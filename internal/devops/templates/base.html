@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{block "title" .}}Canary Devops{{end}}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/devops/static/devops.css">
+  {{block "head" .}}{{end}}
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <svg class="sidebar-bird" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="42" cy="33" r="18" fill="#FBBF24"/>
+        <ellipse cx="50" cy="58" rx="25" ry="19" fill="#FBBF24"/>
+        <path d="M36 47 Q16 56 26 74 Q38 66 48 54 Z" fill="#F59E0B"/>
+        <circle cx="48" cy="30" r="4" fill="#0d1117"/>
+        <circle cx="46.5" cy="28.8" r="1.5" fill="#FBBF24"/>
+        <path d="M58 30 L73 24 L63 34 Z" fill="#E8A317"/>
+        <path d="M28 66 Q12 78 18 88 Q28 80 36 72 Z" fill="#F59E0B"/>
+      </svg>
+      Canary
+    </div>
+    <div class="sidebar-nav">
+      <a href="/devops" class="sidebar-item{{if eq .Page "pipeline"}} active{{end}}">
+        <span>⚡</span> Pipeline
+      </a>
+      <a href="/devops/api" class="sidebar-item{{if eq .Page "api"}} active{{end}}">
+        <span>📖</span> API Explorer
+      </a>
+      <a href="/devops/square" class="sidebar-item{{if eq .Page "square"}} active{{end}}">
+        <span>🟦</span> Square
+      </a>
+      <a href="/devops/releases" class="sidebar-item{{if eq .Page "releases"}} active{{end}}">
+        <span>🚀</span> Releases
+      </a>
+      <a href="/health" class="sidebar-item" target="_blank">
+        <span>🩺</span> Health
+      </a>
+    </div>
+    <div class="sidebar-footer">
+      canary-gateway<br>
+      v1.0.0
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <div class="main-content">
+    {{block "content" .}}{{end}}
+  </div>
+
+</div>
+{{block "scripts" .}}{{end}}
+</body>
+</html>

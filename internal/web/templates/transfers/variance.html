@@ -1,0 +1,94 @@
+{{template "base.html" .}}
+
+{{define "title"}}Variance Review — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:20px;">
+  <a href="/transfers/{{.Transfer.ID}}" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← Transfer {{.Transfer.ShortID}}</a>
+</div>
+
+<div class="page-header" style="margin-bottom:24px;">
+  <h1>Variance Review — Transfer {{.Transfer.ShortID}}</h1>
+  <p class="page-subtitle">{{.Transfer.FromStore}} → {{.Transfer.ToStore}}</p>
+</div>
+
+<!-- Summary tiles -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.ShippedTotal}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Items Shipped</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.ReceivedTotal}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Items Received</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--critical-red);">{{.VarianceCount}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Variance Lines</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--signal-yellow);">{{.ValueAtRisk}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Value at Risk</div>
+  </div>
+</div>
+
+<!-- Variance lines table -->
+<div class="ops-card" style="margin-bottom:24px;">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Variance Lines</div>
+  {{if .Lines}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">SKU</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Description</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Shipped</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Received</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Variance</th>
+        <th style="padding:6px 0;text-align:right;font-weight:500;">Est. Value</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Lines}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;font-family:'Space Grotesk',monospace;font-size:12px;color:var(--text-muted);">{{.SKU}}</td>
+        <td style="padding:10px 12px;color:var(--text-primary);">{{.Description}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.QtyShipped}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.QtyReceived}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--critical-red);font-weight:600;">{{.VarianceQty}}</td>
+        <td style="padding:10px 0;text-align:right;color:var(--text-secondary);">{{.EstValue}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div style="text-align:center;padding:40px 0;color:var(--text-muted);">
+    <p style="font-size:13px;">No variance lines.</p>
+  </div>
+  {{end}}
+</div>
+
+<!-- Resolution form -->
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Record Resolution</div>
+  <form action="#" method="POST" style="display:flex;flex-direction:column;gap:16px;max-width:480px;">
+    <div>
+      <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:6px;">Resolution Type</label>
+      <select name="resolution_type" style="width:100%;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;">
+        <option value="shortage">Shortage</option>
+        <option value="damage">Damage</option>
+        <option value="in-transit">In Transit</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div>
+      <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:6px;">Notes</label>
+      <textarea name="notes" rows="4" placeholder="Describe the resolution…" style="width:100%;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;resize:vertical;box-sizing:border-box;"></textarea>
+    </div>
+    <div>
+      <button type="submit" style="padding:10px 20px;background:var(--signal-yellow);color:#000;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Record Resolution</button>
+    </div>
+  </form>
+</div>
+{{end}}
+{{end}}

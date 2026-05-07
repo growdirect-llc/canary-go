@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Join the Flock | Canary</title>
+<meta name="description" content="Canary watches your store and chirps when something's wrong. Real-time alerts for refund fraud, cash discrepancies, and suspicious patterns.">
+
+<!-- Canary Design System -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/web/static/themes/canary-dark.css">
+<link rel="stylesheet" href="/web/static/canary.css">
+
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg-ink);color:var(--text-primary);line-height:1.7;overflow-x:hidden}
+.page{max-width:960px;margin:0 auto;padding:0 20px}
+.hero{text-align:center;padding:48px 20px 32px;position:relative;background:linear-gradient(170deg,var(--bg-ink) 0%,#1a1207 50%,var(--bg-ink) 100%)}
+.hero::before{content:'';position:absolute;top:50%;left:50%;width:500px;height:500px;background:radial-gradient(circle,rgba(251,191,36,.06) 0%,transparent 70%);transform:translate(-50%,-50%);pointer-events:none}
+.hero-bird{margin-bottom:16px;filter:drop-shadow(0 0 20px rgba(251,191,36,.2))}
+.hero h1{font-size:clamp(1.6rem,4vw,2.4rem);font-weight:800;line-height:1.2;margin-bottom:12px;background:linear-gradient(135deg,var(--text-primary),var(--signal-yellow),var(--signal-amber));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero-sub{font-size:clamp(.95rem,1.8vw,1.1rem);color:var(--text-secondary);max-width:480px;margin:0 auto 28px;font-weight:300}
+.hero-sub strong{color:var(--text-primary);font-weight:600}
+.app-preview{padding:0 20px 48px;text-align:center}
+.phone{width:260px;margin:0 auto;background:var(--bg-surface);border-radius:28px;border:2px solid var(--border);padding:10px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.phone-screen{background:var(--bg-ink);border-radius:20px;overflow:hidden;padding:20px 14px 16px}
+.phone-notch{width:80px;height:5px;background:rgba(255,255,255,.1);border-radius:3px;margin:0 auto 16px}
+.phone-header{display:flex;align-items:center;gap:6px;margin-bottom:16px}
+.phone-header .app-name{font-size:13px;font-weight:700;color:var(--text-primary)}
+.phone-header .app-tag{font-size:9px;color:var(--signal-yellow);font-weight:600;margin-left:auto;text-transform:uppercase;letter-spacing:1px}
+.chirp{background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.15);border-radius:10px;padding:12px;margin-bottom:8px;text-align:left}
+.chirp-top{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.chirp-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.chirp-dot.red{background:var(--critical-red)}
+.chirp-dot.yellow{background:var(--signal-yellow)}
+.chirp-dot.blue{background:var(--accent-blue)}
+.chirp-type{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted)}
+.chirp-time{font-size:9px;color:var(--text-dim);margin-left:auto}
+.chirp-msg{font-size:11px;color:var(--text-secondary);line-height:1.5}
+.chirp-msg strong{color:var(--text-primary);font-weight:600}
+.signup-section{padding:0 20px 60px}
+.signup-box{background:var(--bg-card);border:1px solid rgba(251,191,36,.2);border-radius:16px;padding:32px 24px;max-width:420px;margin:0 auto;text-align:center}
+.signup-box h2{font-size:1.3rem;font-weight:700;color:var(--signal-yellow);margin-bottom:6px}
+.signup-box .sub{font-size:14px;color:var(--text-muted);margin-bottom:24px}
+.btn-connect{width:100%;padding:16px;border:none;border-radius:8px;background:linear-gradient(135deg,var(--signal-yellow),var(--signal-amber));color:#0a0a0a;font-size:15px;font-weight:700;cursor:pointer;transition:.3s;display:flex;align-items:center;justify-content:center;gap:10px;letter-spacing:.5px}
+.btn-connect:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(251,191,36,.25)}
+.trust-note{font-size:11px;color:var(--text-muted);margin-top:14px;line-height:1.5}
+.error-msg{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);color:var(--critical-red);padding:12px 16px;border-radius:8px;font-size:13px;margin-bottom:18px}
+footer{text-align:center;padding:32px 20px;font-size:11px;color:var(--text-dim);border-top:1px solid var(--border)}
+@media(min-width:640px){
+  .hero{padding:64px 20px 40px}
+  .two-col{display:flex;align-items:center;gap:40px;max-width:720px;margin:0 auto}
+  .two-col .phone{margin:0;flex-shrink:0}
+  .two-col .signup-section{padding:0;flex:1}
+  .two-col .signup-box{margin:0}
+}
+@keyframes gentle-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes beak-open{0%,40%,100%{transform:rotate(0)}10%,30%{transform:rotate(-8deg)}}
+@keyframes beak-close{0%,40%,100%{transform:rotate(0)}10%,30%{transform:rotate(6deg)}}
+@keyframes health-wave-1{0%{opacity:0}10%{opacity:.9}50%,100%{opacity:0}}
+@keyframes health-wave-2{0%,10%{opacity:0}20%{opacity:.8}60%,100%{opacity:0}}
+@keyframes health-wave-3{0%,20%{opacity:0}30%{opacity:.7}70%,100%{opacity:0}}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <svg class="hero-bird" width="80" height="72" viewBox="0 0 130 100" fill="none">
+    <g style="animation:gentle-bob 3s ease-in-out infinite">
+      <circle cx="42" cy="33" r="18" fill="var(--signal-yellow)"/>
+      <ellipse cx="50" cy="58" rx="25" ry="19" fill="var(--signal-yellow)"/>
+      <path d="M36 47 Q16 56 26 74 Q38 66 48 54 Z" fill="var(--signal-amber)"/>
+      <circle cx="48" cy="30" r="4" fill="var(--bg-ink)"/>
+      <circle cx="46.5" cy="28.8" r="1.5" fill="var(--signal-yellow)"/>
+      <g transform-origin="58 34"><path d="M58 30 L73 24 L63 34 Z" fill="#E8A317" style="animation:beak-open 2.2s ease-in-out infinite"/></g>
+      <g transform-origin="58 36"><path d="M58 37 L71 40 L63 37 Z" fill="#D97706" style="animation:beak-close 2.2s ease-in-out infinite"/></g>
+      <path d="M28 66 Q12 78 18 88 Q28 80 36 72 Z" fill="var(--signal-amber)"/>
+      <path d="M73 22 Q80 18 83 26" stroke="#059669" stroke-width="3" fill="none" stroke-linecap="round" style="animation:health-wave-1 2.2s ease-out infinite"/>
+      <path d="M81 15 Q90 9 94 22" stroke="var(--signal-yellow)" stroke-width="2.5" fill="none" stroke-linecap="round" style="animation:health-wave-2 2.2s ease-out infinite 0.18s"/>
+      <path d="M89 9 Q100 2 105 17" stroke="var(--critical-red)" stroke-width="2" fill="none" stroke-linecap="round" style="animation:health-wave-3 2.2s ease-out infinite 0.36s"/>
+    </g>
+  </svg>
+  <h1>Your Store Has a Canary</h1>
+  <p class="hero-sub">
+    Canary watches your store and <strong>chirps when something's wrong</strong>. Refund fraud, cash discrepancies, suspicious patterns — on your phone, before it hits your books.
+  </p>
+</header>
+
+<div class="two-col">
+  <div class="app-preview">
+    <div class="phone">
+      <div class="phone-screen">
+        <div class="phone-notch"></div>
+        <div class="phone-header">
+          <div class="app-name">Canary</div>
+          <div class="app-tag">Live</div>
+        </div>
+        <div class="chirp">
+          <div class="chirp-top"><div class="chirp-dot red"></div><div class="chirp-type">Refund Alert</div><div class="chirp-time">2 min ago</div></div>
+          <div class="chirp-msg"><strong>$87.50 refund</strong> on a $12.00 sale — no manager override.</div>
+        </div>
+        <div class="chirp">
+          <div class="chirp-top"><div class="chirp-dot yellow"></div><div class="chirp-type">Cash Drawer</div><div class="chirp-time">38 min ago</div></div>
+          <div class="chirp-msg"><strong>3rd no-sale open</strong> this shift. No transaction attached.</div>
+        </div>
+        <div class="chirp">
+          <div class="chirp-top"><div class="chirp-dot blue"></div><div class="chirp-type">Pattern</div><div class="chirp-time">1 hr ago</div></div>
+          <div class="chirp-msg"><strong>Void cluster</strong> — 4 voids in 20 min on Register 1.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="signup-section">
+    <div class="signup-box">
+      <h2>Get Started</h2>
+      <p class="sub">Connect your account. Your canary starts chirping in minutes.</p>
+
+      {{if .Error}}
+      <div class="error-msg">
+        {{if eq .Error "oauth_csrf_mismatch"}}Connection interrupted. Please try again.
+        {{else if eq .Error "oauth_failed"}}Could not connect. Please try again.
+        {{else}}{{.Error}}{{end}}
+      </div>
+      {{end}}
+
+      <a href="/auth/connect" class="btn-connect">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M3 3h18v18H3V3zm16 16V5H5v14h14zm-4-4H9V9h6v6z"/></svg>
+        Connect with Square
+      </a>
+      <p class="trust-note">Read-only access. Your data stays yours.</p>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>Canary by GrowDirect LLC &middot; &copy; 2026</p>
+</footer>
+</body>
+</html>

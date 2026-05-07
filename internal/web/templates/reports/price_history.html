@@ -1,0 +1,58 @@
+{{template "base.html" .}}
+
+{{define "title"}}Price History — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Price History</h1>
+  <p class="page-subtitle">Price movement audit trail</p>
+</div>
+
+<!-- Price changes table -->
+<div class="ops-card">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);">Price Changes</div>
+    <div style="font-size:12px;color:var(--text-muted);">{{.TotalCount}} total</div>
+  </div>
+  {{if .Changes}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">SKU</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Description</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Old Price</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">New Price</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Change %</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Changed By</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Changed At</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Changes}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:12px 12px 12px 0;font-family:'Space Grotesk',monospace;font-size:12px;color:var(--text-muted);">{{.SKU}}</td>
+        <td style="padding:12px;color:var(--text-primary);">{{.Description}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.OldPrice}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-primary);font-weight:600;">{{.NewPrice}}</td>
+        <td style="padding:12px;text-align:right;">
+          {{if .Increase}}
+          <span style="color:var(--critical-red);">{{.ChangePct}}</span>
+          {{else}}
+          <span style="color:var(--health-green);">{{.ChangePct}}</span>
+          {{end}}
+        </td>
+        <td style="padding:12px;color:var(--text-secondary);">{{.ChangedBy}}</td>
+        <td style="padding:12px 0;color:var(--text-muted);font-size:12px;">{{.ChangedAt}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div style="text-align:center;padding:40px 0;color:var(--text-muted);">
+    <p style="font-size:13px;">No price change history available.</p>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

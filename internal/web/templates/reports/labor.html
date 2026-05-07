@@ -1,0 +1,81 @@
+{{template "base.html" .}}
+
+{{define "title"}}Labor Productivity — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Labor Productivity</h1>
+  <p class="page-subtitle">Transactions per hour vs store average</p>
+</div>
+
+<!-- Summary tiles -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.ActiveEmployees}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Employees Active</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.StoreAvgTxnHr}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Store Avg Txn/Hr</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--health-green);">{{.TopTxnHr}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Top Performer Txn/Hr</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--signal-yellow);">{{.FlagRate}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Flag Rate</div>
+  </div>
+</div>
+
+<!-- Productivity table -->
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Employee Productivity</div>
+  {{if .Employees}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Employee</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Store</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Txn/Hr</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">vs Store Avg</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Void Rate</th>
+        <th style="padding:6px 0;text-align:right;font-weight:500;">Alert Count</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Employees}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:12px 12px 12px 0;">
+          <a href="/employees/{{.ID}}" style="color:var(--accent-blue);text-decoration:none;">{{.Name}}</a>
+        </td>
+        <td style="padding:12px;color:var(--text-secondary);">{{.Store}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-primary);font-weight:600;">{{.TxnHr}}</td>
+        <td style="padding:12px;text-align:right;">
+          {{if .AboveAvg}}
+          <span style="color:var(--health-green);">{{.VsAvg}}</span>
+          {{else}}
+          <span style="color:var(--critical-red);">{{.VsAvg}}</span>
+          {{end}}
+        </td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.VoidRate}}</td>
+        <td style="padding:12px 0;text-align:right;">
+          {{if gt .AlertCount 0}}
+          <span style="color:var(--signal-yellow);font-weight:600;">{{.AlertCount}}</span>
+          {{else}}
+          <span style="color:var(--text-muted);">0</span>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div style="text-align:center;padding:40px 0;color:var(--text-muted);">
+    <p style="font-size:13px;">No employee productivity data available.</p>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

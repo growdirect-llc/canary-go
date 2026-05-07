@@ -1,0 +1,72 @@
+{{template "base.html" .}}
+
+{{define "title"}}Range Performance — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Range Performance</h1>
+  <p class="page-subtitle">Sell-through, turn, and GMROI by range</p>
+</div>
+
+<!-- Summary tiles -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.ActiveRanges}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Active Ranges</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.AvgSellThrough}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Avg Sell-Through %</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.AvgTurn}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Avg Turn</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.AvgGMROI}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Avg GMROI</div>
+  </div>
+</div>
+
+<!-- Range table -->
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Range Detail</div>
+  {{if .Ranges}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Range Name</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">SKU Count</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Sell-Through %</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Turn</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">GMROI</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Ranges}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:12px 12px 12px 0;color:var(--text-primary);">{{.Name}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.SKUCount}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.SellThrough}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.Turn}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.GMROI}}</td>
+        <td style="padding:12px 0;">
+          {{if eq .Status "healthy"}}<span class="badge" style="background:var(--health-green);color:#000;">healthy</span>
+          {{else if eq .Status "at-risk"}}<span class="badge" style="background:var(--signal-yellow);color:#000;">at-risk</span>
+          {{else}}<span class="badge" style="background:var(--critical-red);color:#fff;">dead</span>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div style="text-align:center;padding:40px 0;color:var(--text-muted);">
+    <p style="font-size:13px;">No range data available. Ranges sync from POS on schedule.</p>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

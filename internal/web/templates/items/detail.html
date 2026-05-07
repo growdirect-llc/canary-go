@@ -1,0 +1,85 @@
+{{template "base.html" .}}
+
+{{define "title"}}Item Detail — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:16px;">
+  <a href="/items" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← Items</a>
+</div>
+
+{{with .Item}}
+<div class="page-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+  <div style="flex:1;min-width:0;">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <h1 style="margin:0;">{{.SKU}}</h1>
+      {{if eq .Status "active"}}
+      <span class="badge" style="background:rgba(34,197,94,0.15);color:var(--health-green);">active</span>
+      {{else}}
+      <span class="badge" style="background:rgba(107,114,128,0.15);color:var(--text-muted);">discontinued</span>
+      {{end}}
+    </div>
+    <p class="page-subtitle">{{.Description}}</p>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 280px;gap:20px;align-items:start;">
+
+  <!-- Main: attributes -->
+  <div class="ops-card">
+    <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Item Attributes</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <tbody>
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <td style="padding:10px 16px 10px 0;color:var(--text-muted);width:40%;">Category</td>
+          <td style="padding:10px 0;color:var(--text-primary);">{{.Category}}</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Supplier</td>
+          <td style="padding:10px 0;color:var(--text-primary);">{{.Supplier}}</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Unit Cost</td>
+          <td style="padding:10px 0;color:var(--text-primary);">{{.UnitCost}}</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Unit Price</td>
+          <td style="padding:10px 0;color:var(--text-primary);">{{.UnitPrice}}</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Margin %</td>
+          <td style="padding:10px 0;color:var(--text-primary);">{{.Margin}}</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Reorder Point</td>
+          <td style="padding:10px 0;color:var(--text-primary);">{{.ReorderPoint}}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 16px 10px 0;color:var(--text-muted);">Lead Days</td>
+          <td style="padding:10px 0;color:var(--text-primary);">{{.LeadDays}}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Sidebar: LP context -->
+  <div class="ops-card">
+    <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">LP Context</div>
+    <div style="margin-bottom:16px;">
+      <div style="font-size:22px;font-weight:700;color:{{if gt .DriftAlertCount 0}}var(--critical-red){{else}}var(--text-primary){{end}};">{{.DriftAlertCount}}</div>
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:2px;">Drift Alerts</div>
+    </div>
+    <div style="margin-bottom:20px;">
+      <div style="font-size:12px;color:var(--text-muted);">Last drift at</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-top:2px;">{{.LastDriftAt}}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <a href="/reports/category" style="font-size:12px;color:var(--signal-yellow);text-decoration:none;">Category report →</a>
+      <a href="/alerts?type=item-drift" style="font-size:12px;color:var(--signal-yellow);text-decoration:none;">Item drift alerts →</a>
+    </div>
+  </div>
+
+</div>
+{{end}}
+{{end}}
+{{end}}

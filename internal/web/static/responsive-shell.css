@@ -1,0 +1,528 @@
+/* ══════════════════════════════════════════════════════════
+   responsive-shell.css — Canary responsive app layout
+   Breakpoints: 640px (phone→tablet), 1024px (tablet→desktop)
+   Target: Safari 17.4+ / modern WebKit
+   ══════════════════════════════════════════════════════════ */
+
+/* ── Layout shell ── */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--bg-ink, #0D1117);
+  color: var(--text-primary, #E6EDF3);
+}
+
+.app-shell-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.app-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;  /* GRO-306: no horizontal jiggle on mobile */
+  -webkit-overflow-scrolling: touch;
+  padding: var(--space-4, 16px);
+  container-type: inline-size;
+  container-name: content;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* ── Sidebar (desktop) ── */
+.app-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--bg-surface, #161B22);
+  border-right: 1px solid var(--border-default, #30363D);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: transform 0.25s ease;
+}
+
+.app-sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: var(--space-4, 16px);
+  text-decoration: none;
+}
+
+.app-sidebar-logo svg {
+  width: 36px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.app-sidebar-logo-text {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text-primary, #E6EDF3);
+  font-family: var(--font-heading, 'Space Grotesk', sans-serif);
+}
+
+.app-sidebar-nav {
+  flex: 1;
+  padding: var(--space-2, 8px);
+}
+
+.app-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-secondary, #8B949E);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background var(--transition-fast, 0.15s ease), color var(--transition-fast, 0.15s ease);
+}
+
+.app-sidebar-item:hover {
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  color: var(--text-primary, #E6EDF3);
+}
+
+.app-sidebar-item.active {
+  background: color-mix(in srgb, var(--signal-yellow, #FBBF24) 12%, transparent);
+  color: var(--signal-yellow, #FBBF24);
+  font-weight: 600;
+}
+
+.app-sidebar-item-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.app-sidebar-item-badge {
+  margin-left: auto;
+  background: var(--critical-red, #F85149);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 10px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.app-sidebar-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted, #6B7280);
+  padding: 16px 12px 6px;
+}
+
+.app-sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: var(--space-4, 16px);
+  border-top: 1px solid var(--border-default, #30363D);
+  margin-top: auto;
+}
+
+.app-sidebar-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-elevated, #21262D);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary, #8B949E);
+}
+
+.app-sidebar-user-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #E6EDF3);
+}
+
+.app-sidebar-user-role {
+  font-size: 11px;
+  color: var(--text-muted, #6B7280);
+}
+
+.app-sidebar-logout {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-muted, #6B7280);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+
+.app-sidebar-logout:hover {
+  color: var(--text-primary, #E6EDF3);
+}
+
+/* ── Sidebar backdrop (tablet overlay) ── */
+.app-sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 49;
+}
+
+.app-sidebar-backdrop.active {
+  display: block;
+}
+
+/* ── Top bar (mobile/tablet only) ── */
+.app-topbar {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-4, 16px);
+  padding-top: env(safe-area-inset-top, 0px);  /* GRO-306: PWA notch clearance */
+  height: calc(56px + env(safe-area-inset-top, 0px));
+  background: var(--bg-surface, #161B22);
+  border-bottom: 1px solid var(--border-default, #30363D);
+  flex-shrink: 0;
+}
+
+.app-topbar-toggle {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #8B949E);
+  cursor: pointer;
+  padding: 8px;
+  margin-right: 8px;
+  border-radius: 6px;
+}
+
+.app-topbar-toggle:hover {
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+}
+
+.app-topbar-logo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+}
+
+.app-topbar-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text-primary, #E6EDF3);
+  font-family: var(--font-heading, 'Space Grotesk', sans-serif);
+}
+
+.app-topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-topbar-store-name {
+  font-size: 12px;
+  color: var(--text-secondary, #8B949E);
+  font-weight: 500;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-topbar-logout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  color: var(--text-muted, #6B7280);
+  cursor: pointer;
+  transition: color var(--transition-fast, 0.15s ease), background var(--transition-fast, 0.15s ease);
+}
+
+.app-topbar-logout:hover {
+  color: var(--text-primary, #E6EDF3);
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+}
+
+/* ── Tab bar (mobile only) ── */
+.app-tabbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  height: 66px;
+  background: var(--bg-surface, #161B22);
+  border-top: 1px solid var(--border-default, #30363D);
+  flex-shrink: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.app-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  color: var(--text-muted, #6B7280);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 12px;
+  text-decoration: none;
+  position: relative;
+  transition: color var(--transition-fast, 0.15s ease);
+}
+
+.app-tab.active {
+  color: var(--signal-yellow, #FBBF24);
+}
+
+.app-tab-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.app-tab-badge {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  background: var(--critical-red, #F85149);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0 5px;
+  border-radius: 8px;
+  min-width: 16px;
+  text-align: center;
+  line-height: 16px;
+}
+
+/* ── More sheet (mobile overflow nav) ── */
+.app-more-sheet {
+  position: fixed;
+  bottom: 66px;
+  left: 0;
+  right: 0;
+  background: var(--bg-card, #1C2128);
+  border-top: 1px solid var(--border-default, #30363D);
+  border-radius: 16px 16px 0 0;
+  padding: var(--space-4, 16px);
+  z-index: 50;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.4);
+  transform: translateY(100%);
+  transition: transform 0.25s ease, visibility 0.25s;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.app-more-sheet.open {
+  transform: translateY(0);
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.app-more-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 49;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.25s, visibility 0.25s;
+}
+
+.app-more-sheet-backdrop.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.app-more-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 12px;
+  border-radius: 10px;
+  color: var(--text-secondary, #8B949E);
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 500;
+  transition: background var(--transition-fast, 0.15s ease);
+}
+
+.app-more-item:hover {
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+}
+
+.app-more-item.active {
+  color: var(--signal-yellow, #FBBF24);
+}
+
+/* ── Pull-to-refresh ── */
+.ptr-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  opacity: 0;
+  transform: translateY(-100%);
+  transition: transform 0.2s, opacity 0.2s;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.ptr-spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ptr-text {
+  font-size: 12px;
+  color: var(--text-secondary, #8B949E);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+@keyframes ptr-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Page entry animation ── */
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.app-content > *:first-child:not(.ptr-indicator) {
+  animation: page-fade-in 0.25s ease-out both;
+}
+
+/* ── Skeleton loading shimmer ── */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-card, #1C2128) 25%,
+    var(--bg-elevated, #21262D) 50%,
+    var(--bg-card, #1C2128) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-md, 8px);
+}
+
+.skeleton-text {
+  height: 14px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+}
+
+.skeleton-text.short { width: 40%; }
+.skeleton-text.medium { width: 65%; }
+.skeleton-text.long { width: 90%; }
+
+.skeleton-card {
+  height: 72px;
+  margin-bottom: var(--space-3, 12px);
+  border-radius: var(--radius-lg, 12px);
+}
+
+.skeleton-stat {
+  height: 64px;
+  flex: 1;
+  border-radius: var(--radius-md, 8px);
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .app-content > *:first-child:not(.ptr-indicator) {
+    animation: none;
+  }
+  .skeleton {
+    animation: none;
+  }
+}
+
+/* ── Container query utilities ── */
+@container content (min-width: 640px) {
+  .cq-grid-2 { grid-template-columns: 1fr 1fr; }
+}
+
+@container content (min-width: 960px) {
+  .cq-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   BREAKPOINTS
+   ══════════════════════════════════════════════════════════ */
+
+/* ── Phone (< 640px) — tab bar visible, sidebar hidden ── */
+@media (max-width: 639px) {
+  .app-sidebar { display: none; }
+  .app-topbar { display: flex; }
+  .app-tabbar { display: flex; }
+  .app-topbar-toggle { display: none; }  /* no hamburger on phone — use tab bar */
+}
+
+/* ── Tablet (640px – 1023px) — sidebar as overlay, tab bar hidden ── */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .app-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 50;
+    transform: translateX(-100%);
+  }
+  .app-sidebar.open {
+    transform: translateX(0);
+  }
+  .app-topbar { display: flex; }
+  .app-topbar-toggle { display: flex; }
+  .app-tabbar { display: none; }
+}
+
+/* ── Desktop (≥ 1024px) — sidebar always visible, no top bar, no tab bar ── */
+@media (min-width: 1024px) {
+  .app-sidebar { display: flex; }
+  .app-topbar { display: none; }
+  .app-tabbar { display: none; }
+}

@@ -1,0 +1,86 @@
+{{template "base.html" .}}
+
+{{define "title"}}New Case — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:16px;">
+  <a href="/exceptions" style="font-size:13px;color:var(--text-secondary);text-decoration:none;">&larr; Exceptions</a>
+</div>
+
+<div class="page-header" style="margin-bottom:24px;">
+  <h1>New Case</h1>
+  <p class="page-subtitle">Open a cross-domain investigation case</p>
+</div>
+
+{{if .ExceptionID}}
+<div style="padding:12px 16px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:6px;margin-bottom:24px;font-size:13px;color:var(--accent-blue);">
+  Creating case from exception <span style="font-family:monospace;font-weight:600;">{{.ExceptionID}}</span>.
+</div>
+{{end}}
+
+<div style="max-width:600px;">
+  <div class="ops-card">
+    <form action="#" method="POST">
+      {{if .ExceptionID}}
+      <input type="hidden" name="exception_id" value="{{.ExceptionID}}">
+      {{end}}
+
+      <div style="margin-bottom:18px;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Title</label>
+        <input type="text" name="title" value="{{.PreFillTitle}}" placeholder="Brief description of the case"
+               style="width:100%;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;box-sizing:border-box;">
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Domain</label>
+        <select name="domain"
+                style="width:100%;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;box-sizing:border-box;">
+          <option value="">Select domain...</option>
+          <option value="lp">LP</option>
+          <option value="inventory">Inventory</option>
+          <option value="finance">Finance</option>
+          <option value="receiving">Receiving</option>
+          <option value="cross">Cross-Domain</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Severity</label>
+        <select name="severity"
+                style="width:100%;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;box-sizing:border-box;">
+          <option value="">Select severity...</option>
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Description</label>
+        <textarea name="description" rows="4" placeholder="What happened? What signals prompted this case?"
+                  style="width:100%;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;box-sizing:border-box;resize:vertical;"></textarea>
+      </div>
+
+      <div style="margin-bottom:24px;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Link Exception</label>
+        <input type="text" name="exception_ref" value="{{.ExceptionID}}" placeholder="Exception ID (optional)"
+               style="width:100%;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;box-sizing:border-box;font-family:monospace;">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Pre-filled from exception if navigated from the exception detail.</div>
+      </div>
+
+      <div style="display:flex;gap:10px;">
+        <button type="submit"
+                style="padding:9px 20px;background:var(--accent-blue);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
+          Create Case
+        </button>
+        <a href="/exceptions" style="padding:9px 20px;background:transparent;border:1px solid var(--border-subtle);color:var(--text-secondary);border-radius:6px;font-size:13px;font-weight:500;text-decoration:none;display:inline-block;">
+          Cancel
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}
+{{end}}

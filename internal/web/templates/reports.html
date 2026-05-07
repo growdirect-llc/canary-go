@@ -1,0 +1,31 @@
+{{template "base.html" .}}
+
+{{define "title"}}Reports — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Reports</h1>
+  <p class="page-subtitle">Scheduled and on-demand analysis</p>
+</div>
+
+{{if .Reports}}
+<div style="display:grid;gap:12px;">
+  {{range .Reports}}
+  <div class="ops-card" style="display:flex;align-items:center;gap:16px;">
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:14px;font-weight:600;color:var(--text-primary);">{{.Title}}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">{{.Description}} &middot; {{.GeneratedAt}}</div>
+    </div>
+    <a href="/reports/{{.ID}}" class="ops-btn" style="font-size:12px;white-space:nowrap;">View</a>
+  </div>
+  {{end}}
+</div>
+{{else}}
+<div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+  <div style="font-size:3rem;margin-bottom:12px;opacity:0.3;">📊</div>
+  <p style="font-size:14px;">No reports generated yet.</p>
+</div>
+{{end}}
+{{end}}
+{{end}}
