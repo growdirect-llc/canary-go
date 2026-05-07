@@ -1,0 +1,39 @@
+{{template "base.html" .}}
+
+{{define "title"}}Config Health — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Admin &middot; Config Health</h1>
+  <p class="page-subtitle">N.1-N.3 ingestion completeness per tenant</p>
+</div>
+
+<div style="margin-bottom:16px;padding:10px 14px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;font-size:12px;color:var(--text-muted);">
+  {{.Note}}
+</div>
+
+<div class="ops-card">
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Section</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Name</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Status</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Note</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Sections}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;font-family:'Space Grotesk',monospace;color:var(--text-primary);">{{.Code}}</td>
+        <td style="padding:10px 12px;color:var(--text-primary);">{{.Name}}</td>
+        <td style="padding:10px 12px;color:var(--text-muted);">{{.Status}}</td>
+        <td style="padding:10px 0;color:var(--text-secondary);font-size:12px;">{{.Note}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+{{end}}

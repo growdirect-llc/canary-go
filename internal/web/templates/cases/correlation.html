@@ -52,6 +52,37 @@
   {{end}}
 </div>
 
+<!-- Related cases (W16 / GRO-835): same primary_subject_id) -->
+<div class="ops-card" style="margin-bottom:24px;">
+  <h3 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;">Related Cases &middot; Subject {{with .Case}}{{.SubjectID}}{{end}}</h3>
+  {{if .RelatedCases}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Case</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Title</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Severity</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Status</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Opened</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .RelatedCases}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;font-family:'Space Grotesk',monospace;font-size:11px;color:var(--text-muted);"><a href="/cases/{{.ID}}" style="color:var(--text-muted);text-decoration:none;">{{.ShortID}}</a></td>
+        <td style="padding:10px 12px;color:var(--text-primary);">{{.Title}}</td>
+        <td style="padding:10px 12px;color:var(--text-secondary);">{{.Severity}}</td>
+        <td style="padding:10px 12px;color:var(--text-secondary);">{{.Status}}</td>
+        <td style="padding:10px 0;color:var(--text-muted);font-size:11px;">{{.OpenedAt}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);">No other cases share this primary subject. Deterministic match only — ML correlation is W16+ follow-on.</p>
+  {{end}}
+</div>
+
 <!-- Signal timeline -->
 <div class="ops-card">
   <h3 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;">Signal Timeline</h3>

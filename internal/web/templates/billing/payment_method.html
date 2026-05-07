@@ -1,0 +1,31 @@
+{{template "base.html" .}}
+
+{{define "title"}}Payment Method — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Billing &middot; Payment Method</h1>
+  <p class="page-subtitle">LNURL-bound wallet for L402 satoshi charges</p>
+</div>
+
+<div class="ops-card" style="margin-bottom:24px;">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Connected Wallet</div>
+  {{if .Connected}}
+  <dl style="margin:0;display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13px;">
+    <dt style="color:var(--text-muted);">Linking key</dt>
+    <dd style="color:var(--text-primary);margin:0;font-family:'Space Grotesk',monospace;font-size:12px;">{{.WalletKey}}</dd>
+    <dt style="color:var(--text-muted);">Bound at</dt>
+    <dd style="color:var(--text-secondary);margin:0;">{{.BoundAt}}</dd>
+  </dl>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);">No wallet bound to this tenant. Connect via LNURL-auth at <a href="{{.ConnectURL}}" style="color:var(--signal-yellow);text-decoration:none;">{{.ConnectURL}}</a>.</p>
+  {{end}}
+</div>
+
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:12px;">Read-only</div>
+  <p style="font-size:13px;color:var(--text-secondary);">Wallet rotation, multi-sig setup, and primary-wallet swap are separate flows. This view is intentionally read-only so the charge cycle never silently retargets mid-period.</p>
+</div>
+{{end}}
+{{end}}

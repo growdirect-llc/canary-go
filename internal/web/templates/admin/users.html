@@ -1,0 +1,17 @@
+{{template "base.html" .}}
+
+{{define "title"}}Users — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Admin &middot; Users</h1>
+  <p class="page-subtitle">User list, role assignment, deactivation</p>
+</div>
+
+<div class="ops-card">
+  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">Users surface is gated on the identity middleware. {{.BlockedReason}}.</p>
+  <p style="font-size:12px;color:var(--text-muted);padding:0 0 16px 0;">When the upstream tickets land, this page wires to the user list with role + last-active per tenant.</p>
+</div>
+{{end}}
+{{end}}

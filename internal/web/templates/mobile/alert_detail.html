@@ -1,0 +1,26 @@
+{{template "mobile_base.html" .}}
+{{define "title"}}Alert — Canary{{end}}
+{{define "content"}}
+{{with .Data}}
+<div class="m-header">
+  <h1>Alert</h1>
+  <p>{{.Alert.ShortID}}</p>
+</div>
+
+{{if .Flash}}<div class="m-flash">Action: {{.Flash}}</div>{{end}}
+
+<div class="m-card">
+  <div style="margin-bottom:14px;">
+    <strong style="display:block;font-size:18px;margin-bottom:4px;">{{.Alert.Title}}</strong>
+    <small>{{.Alert.RuleType}}</small>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <span class="m-badge" style="background:rgba(234,179,8,0.12);color:var(--signal-yellow);">{{.Alert.Severity}}</span>
+    <span class="m-badge" style="background:rgba(107,114,128,0.15);color:var(--text-muted);">{{.Alert.Status}}</span>
+  </div>
+</div>
+
+<a href="#" class="m-btn m-btn-primary" style="margin-bottom:8px;">Acknowledge</a>
+<a href="/alerts/{{.Alert.ID}}" class="m-btn m-btn-secondary">Open desktop view</a>
+{{end}}
+{{end}}

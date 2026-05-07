@@ -1,0 +1,27 @@
+{{template "base.html" .}}
+{{define "title"}}Supplier — Canary{{end}}
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:16px;">
+  <a href="/suppliers" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← Suppliers</a>
+</div>
+<div class="page-header" style="margin-bottom:8px;">
+  <h1>{{.Supplier.SupplierName}}</h1>
+</div>
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+  <span style="font-size:13px;color:var(--text-secondary);">ID {{.Supplier.ShortID}}</span>
+  <span class="badge">{{.Supplier.ComplianceStatus}}</span>
+  <a href="/suppliers/{{.Supplier.ID}}/scorecard" style="margin-left:auto;font-size:12px;color:var(--signal-yellow);text-decoration:none;">Scorecard →</a>
+</div>
+
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Profile</div>
+  <dl style="margin:0;display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13px;">
+    <dt style="color:var(--text-muted);">Email</dt><dd style="color:var(--text-primary);margin:0;">{{.Supplier.ContactEmail}}</dd>
+    <dt style="color:var(--text-muted);">Phone</dt><dd style="color:var(--text-primary);margin:0;">{{.Supplier.ContactPhone}}</dd>
+    <dt style="color:var(--text-muted);">Payment Terms</dt><dd style="color:var(--text-primary);margin:0;">{{.Supplier.PaymentTerms}}</dd>
+    <dt style="color:var(--text-muted);">Created</dt><dd style="color:var(--text-secondary);margin:0;">{{.Supplier.CreatedAt}}</dd>
+  </dl>
+</div>
+{{end}}
+{{end}}

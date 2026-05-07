@@ -1,0 +1,75 @@
+{{template "base.html" .}}
+
+{{define "title"}}Assets — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Assets</h1>
+  <p class="page-subtitle">Inventory positions across locations &middot; SOH, on-order, in-transit, cost basis</p>
+</div>
+
+<div style="display:flex;gap:12px;margin-bottom:24px;align-items:center;">
+  <form method="GET" action="/assets" style="display:flex;gap:8px;align-items:center;">
+    <label style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Status</label>
+    <select name="status" onchange="this.form.submit()" style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;">
+      <option value=""{{if eq .Status ""}} selected{{end}}>all</option>
+      {{$current := .Status}}
+      {{range $opt := .StatusOptions}}
+      <option value="{{$opt}}"{{if eq $opt $current}} selected{{end}}>{{$opt}}</option>
+      {{end}}
+    </select>
+    <label style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-left:8px;">
+      <input type="checkbox" name="low_stock" value="1" {{if .LowStock}}checked{{end}} onchange="this.form.submit()"/> Low stock only
+    </label>
+    <label style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-left:8px;">Limit</label>
+    <select name="limit" onchange="this.form.submit()" style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;">
+      {{$lim := .Limit}}
+      {{range $opt := .LimitOptions}}
+      <option value="{{$opt}}"{{if eq $opt $lim}} selected{{end}}>{{$opt}}</option>
+      {{end}}
+    </select>
+  </form>
+  <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">{{.Count}} items</span>
+</div>
+
+<div class="ops-card">
+  {{if .Items}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">SKU</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Description</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Location</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">On Hand</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Reserved</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">On Order</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">In Transit</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Cost Basis</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Status</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Last Move</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Items}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;font-family:'Space Grotesk',monospace;font-size:11px;color:var(--text-muted);"><a href="/assets/{{.ItemID}}" style="color:var(--text-muted);text-decoration:none;">{{.SKU}}</a></td>
+        <td style="padding:10px 12px;color:var(--text-primary);">{{.Description}}</td>
+        <td style="padding:10px 12px;font-family:'Space Grotesk',monospace;font-size:11px;color:var(--text-muted);">{{.LocationShort}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-primary);font-weight:600;">{{.OnHand}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.Reserved}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.OnOrder}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.InTransit}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.CostBasis}}</td>
+        <td style="padding:10px 12px;color:var(--text-secondary);">{{.Status}}</td>
+        <td style="padding:10px 0;color:var(--text-muted);font-size:11px;">{{.LastMovementAt}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No assets yet. Inventory positions land here as the SOH consumer processes movements.</p>
+  {{end}}
+</div>
+{{end}}
+{{end}}

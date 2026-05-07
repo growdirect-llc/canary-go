@@ -1,0 +1,38 @@
+{{template "base.html" .}}
+{{define "title"}}Vendor Scorecard — Canary{{end}}
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:16px;">
+  <a href="/suppliers/{{.Supplier.ID}}" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← {{.Supplier.SupplierName}}</a>
+</div>
+<div class="page-header">
+  <h1>Vendor Scorecard &middot; {{.Supplier.SupplierName}}</h1>
+  <p class="page-subtitle">On-time delivery &middot; line accuracy &middot; fill rate</p>
+</div>
+
+{{if .BlockedReason}}
+<div style="margin-bottom:16px;padding:10px 14px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;font-size:12px;color:var(--text-muted);">
+  Pending: {{.BlockedReason}}
+</div>
+{{end}}
+
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--health-green);">{{.OnTimePct}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">On-Time</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--accent-blue);">{{.AccuracyPct}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Line Accuracy</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--signal-yellow);">{{.FillRatePct}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Fill Rate</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.POCount}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">POs (12mo)</div>
+  </div>
+</div>
+{{end}}
+{{end}}

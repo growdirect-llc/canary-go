@@ -1,0 +1,26 @@
+{{template "mobile_base.html" .}}
+{{define "title"}}Cycle Count — Canary{{end}}
+{{define "content"}}
+{{with .Data}}
+<div class="m-header">
+  <h1>Cycle Count</h1>
+  <p>{{.Count}} pending</p>
+</div>
+<div class="m-card">
+  {{if .Tasks}}
+  {{range .Tasks}}
+  <div class="m-row">
+    <div style="flex:1;min-width:0;">
+      <strong>Count · qty {{.Quantity}}</strong>
+      <div><small>{{.ShortID}} · priority {{.Priority}}</small></div>
+    </div>
+    <span class="m-badge" style="background:rgba(234,179,8,0.12);color:var(--signal-yellow);">{{.Status}}</span>
+  </div>
+  {{end}}
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);">No cycle-count tasks pending.</p>
+  {{end}}
+</div>
+<div class="m-scan-hint">📷 Scan location label to start a count.</div>
+{{end}}
+{{end}}

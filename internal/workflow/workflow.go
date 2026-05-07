@@ -126,6 +126,31 @@ func (s *Store) RegisterDefinition(
 	return &d, nil
 }
 
+// GetDefinitionByCode resolves a (workflow_code, version) tuple to a
+// Definition row. Used by callers that hold the code constants but
+// need the workflow_id for KickOff. Returns ErrNotFound when no row
+// matches. Wired W5 / GRO-824 for the receiving-close → three-way-match
+// trigger.
+func (s *Store) GetDefinitionByCode(ctx context.Context, code string, version int) (*Definition, error) {
+	const q = `
+		SELECT id, workflow_code, display_name, version, status,
+		       attributes, registered_at::text
+		  FROM app.workflow_definitions
+		 WHERE workflow_code = $1 AND version = $2`
+	row := s.pool.QueryRow(ctx, q, code, version)
+	var d Definition
+	if err := row.Scan(
+		&d.ID, &d.WorkflowCode, &d.DisplayName, &d.Version,
+		&d.Status, &d.Attributes, &d.RegisteredAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrDefinitionNotFound
+		}
+		return nil, fmt.Errorf("workflow: get definition by code: %w", err)
+	}
+	return &d, nil
+}
+
 // KickOff inserts a new app.workflow_executions row in 'pending'
 // status. external_ref is optional and used for caller-side
 // correlation (e.g., the inbound webhook's idempotency key).

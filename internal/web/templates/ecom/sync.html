@@ -1,0 +1,37 @@
+{{template "base.html" .}}
+{{define "title"}}Ecom Sync — Canary{{end}}
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Ecom &middot; Sync Health</h1>
+  <p class="page-subtitle">Channel adapters &middot; last-sync timestamps &middot; connection status</p>
+</div>
+
+<div style="margin-bottom:16px;padding:10px 14px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;font-size:12px;color:var(--text-muted);">{{.Note}}</div>
+
+<div class="ops-card">
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Code</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Channel</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Status</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Last Sync</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Note</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Channels}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;font-family:'Space Grotesk',monospace;color:var(--text-primary);">{{.Code}}</td>
+        <td style="padding:10px 12px;color:var(--text-primary);">{{.DisplayName}}</td>
+        <td style="padding:10px 12px;"><span class="badge" style="background:rgba(107,114,128,0.15);color:var(--text-muted);">{{.Status}}</span></td>
+        <td style="padding:10px 12px;color:var(--text-muted);font-size:11px;">—</td>
+        <td style="padding:10px 0;color:var(--text-secondary);font-size:12px;">{{.Note}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+{{end}}

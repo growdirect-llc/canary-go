@@ -1,0 +1,40 @@
+{{template "base.html" .}}
+{{define "title"}}Onboarding — Import — Canary{{end}}
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Onboarding &middot; Import Store Config</h1>
+  <p class="page-subtitle">Step 2 of 4 &middot; N.1-N.3 ingestion completeness</p>
+</div>
+
+{{template "onboarding_progress" .}}
+
+<div class="ops-card" style="margin-bottom:24px;">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Ingestion Sections</div>
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Section</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Name</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Sections}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;font-family:'Space Grotesk',monospace;color:var(--text-primary);">{{.Code}}</td>
+        <td style="padding:10px 12px;color:var(--text-primary);">{{.Name}}</td>
+        <td style="padding:10px 0;color:var(--text-muted);">{{.Status}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  <p style="margin-top:16px;font-size:12px;color:var(--text-muted);">Status populates from the POS connection in Step 1. If a section reports "Missing", the ingestion can be re-triggered from <a href="/admin/config" style="color:var(--signal-yellow);">/admin/config</a>.</p>
+</div>
+
+<div style="display:flex;justify-content:space-between;">
+  <a href="{{.PrevURL}}" style="font-size:13px;padding:10px 24px;color:var(--text-muted);text-decoration:none;">&larr; Back</a>
+  <a href="{{.NextURL}}" class="ops-btn ops-btn-primary" style="font-size:13px;padding:10px 24px;text-decoration:none;">Continue &rarr;</a>
+</div>
+{{end}}
+{{end}}

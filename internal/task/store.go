@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -205,6 +206,45 @@ func (s *Store) OpenReplenishmentExists(ctx context.Context, tenantID, itemID, l
 		return false, fmt.Errorf("task: check open replenishment: %w", err)
 	}
 	return exists, nil
+}
+
+// ListByTenant returns tasks for a tenant. status filter:
+//   - "" or "all"  → no status filter
+//   - "open"       → queued + assigned + in_progress
+//   - any single status string → exact match
+// Limit is clamped to [1, 500] with a default of 100.
+// Wired W5 / GRO-824 for the /tasks portal page.
+func (s *Store) ListByTenant(ctx context.Context, tenantID uuid.UUID, status string, limit int) ([]TaskDTO, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	args := []any{tenantID}
+	q := taskSelectBase + ` WHERE t.tenant_id = $1`
+	switch status {
+	case "", "all":
+		// no extra clause
+	case "open":
+		q += ` AND t.status IN ('queued','assigned','in_progress')`
+	default:
+		args = append(args, status)
+		q += ` AND t.status = $2`
+	}
+	q += ` ORDER BY t.priority ASC, t.created_at ASC LIMIT ` + strconv.Itoa(limit)
+
+	rows, err := s.pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("task: list by tenant: %w", err)
+	}
+	defer rows.Close()
+	out := make([]TaskDTO, 0, limit)
+	for rows.Next() {
+		t, err := scanTask(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *t)
+	}
+	return out, rows.Err()
 }
 
 // taskSelectBase is the shared SELECT prefix for task reads.

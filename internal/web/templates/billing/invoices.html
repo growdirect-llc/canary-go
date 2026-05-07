@@ -1,0 +1,44 @@
+{{template "base.html" .}}
+
+{{define "title"}}Invoices — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Billing &middot; Invoices</h1>
+  <p class="page-subtitle">ILDWAC position groups: invoiced vs pending invoice (90-day window)</p>
+</div>
+
+<div style="margin-bottom:16px;padding:10px 14px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;font-size:12px;color:var(--text-muted);">
+  Per-charge audit: see <a href="/protocol" style="color:var(--signal-yellow);text-decoration:none;">/protocol</a> for L402 verification tokens. Per-invoice document download lands when the invoice generation engine ships.
+</div>
+
+<div style="display:flex;gap:12px;margin-bottom:24px;align-items:center;">
+  <span style="font-size:11px;color:var(--text-muted);">Window: {{.WindowFrom}} → {{.WindowTo}}</span>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.TotalSats}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Total Sats</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-secondary);">{{.PositionCount}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Positions</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--health-green);">{{.BilledCount}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Invoiced</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--signal-yellow);">{{.UnbilledCount}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Pending Invoice</div>
+  </div>
+</div>
+
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Pending Invoice Window</div>
+  <p style="font-size:13px;color:var(--text-secondary);">Oldest unbilled position: <strong>{{.OldestUnbilled}}</strong>. The L402 charge-cycle workflow rolls these up into invoices on cadence; manual download links land when the invoice document table ships.</p>
+</div>
+{{end}}
+{{end}}
