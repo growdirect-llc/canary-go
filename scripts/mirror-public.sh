@@ -35,14 +35,18 @@ cp "$CANARY_ROOT/../services/canary-protocol/openapi/openapi.yaml" \
 cp "$CANARY_ROOT/../services/canary-protocol/openapi/README.md" \
    "$MIRROR_DIR/services/canary-protocol/openapi/README.md"
 
+echo "==> Syncing SDD library"
+mkdir -p "$MIRROR_DIR/docs/sdds"
+cp "$CANARY_ROOT/../docs/sdds/go-handoff/"*.md "$MIRROR_DIR/docs/sdds/"
+
 cd "$MIRROR_DIR"
 
 if git diff --quiet && git diff --cached --quiet; then
   echo "==> No changes to sync"
 else
-  git add services/canary-protocol/openapi/
+  git add services/canary-protocol/openapi/ docs/sdds/
   git -c user.email="bonsallprotea@gmail.com" -c user.name="GrowDirect" \
-    commit -m "chore(mirror): sync OpenAPI spec from source"
+    commit -m "chore(mirror): sync OpenAPI spec and SDDs from source"
   git push
   echo "==> Pushed to $REPO"
 fi

@@ -273,16 +273,21 @@ func (s *Service) StoreToken(ctx context.Context, tr *TokenResponse) (uuid.UUID,
 
 	const q = `
 		INSERT INTO app.pos_tenant_credentials
-			(id, merchant_id, source_code, company_alias, credentials_enc, status, last_tested_at, created_at, updated_at)
+			(id, merchant_id, source_code, company_alias, credentials_enc, status, expires_at, last_tested_at, created_at, updated_at)
 		VALUES
-			($1, $2, 'square', NULL, $3, 'active', NOW(), NOW(), NOW())
+			($1, $2, 'square', NULL, $3, 'active', $4, NOW(), NOW(), NOW())
 		ON CONFLICT (merchant_id, source_code, company_alias) DO UPDATE
 		SET credentials_enc = EXCLUDED.credentials_enc,
 		    status = 'active',
+		    expires_at = EXCLUDED.expires_at,
 		    last_tested_at = NOW(),
 		    updated_at = NOW()
 	`
-	_, err = s.pool.Exec(ctx, q, uuid.New(), internalMerchantID, ciphertext)
+	expiresAt := creds.ExpiresAt
+	if expiresAt.IsZero() {
+		expiresAt = time.Now().Add(30 * 24 * time.Hour) // Square sandbox default
+	}
+	_, err = s.pool.Exec(ctx, q, uuid.New(), internalMerchantID, ciphertext, expiresAt)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("squareauth: upsert credentials: %w", err)
 	}
