@@ -55,6 +55,7 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/item"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
 	"github.com/growdirect-llc/rapidpos/internal/transaction"
+	"github.com/growdirect-llc/rapidpos/internal/workflow"
 )
 
 //go:embed static templates
@@ -168,6 +169,7 @@ func New(deps Deps, logger *zap.Logger) *Handler {
 	h.mustParse("cases_correlation", "templates/cases/correlation.html")
 	h.mustParse("cases_remediate", "templates/cases/remediate.html")
 	h.mustParse("report_cases", "templates/reports/cases.html")
+	h.mustParse("workflows_list", "templates/workflows/list.html")
 	return h
 }
 
@@ -317,6 +319,10 @@ func (h *Handler) Mount(r chi.Router) {
 
 	// Cases analytics — wired W2e / GRO-819.
 	r.Get("/reports/cases", h.reportCasesPage)
+
+	// Workflow engine surfaces — wired W4 / GRO-823 (unified list page;
+	// per-workflow detail views are a follow-on dispatch).
+	r.Get("/workflows", h.workflowsListPage)
 
 	// Error pages (also reachable programmatically via Render403/404/500)
 	r.Get("/errors/403", h.errPage(403))
@@ -1561,6 +1567,82 @@ func parseDecimal(s string) float64 {
 	}
 	f, _ := strconv.ParseFloat(s, 64)
 	return f
+}
+
+// workflowsListPage renders all registered workflow definitions plus
+// recent executions across the three engines (3-way match, L402 charge
+// cycle, investigation lifecycle). Wired W4 / GRO-823. Per-engine
+// drilldown + manual advance/cancel are a follow-on dispatch.
+func (h *Handler) workflowsListPage(w http.ResponseWriter, r *http.Request) {
+	if h.deps.WorkflowStore == nil {
+		h.render(w, r, "workflows_list", "workflows", map[string]any{
+			"Definitions": nil, "Executions": nil, "RunningCount": 0, "TotalCount": 0,
+		})
+		return
+	}
+	ctx := r.Context()
+	tenantID := tenantIDFromCtx(ctx)
+
+	defs, err := h.deps.WorkflowStore.ListDefinitions(ctx)
+	if err != nil {
+		h.logger.Error("workflowsListPage: list definitions", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		h.render(w, r, "err500", "workflows", nil)
+		return
+	}
+	execs, err := h.deps.WorkflowStore.ListExecutions(ctx, workflow.ListExecutionsFilter{
+		TenantID: tenantID,
+		Limit:    200,
+	})
+	if err != nil {
+		h.logger.Error("workflowsListPage: list executions", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		h.render(w, r, "err500", "workflows", nil)
+		return
+	}
+
+	// Map workflow_id → display_name for execution rows.
+	defByID := map[uuid.UUID]workflow.Definition{}
+	defViews := make([]map[string]any, 0, len(defs))
+	for _, d := range defs {
+		defByID[d.ID] = d
+		defViews = append(defViews, map[string]any{
+			"Code":        d.WorkflowCode,
+			"DisplayName": d.DisplayName,
+			"Version":     d.Version,
+			"Status":      d.Status,
+		})
+	}
+
+	running := 0
+	execViews := make([]map[string]any, 0, len(execs))
+	for _, e := range execs {
+		if e.Status == "running" || e.Status == "pending" {
+			running++
+		}
+		code := "—"
+		if d, ok := defByID[e.WorkflowID]; ok {
+			code = d.WorkflowCode
+		}
+		step := "—"
+		if e.CurrentStep != nil && *e.CurrentStep != "" {
+			step = *e.CurrentStep
+		}
+		execViews = append(execViews, map[string]any{
+			"ShortID":      e.ID.String()[:8],
+			"WorkflowCode": code,
+			"Step":         step,
+			"Status":       e.Status,
+			"StartedAt":    e.StartedAt,
+		})
+	}
+
+	h.render(w, r, "workflows_list", "workflows", map[string]any{
+		"Definitions":  defViews,
+		"Executions":   execViews,
+		"RunningCount": running,
+		"TotalCount":   len(execViews),
+	})
 }
 
 // reportCasesPage aggregates case counts by domain + severity from the

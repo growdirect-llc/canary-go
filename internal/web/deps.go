@@ -12,6 +12,7 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/pricing"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
 	"github.com/growdirect-llc/rapidpos/internal/transaction"
+	"github.com/growdirect-llc/rapidpos/internal/workflow"
 )
 
 // Deps holds all backend store dependencies for the web handler.
@@ -29,4 +30,5 @@ type Deps struct {
 	ItemStore        item.Store    // interface
 	PricingStore     pricing.Store // interface
 	EmployeeStore    *employee.Store
+	WorkflowStore    *workflow.Store
 }
