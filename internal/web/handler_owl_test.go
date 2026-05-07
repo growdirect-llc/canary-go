@@ -1,8 +1,13 @@
 package web
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
 // TestOwlPortalPeriod_Day pins a known UTC midpoint and verifies the
@@ -79,5 +84,61 @@ func TestOwlPortalPeriod_Default(t *testing.T) {
 	}
 	if _, _, label := owlPortalPeriod("nonsense", now); label != "week" {
 		t.Errorf("unknown kind label = %q want week", label)
+	}
+}
+
+// TestOwlDashboards_NoStore_RendersEmptyState — dashboards page renders
+// with empty-state copy when the store is nil.
+func TestOwlDashboards_NoStore_RendersEmptyState(t *testing.T) {
+	h := New(Deps{}, nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/owl/dashboards", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d body=%s", rr.Code, rr.Body.String())
+	}
+	for _, want := range []string{"Owl", "Dashboards", "No LP-rate data yet", "No party data yet"} {
+		if !strings.Contains(rr.Body.String(), want) {
+			t.Errorf("body missing %q", want)
+		}
+	}
+}
+
+// TestOwlDashboards_PeriodSelector — each period parses + renders the
+// active pill.
+func TestOwlDashboards_PeriodSelector(t *testing.T) {
+	h := New(Deps{}, nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	for _, period := range []string{"day", "week", "month", "quarter"} {
+		req := httptest.NewRequest(http.MethodGet, "/owl/dashboards?period="+period, nil)
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Errorf("period=%s: expected 200 got %d", period, rr.Code)
+			continue
+		}
+		body := rr.Body.String()
+		// Each pill renders with data-period="<kind>". The active pill gets
+		// the "active" class — find the data-period attribute, then check
+		// that "period-pill active" appears within the same anchor tag.
+		needle := `data-period="` + period + `"`
+		idx := strings.Index(body, needle)
+		if idx < 0 {
+			t.Errorf("period=%s: data-period attribute not in body", period)
+			continue
+		}
+		// 200 chars is enough to reach the class attribute on the same tag.
+		end := idx + 200
+		if end > len(body) {
+			end = len(body)
+		}
+		if !strings.Contains(body[idx:end], "period-pill active") {
+			t.Errorf("period=%s: active class not on selected pill", period)
+		}
 	}
 }

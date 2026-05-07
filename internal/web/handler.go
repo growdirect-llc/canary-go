@@ -172,6 +172,7 @@ func New(deps Deps, logger *zap.Logger) *Handler {
 	h.mustParse("workflows_list", "templates/workflows/list.html")
 	h.mustParse("mcp_tools", "templates/mcp/tools.html")
 	h.mustParse("protocol_overview", "templates/protocol/overview.html")
+	h.mustParse("owl_dashboards", "templates/owl/dashboards.html")
 	return h
 }
 
@@ -211,6 +212,7 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/reports", h.page("reports", "reports", stubReports))
 	r.Get("/settings", h.page("settings", "settings", stubSettings))
 	r.Get("/owl", h.owlPage)
+	r.Get("/owl/dashboards", h.owlDashboardsPage)
 	r.Get("/rules", h.rulesListPage)
 	r.Get("/connect", h.page("connect", "connect", stubConnect))
 	r.Get("/welcome", h.page("welcome", "welcome", nil))
@@ -395,6 +397,80 @@ func (h *Handler) owlPage(w http.ResponseWriter, r *http.Request) {
 		"Query":   r.URL.Query().Get("q"),
 		"Results": nil,
 	})
+}
+
+// owlDashboardsPage renders the multi-panel intelligence overview —
+// LP rate by rule, top parties by value, KPI tiles. Tenant-scoped read
+// over party.decisioning_facts and detection.detections / detection.cases
+// via internal/owl.DashboardStore. Wired W6 / GRO-825.
+func (h *Handler) owlDashboardsPage(w http.ResponseWriter, r *http.Request) {
+	from, to, label := owlPortalPeriod(r.URL.Query().Get("period"), time.Now())
+	view := map[string]any{
+		"Period":          label,
+		"PeriodOptions":   []string{"day", "week", "month", "quarter"},
+		"WindowFrom":      from.Format("2006-01-02 15:04"),
+		"WindowTo":        to.Format("2006-01-02 15:04"),
+		"TotalDetections": 0,
+		"TotalCases":      0,
+		"EscalationRate":  "0%",
+		"PartyCount":      0,
+		"LPRows":          nil,
+		"TopParties":      nil,
+	}
+
+	if h.deps.OwlDashboard != nil {
+		ctx := r.Context()
+		tenantID := tenantIDFromCtx(ctx)
+
+		lp, err := h.deps.OwlDashboard.LPRateRollup(ctx, tenantID, from, to)
+		if err != nil {
+			h.logger.Error("owlDashboardsPage: lp-rate", zap.Error(err))
+		} else {
+			rows := make([]map[string]any, 0, len(lp))
+			var totalDet, totalCase int
+			for _, m := range lp {
+				rows = append(rows, map[string]any{
+					"RuleType":      m.RuleType,
+					"Detections":    m.DetectionCount,
+					"Cases":         m.CaseCount,
+					"EscalationPct": formatOwlPct(m.EscalationRate),
+				})
+				totalDet += m.DetectionCount
+				totalCase += m.CaseCount
+			}
+			view["LPRows"] = rows
+			view["TotalDetections"] = totalDet
+			view["TotalCases"] = totalCase
+			if totalDet > 0 {
+				view["EscalationRate"] = formatOwlPct(float64(totalCase) / float64(totalDet))
+			}
+		}
+
+		parties, err := h.deps.OwlDashboard.ListPartyRFM(ctx, tenantID, 10)
+		if err != nil {
+			h.logger.Error("owlDashboardsPage: parties", zap.Error(err))
+		} else {
+			rows := make([]map[string]any, 0, len(parties))
+			for _, p := range parties {
+				rows = append(rows, map[string]any{
+					"PartyShort":     p.PartyID.String()[:8],
+					"PartyValue":     p.PartyValue,
+					"PartyFrequency": p.PartyFrequency,
+					"PartyRecency":   p.PartyRecency,
+					"Confidence":     p.Confidence,
+				})
+			}
+			view["TopParties"] = rows
+			view["PartyCount"] = len(parties)
+		}
+	}
+
+	h.render(w, r, "owl_dashboards", "owl_intel", view)
+}
+
+// formatOwlPct renders a 0..1 ratio as a percentage with one decimal.
+func formatOwlPct(r float64) string {
+	return strconv.FormatFloat(r*100, 'f', 1, 64) + "%"
 }
 
 func (h *Handler) hawkDetailPage(w http.ResponseWriter, r *http.Request) {
