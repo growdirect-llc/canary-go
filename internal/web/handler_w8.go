@@ -165,7 +165,7 @@ func (h *Handler) assetDetailPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// /billing/overview — current period satoshi cost meter + active budgets
+// /billing/overview — current period metered cost + active budgets
 // ──────────────────────────────────────────────────────────────────────
 
 func (h *Handler) billingOverviewPage(w http.ResponseWriter, r *http.Request) {
@@ -176,10 +176,10 @@ func (h *Handler) billingOverviewPage(w http.ResponseWriter, r *http.Request) {
 	view := map[string]any{
 		"PeriodStart":      periodStart.Format("2006-01-02"),
 		"PeriodEnd":        periodEnd.Format("2006-01-02"),
-		"TotalSatoshis":    int64(0),
-		"StorageSatoshis":  int64(0),
-		"WorkloadSatoshis": int64(0),
-		"CaptureSatoshis":  int64(0),
+		"TotalUnits":       int64(0),
+		"StorageUnits":     int64(0),
+		"WorkloadUnits":    int64(0),
+		"CaptureUnits":     int64(0),
 		"PositionCount":    0,
 		"UnbilledCount":    0,
 		"OldestUnbilled":   "—",
@@ -198,10 +198,10 @@ func (h *Handler) billingOverviewPage(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			h.logger.Error("billingOverviewPage: rollup", zap.Error(err))
 		} else if rollup != nil {
-			view["TotalSatoshis"] = rollup.TotalSatoshis
-			view["StorageSatoshis"] = rollup.StorageSatoshis
-			view["WorkloadSatoshis"] = rollup.WorkloadSatoshis
-			view["CaptureSatoshis"] = rollup.CaptureSatoshis
+			view["TotalUnits"] = rollup.TotalSatoshis
+			view["StorageUnits"] = rollup.StorageSatoshis
+			view["WorkloadUnits"] = rollup.WorkloadSatoshis
+			view["CaptureUnits"] = rollup.CaptureSatoshis
 			view["PositionCount"] = rollup.PositionCount
 			view["UnbilledCount"] = rollup.UnbilledCount
 			if rollup.OldestUnbilled != nil {
@@ -239,7 +239,7 @@ func (h *Handler) billingInvoicesPage(w http.ResponseWriter, r *http.Request) {
 	view := map[string]any{
 		"WindowFrom":     periodStart.Format("2006-01-02"),
 		"WindowTo":       now.Format("2006-01-02"),
-		"TotalSats":      int64(0),
+		"TotalUnits":     int64(0),
 		"PositionCount":  0,
 		"UnbilledCount":  0,
 		"BilledCount":    0,
@@ -257,7 +257,7 @@ func (h *Handler) billingInvoicesPage(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			h.logger.Error("billingInvoicesPage", zap.Error(err))
 		} else if rollup != nil {
-			view["TotalSats"] = rollup.TotalSatoshis
+			view["TotalUnits"] = rollup.TotalSatoshis
 			view["PositionCount"] = rollup.PositionCount
 			view["UnbilledCount"] = rollup.UnbilledCount
 			view["BilledCount"] = rollup.PositionCount - rollup.UnbilledCount

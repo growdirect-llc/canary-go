@@ -6,7 +6,7 @@
 {{with .Data}}
 <div class="page-header">
   <h1>Billing &middot; Overview</h1>
-  <p class="page-subtitle">Current period satoshi cost meter &middot; ILDWAC dimensions &middot; active OTB budgets</p>
+  <p class="page-subtitle">Current period metered cost &middot; ILDWAC dimensions &middot; active OTB budgets</p>
 </div>
 
 <div style="display:flex;gap:12px;margin-bottom:24px;align-items:center;">
@@ -16,19 +16,19 @@
 
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
   <div class="ops-card" style="text-align:center;">
-    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.TotalSatoshis}}</div>
-    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Total Sats (period)</div>
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.TotalUnits}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Total Units (period)</div>
   </div>
   <div class="ops-card" style="text-align:center;">
-    <div style="font-size:24px;font-weight:700;color:var(--accent-blue);">{{.StorageSatoshis}}</div>
+    <div style="font-size:24px;font-weight:700;color:var(--accent-blue);">{{.StorageUnits}}</div>
     <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Storage</div>
   </div>
   <div class="ops-card" style="text-align:center;">
-    <div style="font-size:24px;font-weight:700;color:var(--signal-yellow);">{{.WorkloadSatoshis}}</div>
+    <div style="font-size:24px;font-weight:700;color:var(--signal-yellow);">{{.WorkloadUnits}}</div>
     <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Workload</div>
   </div>
   <div class="ops-card" style="text-align:center;">
-    <div style="font-size:24px;font-weight:700;color:var(--health-green);">{{.CaptureSatoshis}}</div>
+    <div style="font-size:24px;font-weight:700;color:var(--health-green);">{{.CaptureUnits}}</div>
     <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Capture</div>
   </div>
 </div>
@@ -69,9 +69,9 @@
       <tr style="border-top:1px solid var(--border-subtle);">
         <td style="padding:10px 12px 10px 0;color:var(--text-primary);">{{.PeriodStart}} → {{.PeriodEnd}}</td>
         <td style="padding:10px 12px;color:var(--text-secondary);">{{.ScopeType}}</td>
-        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.BudgetSatoshis}}</td>
-        <td style="padding:10px 12px;text-align:right;color:var(--signal-yellow);">{{.ConsumedSatoshis}}</td>
-        <td style="padding:10px 0;text-align:right;color:var(--health-green);">{{.RemainingSatoshis}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.BudgetUnits}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--signal-yellow);">{{.ConsumedUnits}}</td>
+        <td style="padding:10px 0;text-align:right;color:var(--health-green);">{{.RemainingUnits}}</td>
       </tr>
       {{end}}
     </tbody>

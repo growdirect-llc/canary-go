@@ -349,7 +349,7 @@ func (h *Handler) reportOTBPage(w http.ResponseWriter, r *http.Request) {
 		} else {
 			rows := make([]map[string]any, 0, len(budgets))
 			active, locked := 0, 0
-			var totalSats int64
+			var totalUnits int64
 			for _, b := range budgets {
 				if b.Status == billing.BudgetStatusActive {
 					active++
@@ -357,13 +357,13 @@ func (h *Handler) reportOTBPage(w http.ResponseWriter, r *http.Request) {
 				if b.Status == billing.BudgetStatusLocked {
 					locked++
 				}
-				totalSats += b.BudgetSatoshis
+				totalUnits += b.BudgetSatoshis
 				rows = append(rows, otbBudgetRowView(b))
 			}
 			view["Budgets"] = rows
 			view["ActiveCount"] = active
 			view["LockedCount"] = locked
-			view["TotalSats"] = totalSats
+			view["TotalUnits"] = totalUnits
 		}
 	}
 
@@ -381,9 +381,9 @@ func otbBudgetRowView(b billing.OTBBudget) map[string]any {
 		"PeriodStart":       b.BudgetPeriodStart.Format("2006-01-02"),
 		"PeriodEnd":         periodEnd,
 		"ScopeType":         b.ScopeType,
-		"BudgetSatoshis":    b.BudgetSatoshis,
-		"ConsumedSatoshis":  b.ConsumedSatoshis,
-		"RemainingSatoshis": b.RemainingSatoshis,
+		"BudgetUnits":       b.BudgetSatoshis,
+		"ConsumedUnits":     b.ConsumedSatoshis,
+		"RemainingUnits":    b.RemainingSatoshis,
 		"HardLimit":         b.HardLimit,
 		"Status":            b.Status,
 		"Lockable":          b.Status == billing.BudgetStatusActive,

@@ -6,7 +6,7 @@
 {{with .Data}}
 <div class="page-header">
   <h1>Open-to-Buy</h1>
-  <p class="page-subtitle">L402 satoshi-denominated spend budgets &middot; lock period to freeze new consumption</p>
+  <p class="page-subtitle">Metered protocol spend budgets &middot; lock period to freeze new consumption</p>
 </div>
 
 {{if .Flash}}
@@ -25,20 +25,20 @@
     <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Locked</div>
   </div>
   <div class="ops-card" style="text-align:center;">
-    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.TotalSats}}</div>
-    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Total Sats Allocated</div>
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.TotalUnits}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Total Units Allocated</div>
   </div>
 </div>
 
 <div class="ops-card">
-  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">L402 OTB Budgets</div>
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">OTB Budgets</div>
   {{if .Budgets}}
   <table style="width:100%;border-collapse:collapse;font-size:13px;">
     <thead>
       <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
         <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Period</th>
         <th style="padding:6px 12px;text-align:left;font-weight:500;">Scope</th>
-        <th style="padding:6px 12px;text-align:right;font-weight:500;">Budget (sats)</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Budget (units)</th>
         <th style="padding:6px 12px;text-align:right;font-weight:500;">Consumed</th>
         <th style="padding:6px 12px;text-align:right;font-weight:500;">Remaining</th>
         <th style="padding:6px 12px;text-align:left;font-weight:500;">Status</th>
@@ -50,9 +50,9 @@
       <tr style="border-top:1px solid var(--border-subtle);">
         <td style="padding:12px 12px 12px 0;color:var(--text-primary);">{{.PeriodStart}} → {{.PeriodEnd}}</td>
         <td style="padding:12px;color:var(--text-secondary);">{{.ScopeType}}</td>
-        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.BudgetSatoshis}}</td>
-        <td style="padding:12px;text-align:right;color:var(--signal-yellow);">{{.ConsumedSatoshis}}</td>
-        <td style="padding:12px;text-align:right;color:var(--health-green);">{{.RemainingSatoshis}}</td>
+        <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.BudgetUnits}}</td>
+        <td style="padding:12px;text-align:right;color:var(--signal-yellow);">{{.ConsumedUnits}}</td>
+        <td style="padding:12px;text-align:right;color:var(--health-green);">{{.RemainingUnits}}</td>
         <td style="padding:12px;">
           <span class="badge" style="{{if eq .Status "active"}}background:rgba(16,185,129,0.1);color:var(--health-green);{{else if eq .Status "locked"}}background:rgba(234,179,8,0.12);color:var(--signal-yellow);{{else}}background:rgba(107,114,128,0.15);color:var(--text-muted);{{end}}">{{.Status}}</span>
         </td>
@@ -75,7 +75,7 @@
     </tbody>
   </table>
   {{else}}
-  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No OTB budgets configured for this tenant. Budgets are created via the L402 admin API and gate satoshi spend at the merchant level.</p>
+  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No OTB budgets configured for this tenant. Budgets are created via the protocol admin API and gate metered spend at the merchant level.</p>
   {{end}}
 </div>
 {{end}}
