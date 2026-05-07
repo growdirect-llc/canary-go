@@ -144,7 +144,7 @@ func (s *Store) GetDefinitionByCode(ctx context.Context, code string, version in
 		&d.Status, &d.Attributes, &d.RegisteredAt,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrNotFound
+			return nil, ErrDefinitionNotFound
 		}
 		return nil, fmt.Errorf("workflow: get definition by code: %w", err)
 	}
