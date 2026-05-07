@@ -181,6 +181,10 @@ func New(deps Deps, logger *zap.Logger) *Handler {
 	h.mustParse("billing_overview", "templates/billing/overview.html")
 	h.mustParse("billing_invoices", "templates/billing/invoices.html")
 	h.mustParse("billing_payment_method", "templates/billing/payment_method.html")
+	h.mustParse("admin_audit", "templates/admin/audit.html")
+	h.mustParse("admin_iso27001", "templates/admin/iso27001.html")
+	h.mustParse("admin_users", "templates/admin/users.html")
+	h.mustParse("admin_config", "templates/admin/config.html")
 	return h
 }
 
@@ -285,9 +289,7 @@ func (h *Handler) Mount(r chi.Router) {
 		// (per-transaction GetByID is too expensive). Filed as a follow-on.
 		return map[string]any{"TotalTransactions": 0, "CashPct": "—", "CardPct": "—", "OtherPct": "—", "Tenders": nil, "SecurePayEnabled": false, "LastGatewaySync": "—"}
 	}))
-	r.Get("/reports/tax", h.page("reports", "report_tax", func(_ *http.Request) any {
-		return map[string]any{"TotalTax": "—", "AuthorityCount": 0, "NexusStates": 0, "FilingPeriod": "—", "Authorities": nil}
-	}))
+	r.Get("/reports/tax", h.reportTaxPage)
 	r.Get("/reports/otb", h.reportOTBPage)
 	r.Get("/orders/suggested", h.suggestedOrdersPage)
 	r.Get("/reports/range", h.page("reports", "report_range", func(_ *http.Request) any {
@@ -334,6 +336,12 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/billing/overview", h.billingOverviewPage)
 	r.Get("/billing/invoices", h.billingInvoicesPage)
 	r.Get("/billing/payment-method", h.billingPaymentMethodPage)
+
+	// Compliance + admin — wired W9 / GRO-828.
+	r.Get("/admin/audit", h.adminAuditPage)
+	r.Get("/admin/iso27001", h.adminISO27001Page)
+	r.Get("/admin/users", h.adminUsersPage)
+	r.Get("/admin/config", h.adminConfigPage)
 
 	// Cross-domain exceptions
 	r.Get("/exceptions", h.page("exceptions", "exceptions_list", func(_ *http.Request) any {

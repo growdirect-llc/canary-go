@@ -150,6 +150,28 @@
       </a>
       {{end}}
     </div>
+
+    {{if .User.IsAdmin}}
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Admin</div>
+      <a href="/admin/audit" class="sidebar-item{{if eq .Page "admin"}} active{{end}}" data-color="admin">
+        <span class="nav-icon" style="background: var(--nav-audit);"></span>
+        Audit Log
+      </a>
+      <a href="/admin/iso27001" class="sidebar-item" data-color="admin">
+        <span class="nav-icon" style="background: var(--nav-reports);"></span>
+        ISO 27001
+      </a>
+      <a href="/admin/users" class="sidebar-item" data-color="admin">
+        <span class="nav-icon" style="background: var(--nav-employees);"></span>
+        Users
+      </a>
+      <a href="/admin/config" class="sidebar-item" data-color="admin">
+        <span class="nav-icon" style="background: var(--nav-settings);"></span>
+        Config Health
+      </a>
+    </div>
+    {{end}}
   </nav>
 
   <div class="sidebar-user">

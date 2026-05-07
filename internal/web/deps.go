@@ -14,6 +14,7 @@ import (
 	lpPkg "github.com/growdirect-llc/rapidpos/internal/lp"
 	"github.com/growdirect-llc/rapidpos/internal/owl"
 	"github.com/growdirect-llc/rapidpos/internal/pricing"
+	"github.com/growdirect-llc/rapidpos/internal/protocol/audit"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/namespace"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
 	"github.com/growdirect-llc/rapidpos/internal/task"
@@ -65,4 +66,10 @@ type Deps struct {
 	// canary-asset.md (app.assets, asset_lifecycle_events, asset_types)
 	// has no migration today and is future work.
 	AssetStore *asset.Store
+
+	// Compliance + admin portal — audit log read access. Wired W9 /
+	// GRO-828. ISO27001 / users / config-health surfaces stay
+	// placeholder pending GRO-769 (identity middleware) + GRO-770
+	// (admin module).
+	AuditReader *audit.PgxInserter
 }

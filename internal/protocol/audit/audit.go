@@ -282,3 +282,97 @@ func nullable(s string) any {
 	}
 	return s
 }
+
+// LogRow is the read-shape for app.audit_log rows surfaced to the
+// admin portal. Mirrors the Insert columns plus created_at.
+type LogRow struct {
+	CreatedAt     time.Time
+	MerchantID    *uuid.UUID
+	Action        string
+	Resource      string
+	ResourceID    *uuid.UUID
+	IPAddress     *string
+	EventID       *uuid.UUID
+	PayloadDigest *string
+	SourceCode    *string
+	RequestID     *string
+	UserAgent     *string
+	StatusCode    *int
+	LatencyMS     *int
+	ActorType     *string
+	MCPServer     *string
+	ToolName      *string
+}
+
+// ListFilters narrows a ListByMerchant query.
+type ListFilters struct {
+	MerchantID *uuid.UUID
+	SourceCode string
+	Action     string
+	Limit      int
+}
+
+// ListByMerchant returns recent audit rows ordered by created_at DESC.
+// Tenant scoping happens via merchant_id (the column carried in the
+// audit_log row). Limit clamped to [1, 500] with default 100.
+// Wired W9 / GRO-828.
+func (p *PgxInserter) ListByMerchant(ctx context.Context, f ListFilters) ([]LogRow, error) {
+	limit := f.Limit
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	args := []any{}
+	q := `SELECT created_at, merchant_id, action, resource, resource_id, ip_address,
+	             event_id, payload_digest, source_code, request_id, user_agent,
+	             status_code, latency_ms, actor_type, mcp_server, tool_name
+	      FROM app.audit_log WHERE 1=1`
+	if f.MerchantID != nil {
+		args = append(args, *f.MerchantID)
+		q += " AND merchant_id = $" + itoa(len(args))
+	}
+	if f.SourceCode != "" {
+		args = append(args, f.SourceCode)
+		q += " AND source_code = $" + itoa(len(args))
+	}
+	if f.Action != "" {
+		args = append(args, f.Action)
+		q += " AND action = $" + itoa(len(args))
+	}
+	args = append(args, limit)
+	q += " ORDER BY created_at DESC LIMIT $" + itoa(len(args))
+	rows, err := p.pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]LogRow, 0, limit)
+	for rows.Next() {
+		var lr LogRow
+		if err := rows.Scan(
+			&lr.CreatedAt, &lr.MerchantID, &lr.Action, &lr.Resource, &lr.ResourceID, &lr.IPAddress,
+			&lr.EventID, &lr.PayloadDigest, &lr.SourceCode, &lr.RequestID, &lr.UserAgent,
+			&lr.StatusCode, &lr.LatencyMS, &lr.ActorType, &lr.MCPServer, &lr.ToolName,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, lr)
+	}
+	return out, rows.Err()
+}
+
+// itoa is a tiny private helper so we don't import strconv just for one site.
+func itoa(n int) string {
+	if n < 10 {
+		return string(rune('0' + n))
+	}
+	// audit_log filter chain stays small; no need for a generic impl.
+	const digits = "0123456789"
+	var buf [4]byte
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = digits[n%10]
+		n /= 10
+	}
+	return string(buf[i:])
+}

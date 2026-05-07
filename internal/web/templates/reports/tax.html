@@ -6,8 +6,14 @@
 {{with .Data}}
 <div class="page-header">
   <h1>Tax Liability</h1>
-  <p class="page-subtitle">Multi-authority tax summary</p>
+  <p class="page-subtitle">Multi-authority tax summary &middot; jurisdiction breakdown</p>
 </div>
+
+{{if .BlockedReason}}
+<div style="margin-bottom:16px;padding:10px 14px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;font-size:12px;color:var(--text-muted);">
+  Pending: {{.BlockedReason}}.
+</div>
+{{end}}
 
 <!-- Summary tiles -->
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">

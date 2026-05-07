@@ -236,6 +236,7 @@ func main() {
 		BillingStore:   billingPkg.NewStore(pool),
 		WorkflowStore:  workflowPkg.NewStore(pool),
 		AssetStore:     assetPkg.NewStore(pool),
+		AuditReader:    audit.NewPgxInserter(pool),
 	}
 	web.New(webDeps, logger).Mount(r)
 
