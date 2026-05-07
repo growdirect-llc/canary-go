@@ -42,6 +42,7 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
 	"github.com/growdirect-llc/rapidpos/internal/db"
 	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/growdirect-llc/rapidpos/internal/manifest/routewalk"
 	"github.com/growdirect-llc/rapidpos/internal/mcp"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/anchor"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/audit"
@@ -229,6 +230,22 @@ func main() {
 		AllowListStore: lpPkg.NewAllowListStore(pool),
 	}
 	web.New(webDeps, logger).Mount(r)
+
+	// MANIFEST_ROUTEWALK=1 — emit build/routes-seen.json then continue
+	// boot. Pure observation; consumed by the manifest reconciler to
+	// detect drift against manifest.yaml + openapi.yaml. GRO-837 T1.2.
+	if os.Getenv("MANIFEST_ROUTEWALK") == "1" {
+		out := os.Getenv("MANIFEST_ROUTEWALK_OUT")
+		if err := routewalk.Walk(r, serviceName, out); err != nil {
+			logger.Warn("routewalk failed", zap.Error(err))
+		} else {
+			path := out
+			if path == "" {
+				path = routewalk.DefaultOutPath
+			}
+			logger.Info("routewalk emitted", zap.String("output", path))
+		}
+	}
 
 	addr := ":" + cfg.Port
 	logger.Info("starting",
