@@ -185,6 +185,9 @@ func New(deps Deps, logger *zap.Logger) *Handler {
 	h.mustParse("admin_iso27001", "templates/admin/iso27001.html")
 	h.mustParse("admin_users", "templates/admin/users.html")
 	h.mustParse("admin_config", "templates/admin/config.html")
+	h.mustParse("admin_hierarchy", "templates/admin/hierarchy.html")
+	h.mustParse("admin_network_integrity", "templates/admin/network_integrity.html")
+	h.mustParse("dashboards_cross_store", "templates/dashboards/cross_store.html")
 	return h
 }
 
@@ -342,6 +345,12 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/admin/iso27001", h.adminISO27001Page)
 	r.Get("/admin/users", h.adminUsersPage)
 	r.Get("/admin/config", h.adminConfigPage)
+
+	// Multi-store intelligence — wired W10 / GRO-829.
+	r.Get("/admin/hierarchy", h.adminHierarchyPage)
+	r.Post("/admin/hierarchy", h.adminHierarchyCreate)
+	r.Get("/admin/network-integrity", h.adminNetworkIntegrityPage)
+	r.Get("/dashboards/cross-store", h.dashboardsCrossStorePage)
 
 	// Cross-domain exceptions
 	r.Get("/exceptions", h.page("exceptions", "exceptions_list", func(_ *http.Request) any {

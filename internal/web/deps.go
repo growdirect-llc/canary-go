@@ -8,6 +8,7 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/chirp"
 	"github.com/growdirect-llc/rapidpos/internal/customer"
 	"github.com/growdirect-llc/rapidpos/internal/employee"
+	"github.com/growdirect-llc/rapidpos/internal/hierarchy"
 	"github.com/growdirect-llc/rapidpos/internal/inventory"
 	"github.com/growdirect-llc/rapidpos/internal/item"
 	"github.com/growdirect-llc/rapidpos/internal/mcp"
@@ -72,4 +73,10 @@ type Deps struct {
 	// placeholder pending GRO-769 (identity middleware) + GRO-770
 	// (admin module).
 	AuditReader *audit.PgxInserter
+
+	// Multi-store intelligence — wired W10 / GRO-829. Reads
+	// app.location_hierarchy + app.locations and renders the
+	// /admin/hierarchy + /dashboards/cross-store + /admin/network-integrity
+	// surfaces.
+	HierarchyStore *hierarchy.Store
 }

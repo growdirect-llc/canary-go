@@ -170,6 +170,18 @@
         <span class="nav-icon" style="background: var(--nav-settings);"></span>
         Config Health
       </a>
+      <a href="/admin/hierarchy" class="sidebar-item" data-color="admin">
+        <span class="nav-icon" style="background: var(--nav-dashboard);"></span>
+        Hierarchy
+      </a>
+      <a href="/admin/network-integrity" class="sidebar-item" data-color="admin">
+        <span class="nav-icon" style="background: var(--nav-chirps);"></span>
+        Network Integrity
+      </a>
+      <a href="/dashboards/cross-store" class="sidebar-item{{if eq .Page "dashboards"}} active{{end}}" data-color="admin">
+        <span class="nav-icon" style="background: var(--nav-reports);"></span>
+        Cross-Store
+      </a>
     </div>
     {{end}}
   </nav>

@@ -37,7 +37,8 @@ import (
 	taskPkg      "github.com/growdirect-llc/rapidpos/internal/task"
 	"github.com/growdirect-llc/rapidpos/internal/web"
 	workflowPkg  "github.com/growdirect-llc/rapidpos/internal/workflow"
-	employeePkg  "github.com/growdirect-llc/rapidpos/internal/employee"
+	employeePkg    "github.com/growdirect-llc/rapidpos/internal/employee"
+	hierarchyPkg   "github.com/growdirect-llc/rapidpos/internal/hierarchy"
 	reportPkg    "github.com/growdirect-llc/rapidpos/internal/report"
 	returnsPkg   "github.com/growdirect-llc/rapidpos/internal/returns"
 
@@ -237,6 +238,7 @@ func main() {
 		WorkflowStore:  workflowPkg.NewStore(pool),
 		AssetStore:     assetPkg.NewStore(pool),
 		AuditReader:    audit.NewPgxInserter(pool),
+		HierarchyStore: hierarchyPkg.NewStore(pool),
 	}
 	web.New(webDeps, logger).Mount(r)
 
