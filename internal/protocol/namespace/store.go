@@ -108,6 +108,39 @@ func (s *Store) GetByName(ctx context.Context, name string) (*Registration, erro
 	return reg, nil
 }
 
+// ListRecent returns the most recently registered .jeffe namespace claims
+// across all owners. Used by the protocol portal overview (W7 / GRO-826).
+// Cross-tenant — operators with portal access see all recent registrations.
+// Ordered by registered_at DESC; default limit 50, max 200.
+func (s *Store) ListRecent(ctx context.Context, limit int) ([]Registration, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	const q = `
+		SELECT reg_id, name, owner_id, owner_type, raas_uuid,
+		       COALESCE(inscription_id, ''), COALESCE(btc_tx_id, ''),
+		       COALESCE(btc_block_height, 0),
+		       network, reg_status, payload_hash, registered_at, updated_at, expires_at
+		FROM protocol.namespace_registrations
+		ORDER BY registered_at DESC
+		LIMIT $1
+	`
+	rows, err := s.pool.Query(ctx, q, limit)
+	if err != nil {
+		return nil, fmt.Errorf("namespace store list_recent: %w", err)
+	}
+	defer rows.Close()
+	out := make([]Registration, 0, limit)
+	for rows.Next() {
+		reg, err := scanRegistration(rows)
+		if err != nil {
+			return nil, fmt.Errorf("namespace store list_recent scan: %w", err)
+		}
+		out = append(out, *reg)
+	}
+	return out, rows.Err()
+}
+
 // GetByOwner returns all registrations for a given (owner_id, owner_type) pair.
 func (s *Store) GetByOwner(ctx context.Context, ownerID uuid.UUID, ownerType string) ([]Registration, error) {
 	const q = `
