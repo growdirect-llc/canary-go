@@ -251,7 +251,6 @@ func TestApiDocs_includedInKnownServices(t *testing.T) {
 func _sampleCatalog() *Catalog {
 	port := 9100
 	return &Catalog{
-		GeneratedAt: "2026-05-07T00:00:00Z",
 		Axes: []CatalogAxis{
 			{Key: "A", Name: "Adapter", Direction: "POS → Canary"},
 			{Key: "B", Name: "Resource", Direction: "Canary → external"},

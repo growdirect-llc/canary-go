@@ -34,13 +34,16 @@ import (
 // Catalog is the JSON shape emitted by parse_manifest.py's
 // build_catalog() — see services/canary-protocol/manifest/gen/.
 // Keep the field tags in lockstep with that emitter.
+//
+// Deliberately no GeneratedAt field — the catalog is content-addressable
+// via the input-file SHAs in manifest.yaml's generated_from. Including a
+// wall-clock timestamp causes git churn on every `make manifest` run.
 type Catalog struct {
-	GeneratedAt string         `json:"generated_at"`
-	Axes        []CatalogAxis  `json:"axes"`
-	Tiers       []string       `json:"tiers"`
-	Cells       []CatalogCell  `json:"cells"`
-	Services    []CatalogSvc   `json:"services"`
-	Totals      CatalogTotals  `json:"totals"`
+	Axes     []CatalogAxis `json:"axes"`
+	Tiers    []string      `json:"tiers"`
+	Cells    []CatalogCell `json:"cells"`
+	Services []CatalogSvc  `json:"services"`
+	Totals   CatalogTotals `json:"totals"`
 }
 
 type CatalogAxis struct {
