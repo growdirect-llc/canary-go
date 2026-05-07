@@ -1,0 +1,13 @@
+{{define "onboarding_progress"}}
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:24px;">
+  <span style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Step {{.Step}} of {{.Total}}</span>
+  <div style="flex:1;height:4px;background:var(--bg-surface);border-radius:2px;overflow:hidden;">
+    {{$pct := 0}}
+    {{if eq .Step 1}}{{$pct = 25}}{{end}}
+    {{if eq .Step 2}}{{$pct = 50}}{{end}}
+    {{if eq .Step 3}}{{$pct = 75}}{{end}}
+    {{if eq .Step 4}}{{$pct = 100}}{{end}}
+    <div style="width:{{$pct}}%;height:100%;background:var(--signal-yellow);transition:width 0.3s;"></div>
+  </div>
+</div>
+{{end}}

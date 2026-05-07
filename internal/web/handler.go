@@ -194,7 +194,22 @@ func New(deps Deps, logger *zap.Logger) *Handler {
 	h.mustParse("po_list", "templates/po/list.html")
 	h.mustParse("po_detail", "templates/po/detail.html")
 	h.mustParse("po_match", "templates/po/match.html")
+	h.mustParseShared("onboarding_connect", "templates/onboarding/connect.html", "templates/onboarding/progress.html")
+	h.mustParseShared("onboarding_import", "templates/onboarding/import.html", "templates/onboarding/progress.html")
+	h.mustParseShared("onboarding_rules", "templates/onboarding/rules.html", "templates/onboarding/progress.html")
+	h.mustParseShared("onboarding_welcome", "templates/onboarding/welcome.html", "templates/onboarding/progress.html")
 	return h
+}
+
+// mustParseShared is like mustParse but pulls in an extra partial alongside
+// the page template (used by the onboarding wizard for the progress bar).
+func (h *Handler) mustParseShared(name, pageFile, sharedPartial string) {
+	h.templates[name] = template.Must(template.ParseFS(embedFS,
+		"templates/base.html",
+		"templates/partials/sidebar.html",
+		sharedPartial,
+		pageFile,
+	))
 }
 
 // mustParse builds a per-page template set: base + sidebar + page file.
@@ -368,6 +383,14 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/po/{id}", h.poDetailPage)
 	r.Get("/po/{id}/match", h.poMatchPage)
 	r.Post("/po/{id}/status", h.poStatusAction)
+
+	// Onboarding wizard — W13 / GRO-832.
+	r.Get("/onboarding", h.onboardingIndexPage)
+	r.Get("/onboarding/connect", h.onboardingConnectPage)
+	r.Get("/onboarding/import", h.onboardingImportPage)
+	r.Get("/onboarding/rules", h.onboardingRulesPage)
+	r.Post("/onboarding/rules/enable", h.onboardingRulesEnableAction)
+	r.Get("/onboarding/welcome", h.onboardingWelcomePage)
 
 	// Cross-domain exceptions
 	r.Get("/exceptions", h.page("exceptions", "exceptions_list", func(_ *http.Request) any {
