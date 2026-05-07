@@ -8,6 +8,7 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/employee"
 	"github.com/growdirect-llc/rapidpos/internal/inventory"
 	"github.com/growdirect-llc/rapidpos/internal/item"
+	"github.com/growdirect-llc/rapidpos/internal/mcp"
 	lpPkg "github.com/growdirect-llc/rapidpos/internal/lp"
 	"github.com/growdirect-llc/rapidpos/internal/pricing"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
@@ -31,4 +32,5 @@ type Deps struct {
 	PricingStore     pricing.Store // interface
 	EmployeeStore    *employee.Store
 	WorkflowStore    *workflow.Store
+	MCPRegistry      *mcp.Registry
 }

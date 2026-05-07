@@ -170,6 +170,7 @@ func New(deps Deps, logger *zap.Logger) *Handler {
 	h.mustParse("cases_remediate", "templates/cases/remediate.html")
 	h.mustParse("report_cases", "templates/reports/cases.html")
 	h.mustParse("workflows_list", "templates/workflows/list.html")
+	h.mustParse("mcp_tools", "templates/mcp/tools.html")
 	return h
 }
 
@@ -323,6 +324,10 @@ func (h *Handler) Mount(r chi.Router) {
 	// Workflow engine surfaces — wired W4 / GRO-823 (unified list page;
 	// per-workflow detail views are a follow-on dispatch).
 	r.Get("/workflows", h.workflowsListPage)
+
+	// MCP tool catalog — wired W12 / GRO-831. Reads the in-process
+	// registry; usage log + playground are follow-on dispatches.
+	r.Get("/mcp/tools", h.mcpToolsPage)
 
 	// Error pages (also reachable programmatically via Render403/404/500)
 	r.Get("/errors/403", h.errPage(403))
@@ -1567,6 +1572,42 @@ func parseDecimal(s string) float64 {
 	}
 	f, _ := strconv.ParseFloat(s, 64)
 	return f
+}
+
+// mcpToolsPage renders the catalog of registered MCP tools by reading
+// the in-process Registry. Tools are grouped by module via a name-prefix
+// convention (e.g. "canary.alert.list" → module "alert"). Wired W12 /
+// GRO-831. Usage log + playground are follow-on.
+func (h *Handler) mcpToolsPage(w http.ResponseWriter, r *http.Request) {
+	if h.deps.MCPRegistry == nil {
+		h.render(w, r, "mcp_tools", "settings", map[string]any{
+			"Tools": nil, "Count": 0,
+		})
+		return
+	}
+	defs := h.deps.MCPRegistry.List()
+	rows := make([]map[string]any, 0, len(defs))
+	for _, d := range defs {
+		rows = append(rows, map[string]any{
+			"Name":        d.Name,
+			"Module":      mcpModuleFromName(d.Name),
+			"Description": d.Description,
+		})
+	}
+	h.render(w, r, "mcp_tools", "settings", map[string]any{
+		"Tools": rows,
+		"Count": len(rows),
+	})
+}
+
+// mcpModuleFromName extracts a display module name from an MCP tool's
+// dotted name. e.g. "canary.alert.list" → "alert".
+func mcpModuleFromName(name string) string {
+	parts := strings.Split(name, ".")
+	if len(parts) >= 2 {
+		return parts[1]
+	}
+	return "—"
 }
 
 // workflowsListPage renders all registered workflow definitions plus
