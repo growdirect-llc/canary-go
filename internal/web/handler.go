@@ -54,6 +54,7 @@ import (
 	"github.com/ruptiv/canary/internal/inventory"
 	"github.com/ruptiv/canary/internal/item"
 	"github.com/ruptiv/canary/internal/protocol/validate"
+	"github.com/ruptiv/canary/internal/tenant"
 	"github.com/ruptiv/canary/internal/transaction"
 	"github.com/ruptiv/canary/internal/workflow"
 )
@@ -241,6 +242,12 @@ func (h *Handler) mustParse(name, pageFile string) {
 // Mount registers all web UI routes on r.
 func (h *Handler) Mount(r chi.Router) {
 	staticFS, _ := fs.Sub(embedFS, "static")
+
+	// Resolve tenant from session cookie on every request (T-B / GRO-849).
+	// This is a passthrough when MerchantResolver is nil (test wiring) or
+	// when the request has no valid session cookie — public routes still
+	// reach their handlers. Per-handler enforcement uses h.requireTenant().
+	r.Use(tenantSessionMiddleware(h.deps.MerchantResolver))
 
 	r.Handle("/web/static/*", http.StripPrefix("/web/static/",
 		http.FileServer(http.FS(staticFS))))
@@ -3121,8 +3128,13 @@ func customerDisplayName(c customer.CustomerDTO) string {
 // Sprint 2 T-J / GRO-853.
 
 // tenantIDFromCtx extracts the tenant UUID from the request context.
-// Returns uuid.Nil until auth middleware (GRO-769) is wired.
+// Wired by tenantSessionMiddleware (T-B / GRO-849), which reads the
+// signed session cookie via Deps.MerchantResolver and injects through
+// tenant.InjectMerchantID. Returns uuid.Nil when no session is
+// resolved — handlers that need an authenticated tenant should be
+// wrapped in h.requireTenant() so the nil case redirects to /connect
+// instead of rendering empty data.
 func tenantIDFromCtx(ctx context.Context) uuid.UUID {
-	// TODO(GRO-769): replace with identity.TenantIDFromCtx(ctx)
-	return uuid.Nil
+	id, _ := tenant.FromContext(ctx)
+	return id
 }

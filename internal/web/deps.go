@@ -1,6 +1,10 @@
 package web
 
 import (
+	"net/http"
+
+	"github.com/google/uuid"
+
 	"github.com/ruptiv/canary/internal/alert"
 	"github.com/ruptiv/canary/internal/asset"
 	"github.com/ruptiv/canary/internal/billing"
@@ -11,8 +15,8 @@ import (
 	"github.com/ruptiv/canary/internal/hierarchy"
 	"github.com/ruptiv/canary/internal/inventory"
 	"github.com/ruptiv/canary/internal/item"
-	"github.com/ruptiv/canary/internal/mcp"
 	lpPkg "github.com/ruptiv/canary/internal/lp"
+	"github.com/ruptiv/canary/internal/mcp"
 	"github.com/ruptiv/canary/internal/owl"
 	"github.com/ruptiv/canary/internal/po"
 	"github.com/ruptiv/canary/internal/pricing"
@@ -24,6 +28,12 @@ import (
 	"github.com/ruptiv/canary/internal/transaction"
 	"github.com/ruptiv/canary/internal/workflow"
 )
+
+// MerchantResolver derives the authenticated merchant UUID from a
+// request. The web handler does not import squareauth — gateway main
+// passes squareSvc.MerchantFromRequest in. Returns (uuid.Nil, false)
+// when no valid session cookie is present. T-B / GRO-849.
+type MerchantResolver func(r *http.Request) (uuid.UUID, bool)
 
 // Deps holds all backend store dependencies for the web handler.
 // Each field is optional (nil = use stub data for that domain).
@@ -87,4 +97,12 @@ type Deps struct {
 	// app.purchase_order_lines tables (migration 030).
 	SupplierStore *supplier.Store
 	POStore       *po.Store
+
+	// MerchantResolver derives the authenticated merchant UUID from
+	// the session cookie. Wired by gateway main to
+	// squareSvc.MerchantFromRequest. When nil (e.g. tests that don't
+	// exercise auth), the tenant middleware degrades to the legacy
+	// "no resolved tenant" path and tenantIDFromCtx returns uuid.Nil
+	// — preserving existing handler behavior. T-B / GRO-849.
+	MerchantResolver MerchantResolver
 }

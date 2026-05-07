@@ -246,6 +246,14 @@ func (s *Service) merchantFromCookie(r *http.Request) (uuid.UUID, bool) {
 	return s.verifyCookieValue(c.Value)
 }
 
+// MerchantFromRequest is the exported wrapper around merchantFromCookie.
+// Other packages (web, devops) inject this as a resolver so they can
+// derive the tenant UUID from the session without importing private
+// cookie-handling internals. T-B / GRO-849.
+func (s *Service) MerchantFromRequest(r *http.Request) (uuid.UUID, bool) {
+	return s.merchantFromCookie(r)
+}
+
 // signCookieValue builds the cookie body "<uuid>.<base64url-hmac>".
 // HMAC-SHA256 over the UUID string, keyed on s.sessionKey (loaded from
 // SESSION_SECRET at construction). When sessionKey is empty (only

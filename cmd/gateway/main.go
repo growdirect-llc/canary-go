@@ -241,21 +241,22 @@ func main() {
 
 	// / — Canary application UI.
 	webDeps := web.Deps{
-		AlertStore:     alertPkg.NewStore(pool),
-		CaseStore:      casemgmtPkg.NewStore(pool),
-		ChirpStore:     chirpPkg.NewPgxStore(pool),
-		CustomerStore:  customerPkg.NewStore(pool),
-		SubstrateStore: lpPkg.NewSubstrateStore(pool),
-		AllowListStore: lpPkg.NewAllowListStore(pool),
-		OwlDashboard:   owlPkg.NewDashboardStore(pool),
-		TaskStore:      taskPkg.NewStore(pool),
-		BillingStore:   billingPkg.NewStore(pool),
-		WorkflowStore:  workflowPkg.NewStore(pool),
-		AssetStore:     assetPkg.NewStore(pool),
-		AuditReader:    audit.NewPgxInserter(pool),
-		HierarchyStore: hierarchyPkg.NewStore(pool),
-		SupplierStore:  supplierPkg.NewStore(pool),
-		POStore:        poPkg.NewStore(pool),
+		AlertStore:       alertPkg.NewStore(pool),
+		CaseStore:        casemgmtPkg.NewStore(pool),
+		ChirpStore:       chirpPkg.NewPgxStore(pool),
+		CustomerStore:    customerPkg.NewStore(pool),
+		SubstrateStore:   lpPkg.NewSubstrateStore(pool),
+		AllowListStore:   lpPkg.NewAllowListStore(pool),
+		OwlDashboard:     owlPkg.NewDashboardStore(pool),
+		TaskStore:        taskPkg.NewStore(pool),
+		BillingStore:     billingPkg.NewStore(pool),
+		WorkflowStore:    workflowPkg.NewStore(pool),
+		AssetStore:       assetPkg.NewStore(pool),
+		AuditReader:      audit.NewPgxInserter(pool),
+		HierarchyStore:   hierarchyPkg.NewStore(pool),
+		SupplierStore:    supplierPkg.NewStore(pool),
+		POStore:          poPkg.NewStore(pool),
+		MerchantResolver: squareSvc.MerchantFromRequest,
 	}
 	web.New(webDeps, logger).Mount(r)
 
