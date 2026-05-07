@@ -174,6 +174,7 @@ func New(deps Deps, logger *zap.Logger) *Handler {
 	h.mustParse("protocol_overview", "templates/protocol/overview.html")
 	h.mustParse("owl_dashboards", "templates/owl/dashboards.html")
 	h.mustParse("owl_parties", "templates/owl/parties.html")
+	h.mustParse("owl_lp_performance", "templates/owl/lp_performance.html")
 	return h
 }
 
@@ -215,6 +216,7 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/owl", h.owlPage)
 	r.Get("/owl/dashboards", h.owlDashboardsPage)
 	r.Get("/owl/parties", h.owlPartiesPage)
+	r.Get("/owl/lp-performance", h.owlLPPerformancePage)
 	r.Get("/rules", h.rulesListPage)
 	r.Get("/connect", h.page("connect", "connect", stubConnect))
 	r.Get("/welcome", h.page("welcome", "welcome", nil))
@@ -528,6 +530,54 @@ func parseOwlLimit(raw string, def int) int {
 		return 500
 	}
 	return n
+}
+
+// owlLPPerformancePage renders LP-rate detail per rule type. Same
+// underlying query as the dashboards page (LPRateRollup) but full-table
+// view with drill-down to the alert list filtered by rule_type.
+// Wired W6 / GRO-825.
+func (h *Handler) owlLPPerformancePage(w http.ResponseWriter, r *http.Request) {
+	from, to, label := owlPortalPeriod(r.URL.Query().Get("period"), time.Now())
+	view := map[string]any{
+		"Period":            label,
+		"PeriodOptions":     []string{"day", "week", "month", "quarter"},
+		"WindowFrom":        from.Format("2006-01-02 15:04"),
+		"WindowTo":          to.Format("2006-01-02 15:04"),
+		"TotalDetections":   0,
+		"TotalCases":        0,
+		"OverallEscalation": "0%",
+		"Rows":              nil,
+	}
+
+	if h.deps.OwlDashboard != nil {
+		ctx := r.Context()
+		tenantID := tenantIDFromCtx(ctx)
+		lp, err := h.deps.OwlDashboard.LPRateRollup(ctx, tenantID, from, to)
+		if err != nil {
+			h.logger.Error("owlLPPerformancePage: rollup", zap.Error(err))
+		} else {
+			rows := make([]map[string]any, 0, len(lp))
+			var totalDet, totalCase int
+			for _, m := range lp {
+				rows = append(rows, map[string]any{
+					"RuleType":      m.RuleType,
+					"Detections":    m.DetectionCount,
+					"Cases":         m.CaseCount,
+					"EscalationPct": formatOwlPct(m.EscalationRate),
+				})
+				totalDet += m.DetectionCount
+				totalCase += m.CaseCount
+			}
+			view["Rows"] = rows
+			view["TotalDetections"] = totalDet
+			view["TotalCases"] = totalCase
+			if totalDet > 0 {
+				view["OverallEscalation"] = formatOwlPct(float64(totalCase) / float64(totalDet))
+			}
+		}
+	}
+
+	h.render(w, r, "owl_lp_performance", "owl_intel", view)
 }
 
 func (h *Handler) hawkDetailPage(w http.ResponseWriter, r *http.Request) {

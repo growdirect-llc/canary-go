@@ -176,3 +176,40 @@ func TestOwlParties_LimitClamp(t *testing.T) {
 		}
 	}
 }
+
+// TestOwlLPPerformance_NoStore_RendersEmptyState — LP-perf page renders
+// the empty-state copy with KPI tiles at 0.
+func TestOwlLPPerformance_NoStore_RendersEmptyState(t *testing.T) {
+	h := New(Deps{}, nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/owl/lp-performance", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d", rr.Code)
+	}
+	body := rr.Body.String()
+	for _, want := range []string{"LP Performance", "Per Rule Type", "No LP-rate data yet"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("body missing %q", want)
+		}
+	}
+}
+
+// TestOwlLPPerformance_PeriodSelector — every period renders 200.
+func TestOwlLPPerformance_PeriodSelector(t *testing.T) {
+	h := New(Deps{}, nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	for _, period := range []string{"day", "week", "month", "quarter"} {
+		req := httptest.NewRequest(http.MethodGet, "/owl/lp-performance?period="+period, nil)
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Errorf("period=%s: expected 200 got %d", period, rr.Code)
+		}
+	}
+}

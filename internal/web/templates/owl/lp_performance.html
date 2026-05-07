@@ -1,0 +1,70 @@
+{{template "base.html" .}}
+
+{{define "title"}}LP Performance — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Owl &middot; LP Performance</h1>
+  <p class="page-subtitle">Detection volume and case-escalation rate per rule type</p>
+</div>
+
+<div style="display:flex;gap:8px;margin-bottom:24px;align-items:center;">
+  {{$active := .Period}}
+  {{range $kind := .PeriodOptions}}
+  <a href="/owl/lp-performance?period={{$kind}}"
+     data-period="{{$kind}}"
+     class="period-pill{{if eq $kind $active}} active{{end}}"
+     style="padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;text-decoration:none;border:1px solid var(--border-subtle);{{if eq $kind $active}}background:var(--signal-yellow);color:#0d1117;{{else}}background:var(--bg-surface);color:var(--text-secondary);{{end}}">{{$kind}}</a>
+  {{end}}
+  <span style="margin-left:auto;font-size:11px;color:var(--text-muted);">
+    {{.WindowFrom}} → {{.WindowTo}} UTC
+  </span>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;">
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.TotalDetections}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Detections</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--accent-blue);">{{.TotalCases}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Cases</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--health-green);">{{.OverallEscalation}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Overall Escalation</div>
+  </div>
+</div>
+
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Per Rule Type</div>
+  {{if .Rows}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Rule Type</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Detections</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Cases</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Escalation</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Drill</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Rows}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;color:var(--text-primary);">{{.RuleType}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.Detections}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.Cases}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-primary);font-weight:600;">{{.EscalationPct}}</td>
+        <td style="padding:10px 0;"><a href="/alerts?rule_type={{.RuleType}}" style="font-size:11px;color:var(--signal-yellow);text-decoration:none;">Alerts →</a></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No LP-rate data yet for this window.</p>
+  {{end}}
+</div>
+{{end}}
+{{end}}
