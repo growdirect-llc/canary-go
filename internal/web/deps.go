@@ -14,10 +14,12 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/mcp"
 	lpPkg "github.com/growdirect-llc/rapidpos/internal/lp"
 	"github.com/growdirect-llc/rapidpos/internal/owl"
+	"github.com/growdirect-llc/rapidpos/internal/po"
 	"github.com/growdirect-llc/rapidpos/internal/pricing"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/audit"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/namespace"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
+	"github.com/growdirect-llc/rapidpos/internal/supplier"
 	"github.com/growdirect-llc/rapidpos/internal/task"
 	"github.com/growdirect-llc/rapidpos/internal/transaction"
 	"github.com/growdirect-llc/rapidpos/internal/workflow"
@@ -79,4 +81,10 @@ type Deps struct {
 	// /admin/hierarchy + /dashboards/cross-store + /admin/network-integrity
 	// surfaces.
 	HierarchyStore *hierarchy.Store
+
+	// Procurement portal — supplier + purchase order lifecycle.
+	// Wired W11 / GRO-830 over new app.suppliers, app.purchase_orders,
+	// app.purchase_order_lines tables (migration 030).
+	SupplierStore *supplier.Store
+	POStore       *po.Store
 }

@@ -1,0 +1,73 @@
+{{template "base.html" .}}
+{{define "title"}}PO — Canary{{end}}
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:16px;">
+  <a href="/po" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← POs</a>
+</div>
+<div class="page-header" style="margin-bottom:8px;">
+  <h1>PO {{.PO.PONumber}}</h1>
+</div>
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+  <span class="badge">{{.PO.Status}}</span>
+  <span style="font-size:13px;color:var(--text-secondary);">Expected {{.PO.ExpectedAt}}</span>
+  <span style="color:var(--border-subtle);">·</span>
+  <span style="font-size:13px;color:var(--text-secondary);">Total {{.PO.TotalCost}}</span>
+  <a href="/po/{{.PO.ID}}/match" style="margin-left:auto;font-size:12px;color:var(--signal-yellow);text-decoration:none;">Three-way match →</a>
+</div>
+
+{{if .Flash}}<div style="margin-bottom:16px;padding:10px 14px;background:rgba(234,179,8,0.08);border:1px solid var(--signal-yellow);border-radius:6px;font-size:12px;color:var(--signal-yellow);">Action: {{.Flash}}</div>{{end}}
+
+<div class="ops-card" style="margin-bottom:24px;">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Lifecycle</div>
+  <div style="display:flex;gap:8px;">
+    <form method="POST" action="/po/{{.PO.ID}}/status" style="display:inline;">
+      <input type="hidden" name="status" value="submitted"/>
+      <button type="submit" style="font-size:11px;padding:5px 12px;background:transparent;border:1px solid var(--accent-blue);color:var(--accent-blue);border-radius:4px;cursor:pointer;">Submit</button>
+    </form>
+    <form method="POST" action="/po/{{.PO.ID}}/status" style="display:inline;">
+      <input type="hidden" name="status" value="received"/>
+      <button type="submit" style="font-size:11px;padding:5px 12px;background:transparent;border:1px solid var(--signal-yellow);color:var(--signal-yellow);border-radius:4px;cursor:pointer;">Mark Received</button>
+    </form>
+    <form method="POST" action="/po/{{.PO.ID}}/status" style="display:inline;">
+      <input type="hidden" name="status" value="closed"/>
+      <button type="submit" style="font-size:11px;padding:5px 12px;background:transparent;border:1px solid var(--health-green);color:var(--health-green);border-radius:4px;cursor:pointer;">Close</button>
+    </form>
+    <form method="POST" action="/po/{{.PO.ID}}/status" style="display:inline;margin-left:auto;">
+      <input type="hidden" name="status" value="cancelled"/>
+      <button type="submit" style="font-size:11px;padding:5px 12px;background:transparent;border:1px solid var(--critical-red);color:var(--critical-red);border-radius:4px;cursor:pointer;">Cancel</button>
+    </form>
+  </div>
+</div>
+
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Lines</div>
+  {{if .Lines}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Line</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Description</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Ordered</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Received</th>
+        <th style="padding:6px 0;text-align:right;font-weight:500;">Unit Cost</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Lines}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;font-family:'Space Grotesk',monospace;font-size:11px;color:var(--text-muted);">{{.LineNumber}}</td>
+        <td style="padding:10px 12px;color:var(--text-primary);">{{.Description}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.OrderedQty}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.ReceivedQty}}</td>
+        <td style="padding:10px 0;text-align:right;color:var(--text-secondary);">{{.UnitCost}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No lines on this PO. Line entry comes via the receiving flow once the PO is submitted.</p>
+  {{end}}
+</div>
+{{end}}
+{{end}}

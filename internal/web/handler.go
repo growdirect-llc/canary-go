@@ -188,6 +188,12 @@ func New(deps Deps, logger *zap.Logger) *Handler {
 	h.mustParse("admin_hierarchy", "templates/admin/hierarchy.html")
 	h.mustParse("admin_network_integrity", "templates/admin/network_integrity.html")
 	h.mustParse("dashboards_cross_store", "templates/dashboards/cross_store.html")
+	h.mustParse("suppliers_list", "templates/suppliers/list.html")
+	h.mustParse("suppliers_detail", "templates/suppliers/detail.html")
+	h.mustParse("suppliers_scorecard", "templates/suppliers/scorecard.html")
+	h.mustParse("po_list", "templates/po/list.html")
+	h.mustParse("po_detail", "templates/po/detail.html")
+	h.mustParse("po_match", "templates/po/match.html")
 	return h
 }
 
@@ -351,6 +357,17 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Post("/admin/hierarchy", h.adminHierarchyCreate)
 	r.Get("/admin/network-integrity", h.adminNetworkIntegrityPage)
 	r.Get("/dashboards/cross-store", h.dashboardsCrossStorePage)
+
+	// Procurement — supplier + PO portal. W11 / GRO-830.
+	r.Get("/suppliers", h.suppliersListPage)
+	r.Post("/suppliers", h.suppliersCreate)
+	r.Get("/suppliers/{id}", h.supplierDetailPage)
+	r.Get("/suppliers/{id}/scorecard", h.supplierScorecardPage)
+	r.Get("/po", h.poListPage)
+	r.Post("/po", h.poCreate)
+	r.Get("/po/{id}", h.poDetailPage)
+	r.Get("/po/{id}/match", h.poMatchPage)
+	r.Post("/po/{id}/status", h.poStatusAction)
 
 	// Cross-domain exceptions
 	r.Get("/exceptions", h.page("exceptions", "exceptions_list", func(_ *http.Request) any {

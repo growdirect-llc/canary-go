@@ -88,6 +88,18 @@
     </div>
 
     <div class="sidebar-section">
+      <div class="sidebar-section-label">Procurement</div>
+      <a href="/suppliers" class="sidebar-item{{if eq .Page "procurement"}} active{{end}}" data-color="procurement">
+        <span class="nav-icon" style="background: var(--nav-employees);"></span>
+        Suppliers
+      </a>
+      <a href="/po" class="sidebar-item" data-color="procurement">
+        <span class="nav-icon" style="background: var(--nav-transactions);"></span>
+        Purchase Orders
+      </a>
+    </div>
+
+    <div class="sidebar-section">
       <div class="sidebar-section-label">Billing</div>
       <a href="/billing/overview" class="sidebar-item{{if eq .Page "billing"}} active{{end}}" data-color="billing">
         <span class="nav-icon" style="background: var(--nav-reports);"></span>
