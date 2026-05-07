@@ -25,14 +25,24 @@ import (
 	"github.com/ruptiv/canary/internal/webhook"
 )
 
+// dlqStore is the slice of *webhook.DLQ the admin endpoints actually
+// touch. Held as an interface so handler tests can stub it without
+// pulling in a real Postgres pool.
+type dlqStore interface {
+	Get(ctx context.Context, id uuid.UUID) (*webhook.DLQRow, error)
+	List(ctx context.Context, f webhook.ListFilters) ([]webhook.DLQRow, error)
+	MarkReplayed(ctx context.Context, id uuid.UUID) error
+	MarkRetryFailed(ctx context.Context, id uuid.UUID, lastErr string) (*webhook.DLQRow, error)
+}
+
 // adminHandlers binds the DLQ + replay endpoints to the gateway's
 // pgxpool + publisher.
 type adminHandlers struct {
-	dlq       *webhook.DLQ
+	dlq       dlqStore
 	publisher publisher.Publisher
 }
 
-func newAdminHandlers(dlq *webhook.DLQ, pub publisher.Publisher) *adminHandlers {
+func newAdminHandlers(dlq dlqStore, pub publisher.Publisher) *adminHandlers {
 	return &adminHandlers{dlq: dlq, publisher: pub}
 }
 
@@ -58,7 +68,14 @@ func (h *adminHandlers) list(w http.ResponseWriter, r *http.Request) {
 		SourceCode: q.Get("source_code"),
 		Status:     q.Get("status"),
 	}
-	if v := q.Get("merchant_id"); v != "" {
+	// T-H / GRO-849: tenant-scoped keys see only their own DLQ rows.
+	// Platform-scope keys (claims.TenantID == uuid.Nil) keep the
+	// merchant_id query param as a free filter — they're cross-tenant
+	// by design.
+	claims, _ := identity.ClaimsFromContext(r.Context())
+	if claims.TenantID != uuid.Nil {
+		f.MerchantID = &claims.TenantID
+	} else if v := q.Get("merchant_id"); v != "" {
 		id, err := uuid.Parse(v)
 		if err != nil {
 			writeAdminErr(w, http.StatusBadRequest, "malformed_merchant_id", err.Error())
@@ -110,6 +127,14 @@ func (h *adminHandlers) get(w http.ResponseWriter, r *http.Request) {
 		writeAdminErr(w, http.StatusInternalServerError, "get_failed", err.Error())
 		return
 	}
+	// T-H / GRO-849: tenant-scoped key fetching another tenant's row
+	// gets 404 (not 403) — same response shape as a true miss to
+	// avoid leaking row existence across tenants.
+	claims, _ := identity.ClaimsFromContext(r.Context())
+	if claims.TenantID != uuid.Nil && row.MerchantID != claims.TenantID {
+		writeAdminErr(w, http.StatusNotFound, "not_found", "")
+		return
+	}
 	writeAdminJSON(w, http.StatusOK, row)
 }
 
@@ -145,6 +170,14 @@ func (h *adminHandlers) replay(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeAdminErr(w, http.StatusInternalServerError, "get_failed", err.Error())
+		return
+	}
+	// T-H / GRO-849: tenant-scoped key replaying another tenant's
+	// row — return 404 to avoid existence leak. Replay would also
+	// re-publish under row.MerchantID, which is the foreign tenant.
+	claims, _ := identity.ClaimsFromContext(r.Context())
+	if claims.TenantID != uuid.Nil && row.MerchantID != claims.TenantID {
+		writeAdminErr(w, http.StatusNotFound, "not_found", "")
 		return
 	}
 	if row.Status != "pending" {
