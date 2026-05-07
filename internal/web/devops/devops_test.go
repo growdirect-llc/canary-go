@@ -114,6 +114,7 @@ func TestKnownServices_returnsAllSkeletons(t *testing.T) {
 	want := map[string]bool{
 		"catalog": true, "manifest": true, "observability": true,
 		"pipeline": true, "qa-agent": true, "api-docs": true,
+		"evidence": true, "anchor": true, "mcp": true,
 	}
 	if len(got) != len(want) {
 		t.Errorf("KnownServices count: got %d, want %d; got %v", len(got), len(want), got)
