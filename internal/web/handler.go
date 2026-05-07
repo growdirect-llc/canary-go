@@ -50,6 +50,7 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/casemgmt"
 	"github.com/growdirect-llc/rapidpos/internal/chirp"
 	"github.com/growdirect-llc/rapidpos/internal/customer"
+	"github.com/growdirect-llc/rapidpos/internal/employee"
 	"github.com/growdirect-llc/rapidpos/internal/inventory"
 	"github.com/growdirect-llc/rapidpos/internal/item"
 	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
@@ -293,9 +294,7 @@ func (h *Handler) Mount(r chi.Router) {
 		return map[string]any{"ActiveMarkdowns": 0, "AvgDepth": "—", "UnitsMoved": 0, "RevenueRecovery": "—", "Items": nil}
 	}))
 	r.Get("/employees/{id}", h.employeeDetailPage)
-	r.Get("/reports/labor", h.page("reports", "report_labor", func(_ *http.Request) any {
-		return map[string]any{"ActiveEmployees": 0, "StoreAvgTxnHr": "—", "TopTxnHr": "—", "FlagRate": "—", "Employees": nil}
-	}))
+	r.Get("/reports/labor", h.reportLaborPage)
 
 	// Receiving + RTV workflow — wired W2d / GRO-818.
 	r.Get("/receiving", h.receivingListPage)
@@ -1780,14 +1779,118 @@ func marginPct(price, cost *string) float64 {
 	return ((p - c) / p) * 100
 }
 
+// employeeDetailPage renders one employee with productivity metrics from
+// internal/employee.Store. Wired W2g / GRO-821.
 func (h *Handler) employeeDetailPage(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		h.render(w, r, "err404", "employees", nil)
+		return
+	}
+	if h.deps.EmployeeStore == nil {
+		h.render(w, r, "employees_detail", "employees", map[string]any{
+			"Employee": map[string]any{
+				"ID": idStr, "Name": "Employee " + idStr, "Role": "cashier", "Store": "—",
+				"TxnPerHour": "—", "AvgTxnValue": "—", "VoidRate": "—",
+				"DiscountRate": "—", "CompRate": "—", "CaseCount": 0, "AlertCount": 0,
+			},
+		})
+		return
+	}
+	ctx := r.Context()
+	tenantID := tenantIDFromCtx(ctx)
+	emp, err := h.deps.EmployeeStore.GetByID(ctx, tenantID, id)
+	if err != nil {
+		// employee.Store returns sql.ErrNoRows → wrap as 404
+		w.WriteHeader(http.StatusNotFound)
+		h.render(w, r, "err404", "employees", nil)
+		return
+	}
+	name := emp.FirstName + " " + emp.LastName
+	if emp.DisplayName != nil && *emp.DisplayName != "" {
+		name = *emp.DisplayName
+	}
+	role := "—"
+	if emp.PayType != nil {
+		role = *emp.PayType
+	}
+
 	h.render(w, r, "employees_detail", "employees", map[string]any{
 		"Employee": map[string]any{
-			"ID": id, "Name": "Employee " + id, "Role": "cashier", "Store": "—",
-			"TxnPerHour": "—", "AvgTxnValue": "—", "VoidRate": "—",
-			"DiscountRate": "—", "CompRate": "—", "CaseCount": 0, "AlertCount": 0,
+			"ID":           emp.ID.String(),
+			"Name":         name,
+			"Role":         role,
+			"Store":        "—", // wires when employee→primary_location join lands
+			"TxnPerHour":   "—",
+			"AvgTxnValue":  "—",
+			"VoidRate":     "—",
+			"DiscountRate": "—",
+			"CompRate":     "—",
+			"CaseCount":    0,
+			"AlertCount":   0,
 		},
+	})
+}
+
+// reportLaborPage renders the productivity dashboard with per-employee alert
+// summaries from internal/employee.Store.AlertSummaries. Wired W2g / GRO-821.
+func (h *Handler) reportLaborPage(w http.ResponseWriter, r *http.Request) {
+	if h.deps.EmployeeStore == nil {
+		h.render(w, r, "report_labor", "reports", map[string]any{
+			"ActiveEmployees": 0, "StoreAvgTxnHr": "—", "TopTxnHr": "—",
+			"FlagRate": "—", "Employees": nil,
+		})
+		return
+	}
+	ctx := r.Context()
+	tenantID := tenantIDFromCtx(ctx)
+	emps, err := h.deps.EmployeeStore.List(ctx, employee.ListFilters{
+		TenantID: tenantID,
+		Limit:    200,
+	})
+	if err != nil {
+		h.logger.Error("reportLaborPage: list", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		h.render(w, r, "err500", "reports", nil)
+		return
+	}
+	summaries, err := h.deps.EmployeeStore.AlertSummaries(ctx, tenantID)
+	if err != nil {
+		h.logger.Error("reportLaborPage: alert summaries", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		h.render(w, r, "err500", "reports", nil)
+		return
+	}
+	alertsByEmp := map[uuid.UUID]int64{}
+	for _, s := range summaries {
+		alertsByEmp[s.EmployeeID] = s.TotalAlerts
+	}
+	active := 0
+	rows := make([]map[string]any, 0, len(emps))
+	for _, e := range emps {
+		if e.EmploymentStatus == "active" {
+			active++
+		}
+		name := e.FirstName + " " + e.LastName
+		if e.DisplayName != nil && *e.DisplayName != "" {
+			name = *e.DisplayName
+		}
+		rows = append(rows, map[string]any{
+			"ID":         e.ID.String(),
+			"Name":       name,
+			"Store":      "—",
+			"TxnHr":      "—",
+			"AlertCount": alertsByEmp[e.ID],
+		})
+	}
+	h.render(w, r, "report_labor", "reports", map[string]any{
+		"ActiveEmployees": active,
+		"StoreAvgTxnHr":   "—",
+		"TopTxnHr":        "—",
+		"FlagRate":        "—",
+		"Employees":       rows,
 	})
 }
 

@@ -5,6 +5,7 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/casemgmt"
 	"github.com/growdirect-llc/rapidpos/internal/chirp"
 	"github.com/growdirect-llc/rapidpos/internal/customer"
+	"github.com/growdirect-llc/rapidpos/internal/employee"
 	"github.com/growdirect-llc/rapidpos/internal/inventory"
 	"github.com/growdirect-llc/rapidpos/internal/item"
 	lpPkg "github.com/growdirect-llc/rapidpos/internal/lp"
@@ -27,4 +28,5 @@ type Deps struct {
 	InventoryStore   *inventory.Store
 	ItemStore        item.Store    // interface
 	PricingStore     pricing.Store // interface
+	EmployeeStore    *employee.Store
 }
