@@ -6,15 +6,19 @@ import (
 	"github.com/growdirect-llc/rapidpos/internal/chirp"
 	"github.com/growdirect-llc/rapidpos/internal/customer"
 	lpPkg "github.com/growdirect-llc/rapidpos/internal/lp"
+	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
+	"github.com/growdirect-llc/rapidpos/internal/transaction"
 )
 
 // Deps holds all backend store dependencies for the web handler.
 // Each field is optional (nil = use stub data for that domain).
 type Deps struct {
-	AlertStore     *alert.Store
-	CaseStore      *casemgmt.Store
-	ChirpStore     chirp.Store // interface
-	CustomerStore  *customer.Store
-	SubstrateStore *lpPkg.SubstrateStore
-	AllowListStore *lpPkg.AllowListStore
+	AlertStore       *alert.Store
+	CaseStore        *casemgmt.Store
+	ChirpStore       chirp.Store // interface
+	CustomerStore    *customer.Store
+	SubstrateStore   *lpPkg.SubstrateStore
+	AllowListStore   *lpPkg.AllowListStore
+	TransactionStore *transaction.Store
+	ValidateStore    validate.ValidationStore // interface
 }
