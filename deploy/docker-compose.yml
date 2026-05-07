@@ -49,6 +49,13 @@ services:
       LNURL_SCHEME: http
       LNURL_HOST: localhost:8080
       DEV_CONSOLE: "1"
+    # Mount the manifest pipeline outputs read-only so /devops/catalog and
+    # /devops/api-docs read live data instead of rendering placeholders.
+    # The Go handlers' first candidate path is "services/canary-protocol/...";
+    # gateway cwd is "/" so this lines up. Run `make manifest` from the repo
+    # root to regenerate; restart the gateway to pick up changes. GRO-836.
+    volumes:
+      - ../../services/canary-protocol:/services/canary-protocol:ro
     depends_on:
       canarygo-migrate:
         condition: service_completed_successfully
