@@ -32,6 +32,7 @@ import (
 	customerPkg  "github.com/growdirect-llc/rapidpos/internal/customer"
 	"github.com/growdirect-llc/rapidpos/internal/devops"
 	lpPkg        "github.com/growdirect-llc/rapidpos/internal/lp"
+	owlPkg       "github.com/growdirect-llc/rapidpos/internal/owl"
 	"github.com/growdirect-llc/rapidpos/internal/web"
 	employeePkg  "github.com/growdirect-llc/rapidpos/internal/employee"
 	reportPkg    "github.com/growdirect-llc/rapidpos/internal/report"
@@ -227,6 +228,7 @@ func main() {
 		CustomerStore:  customerPkg.NewStore(pool),
 		SubstrateStore: lpPkg.NewSubstrateStore(pool),
 		AllowListStore: lpPkg.NewAllowListStore(pool),
+		OwlDashboard:   owlPkg.NewDashboardStore(pool),
 	}
 	web.New(webDeps, logger).Mount(r)
 
