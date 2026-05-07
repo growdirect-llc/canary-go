@@ -1681,6 +1681,33 @@ func shortHex(s string, n int) string {
 	return s[:n] + "…"
 }
 
+// owlPortalPeriod translates the portal's day/week/month/quarter selector
+// into a UTC [from, to) window. Default and unknown values fold to "week".
+//
+// UTC-only on purpose: timezone-aware period parsing belongs to the JSON
+// API surface in internal/owl/period.go where it's part of the public
+// merchant-keyed contract. The portal is an operator surface; UTC keeps
+// the URL stable across user devices.
+func owlPortalPeriod(kind string, now time.Time) (from, to time.Time, label string) {
+	to = now.UTC()
+	switch strings.ToLower(strings.TrimSpace(kind)) {
+	case "day":
+		from = time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, time.UTC)
+		return from, to, "day"
+	case "month":
+		from = time.Date(to.Year(), to.Month(), 1, 0, 0, 0, 0, time.UTC)
+		return from, to, "month"
+	case "quarter":
+		qStartMonth := ((int(to.Month())-1)/3)*3 + 1
+		from = time.Date(to.Year(), time.Month(qStartMonth), 1, 0, 0, 0, 0, time.UTC)
+		return from, to, "quarter"
+	default: // "week" or anything unrecognized
+		offset := (int(to.Weekday()) + 6) % 7 // Monday = 0
+		from = time.Date(to.Year(), to.Month(), to.Day()-offset, 0, 0, 0, 0, time.UTC)
+		return from, to, "week"
+	}
+}
+
 // mcpToolsPage renders the catalog of registered MCP tools by reading
 // the in-process Registry. Tools are grouped by module via a name-prefix
 // convention (e.g. "canary.alert.list" → module "alert"). Wired W12 /
