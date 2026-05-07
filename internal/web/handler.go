@@ -198,7 +198,21 @@ func New(deps Deps, logger *zap.Logger) *Handler {
 	h.mustParseShared("onboarding_import", "templates/onboarding/import.html", "templates/onboarding/progress.html")
 	h.mustParseShared("onboarding_rules", "templates/onboarding/rules.html", "templates/onboarding/progress.html")
 	h.mustParseShared("onboarding_welcome", "templates/onboarding/welcome.html", "templates/onboarding/progress.html")
+	h.mustParseMobile("m_tasks", "templates/mobile/tasks.html")
+	h.mustParseMobile("m_receiving", "templates/mobile/receiving.html")
+	h.mustParseMobile("m_cycle_count", "templates/mobile/cycle_count.html")
+	h.mustParseMobile("m_alert_detail", "templates/mobile/alert_detail.html")
+	h.mustParseMobile("m_alerts", "templates/mobile/alert_detail.html")
 	return h
+}
+
+// mustParseMobile builds a mobile-shell template set: mobile_base + page.
+// No sidebar / no desktop chrome.
+func (h *Handler) mustParseMobile(name, pageFile string) {
+	h.templates[name] = template.Must(template.ParseFS(embedFS,
+		"templates/mobile/base.html",
+		pageFile,
+	))
 }
 
 // mustParseShared is like mustParse but pulls in an extra partial alongside
@@ -391,6 +405,12 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/onboarding/rules", h.onboardingRulesPage)
 	r.Post("/onboarding/rules/enable", h.onboardingRulesEnableAction)
 	r.Get("/onboarding/welcome", h.onboardingWelcomePage)
+
+	// Mobile / Android POS UX — W14 / GRO-833.
+	r.Get("/m/tasks", h.mobileTasksPage)
+	r.Get("/m/receiving", h.mobileReceivingPage)
+	r.Get("/m/cycle-count", h.mobileCycleCountPage)
+	r.Get("/m/alerts/{id}", h.mobileAlertDetailPage)
 
 	// Cross-domain exceptions
 	r.Get("/exceptions", h.page("exceptions", "exceptions_list", func(_ *http.Request) any {

@@ -1,0 +1,33 @@
+{{template "mobile_base.html" .}}
+{{define "title"}}Tasks — Canary{{end}}
+{{define "content"}}
+{{with .Data}}
+<div class="m-header">
+  <h1>Tasks</h1>
+  <p>{{.Count}} open</p>
+</div>
+
+{{if .Flash}}<div class="m-flash">Action: {{.Flash}}</div>{{end}}
+
+<div class="m-card">
+  {{if .Tasks}}
+  {{range .Tasks}}
+  <div class="m-row">
+    <div style="flex:1;min-width:0;">
+      <strong>{{.Type}} · qty {{.Quantity}}</strong>
+      <div><small>{{.ShortID}} · priority {{.Priority}}</small></div>
+    </div>
+    <span class="m-badge" style="{{if eq .Status "queued"}}background:rgba(107,114,128,0.15);color:var(--text-muted);{{else if eq .Status "assigned"}}background:rgba(59,130,246,0.15);color:var(--accent-blue);{{else if eq .Status "in_progress"}}background:rgba(234,179,8,0.12);color:var(--signal-yellow);{{else}}background:rgba(16,185,129,0.10);color:var(--health-green);{{end}}">{{.Status}}</span>
+  </div>
+  {{end}}
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);">No open tasks. Replenishment writes here when SOH falls below threshold.</p>
+  {{end}}
+</div>
+
+<div class="m-scan-hint">
+  <div style="font-size:14px;color:var(--text-secondary);margin-bottom:6px;">📷 Scan</div>
+  Tap to scan a barcode or enter SKU manually. Native scan integration ships with the Android POS contract.
+</div>
+{{end}}
+{{end}}
