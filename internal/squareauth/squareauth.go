@@ -52,6 +52,7 @@ type Service struct {
 	logger       *zap.Logger
 	cfg          Config
 	encKey       []byte // 32 bytes; nil if not configured
+	sessionKey   []byte // SESSION_SECRET bytes; signs the demo session cookie. nil = unsigned dev fallback
 	httpClient   *http.Client
 }
 
@@ -84,11 +85,21 @@ func New(pool *pgxpool.Pool, logger *zap.Logger) *Service {
 	}
 	cfg := LoadConfig()
 	encKey := loadEncryptionKey(logger)
+	sessionKey := []byte(os.Getenv("SESSION_SECRET"))
+	if len(sessionKey) == 0 {
+		// SESSION_SECRET is required by config.Load (same name) for the
+		// gateway service. Squareauth reads it directly here because the
+		// constructor doesn't take a Config. If empty, demo cookies fall
+		// back to unsigned — logged loud at first use. Production
+		// deployments must set SESSION_SECRET.
+		logger.Warn("squareauth: SESSION_SECRET not set; demo session cookies will be unsigned (dev fallback)")
+	}
 	return &Service{
 		pool:       pool,
 		logger:     logger,
 		cfg:        cfg,
 		encKey:     encKey,
+		sessionKey: sessionKey,
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 }

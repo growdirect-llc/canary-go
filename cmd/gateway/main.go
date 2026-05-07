@@ -397,21 +397,32 @@ func buildResolver(ctx context.Context, pool *pgxpool.Pool, logger *zap.Logger) 
 
 // buildValidateHandler constructs the L402 validation handler from env vars.
 //
-// VALIDATOR_SECRET: 32-byte hex key. If absent or invalid, a random key
-// is generated and a warning is logged (stub/dev mode only).
+// VALIDATOR_SECRET: 32-byte hex key. In dev (ENV != "production") an
+// invalid or absent value generates an ephemeral random key with a
+// warning. In production (ENV=production) the absence or invalidity
+// is fatal — the L402 HMAC must be deterministic so peer verification
+// can succeed across restarts. GRO-856 / Sprint 2 T-I.
 // VALIDATOR_SATOSHI_PRICE: satoshi price per proof verification (default 100).
 func buildValidateHandler(pool *pgxpool.Pool, logger *zap.Logger) *validate.Handler {
+	isProd := os.Getenv("ENV") == "production"
 	secret := make([]byte, 32)
 	secretHex := os.Getenv("VALIDATOR_SECRET")
 	if secretHex != "" {
 		decoded, err := hex.DecodeString(secretHex)
 		if err != nil || len(decoded) != 32 {
+			if isProd {
+				logger.Fatal("VALIDATOR_SECRET invalid in production; must be 64-char hex (32 bytes)",
+					zap.Error(err))
+			}
 			logger.Warn("VALIDATOR_SECRET invalid; generating random key (stub mode)",
 				zap.String("hint", "set VALIDATOR_SECRET to a 64-char hex string for production"))
 		} else {
 			copy(secret, decoded)
 		}
 	} else {
+		if isProd {
+			logger.Fatal("VALIDATOR_SECRET required in production (ENV=production); set to a 64-char hex string")
+		}
 		_, _ = cryptoRand.Read(secret)
 		logger.Warn("VALIDATOR_SECRET not set; using ephemeral random key (stub mode only)")
 	}
@@ -434,32 +445,53 @@ func buildValidateHandler(pool *pgxpool.Pool, logger *zap.Logger) *validate.Hand
 
 // buildLNURLHandler constructs the LNURL-auth handler from env vars.
 //
-// LNURL_JWT_SECRET: 64-char hex key for HS256 session JWTs. If absent or
-// invalid, a random 32-byte key is generated (ephemeral, dev only).
+// LNURL_JWT_SECRET: 64-char hex key for HS256 session JWTs. Required
+// in production (ENV=production). In dev, an invalid/absent value
+// generates an ephemeral random 32-byte key with a warning.
 // LNURL_STUB: "true" skips secp256k1 signature verification (CI/signet).
-// LNURL_SCHEME: "http" or "https" (default "https").
+// FATAL in production — signature verification cannot be disabled
+// against real wallet traffic.
+// LNURL_SCHEME: "http" or "https" (default "https"). Must be "https"
+// in production — http leaks the auth k1 nonce in transit.
 // LNURL_HOST: hostname[:port] for callback URLs (default "localhost:8080").
+//
+// Production hardening: GRO-856 / Sprint 2 T-I.
 func buildLNURLHandler(pool *pgxpool.Pool, logger *zap.Logger) *lnurl.Handler {
+	isProd := os.Getenv("ENV") == "production"
 	secret := make([]byte, 32)
 	secretHex := os.Getenv("LNURL_JWT_SECRET")
 	if secretHex != "" {
 		decoded, err := hex.DecodeString(secretHex)
 		if err != nil || len(decoded) != 32 {
+			if isProd {
+				logger.Fatal("LNURL_JWT_SECRET invalid in production; must be 64-char hex (32 bytes)",
+					zap.Error(err))
+			}
 			logger.Warn("LNURL_JWT_SECRET invalid; generating ephemeral random key",
 				zap.String("hint", "set LNURL_JWT_SECRET to a 64-char hex string for production"))
 		} else {
 			copy(secret, decoded)
 		}
 	} else {
+		if isProd {
+			logger.Fatal("LNURL_JWT_SECRET required in production (ENV=production); set to a 64-char hex string")
+		}
 		_, _ = cryptoRand.Read(secret)
 		logger.Warn("LNURL_JWT_SECRET not set; using ephemeral random key (dev only)")
 	}
 
 	stub := os.Getenv("LNURL_STUB") == "true"
+	if isProd && stub {
+		logger.Fatal("LNURL_STUB=true is not permitted in production; signature verification cannot be disabled against real wallet traffic")
+	}
 
 	scheme := os.Getenv("LNURL_SCHEME")
 	if scheme == "" {
 		scheme = "https"
+	}
+	if isProd && scheme != "https" {
+		logger.Fatal("LNURL_SCHEME must be \"https\" in production",
+			zap.String("got", scheme))
 	}
 	host := os.Getenv("LNURL_HOST")
 	if host == "" {

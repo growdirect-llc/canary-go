@@ -6,16 +6,24 @@
 //   GET  /dashboard                   server-rendered dashboard reading the connected merchant's Square data
 //   POST /auth/square/disconnect      delete the stored token; clear session cookie; redirect to /
 //
-// Session is a HttpOnly cookie carrying the internal merchant_id (UUID).
-// CSRF state is a separate short-lived HttpOnly cookie carrying a hash of
-// the random state value sent to Square.
+// Session is a HttpOnly, HMAC-SHA256-signed cookie carrying the internal
+// merchant_id (UUID) plus a signature keyed on SESSION_SECRET. Cookie
+// format: "<uuid>.<base64url-sig>". CSRF state is a separate short-lived
+// HttpOnly cookie carrying a hash of the random state value sent to
+// Square. Cookie signing landed in GRO-857 / Sprint 2 T-D — closes Sec C5
+// (forging the plaintext UUID would otherwise let any caller load any
+// merchant's Square data including last-4 of card).
 package squareauth
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -131,10 +139,11 @@ func (s *Service) handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set session cookie carrying the internal merchant_id.
+	// Set session cookie carrying the signed internal merchant_id.
+	// HMAC-SHA256 signature prevents cookie forgery.
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
-		Value:    internalMerchantID.String(),
+		Value:    s.signCookieValue(internalMerchantID),
 		Path:     "/",
 		MaxAge:   sessionMaxAge,
 		HttpOnly: true,
@@ -234,8 +243,72 @@ func (s *Service) merchantFromCookie(r *http.Request) (uuid.UUID, bool) {
 	if err != nil || c.Value == "" {
 		return uuid.Nil, false
 	}
-	id, err := uuid.Parse(c.Value)
+	return s.verifyCookieValue(c.Value)
+}
+
+// signCookieValue builds the cookie body "<uuid>.<base64url-hmac>".
+// HMAC-SHA256 over the UUID string, keyed on s.sessionKey (loaded from
+// SESSION_SECRET at construction). When sessionKey is empty (only
+// possible in dev where the gateway didn't pass through the env), we
+// fall back to the bare UUID for backward compatibility — but log a
+// warning. Production deployments must set SESSION_SECRET (already
+// required by config.Load).
+func (s *Service) signCookieValue(id uuid.UUID) string {
+	idStr := id.String()
+	if len(s.sessionKey) == 0 {
+		s.logger.Warn("squareauth: SESSION_SECRET not loaded; cookie unsigned (dev-only fallback)")
+		return idStr
+	}
+	mac := hmac.New(sha256.New, s.sessionKey)
+	mac.Write([]byte(idStr))
+	sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	return idStr + "." + sig
+}
+
+// verifyCookieValue parses "<uuid>.<sig>" and confirms the HMAC.
+// Returns (uuid.Nil, false) on any mismatch — callers must NOT treat
+// the bare UUID prefix as authoritative when the signature is missing
+// or wrong. Constant-time comparison via hmac.Equal.
+//
+// Dev fallback: when s.sessionKey is empty, the cookie format degrades
+// to a bare UUID (signCookieValue emits no separator) and verify
+// accepts it. This path only fires when SESSION_SECRET is unset, which
+// the gateway's config.Load already requires for production. See
+// New() for the warning that fires at construction.
+func (s *Service) verifyCookieValue(value string) (uuid.UUID, bool) {
+	dot := strings.IndexByte(value, '.')
+	if dot < 0 {
+		// No signature separator. Two cases:
+		//   1. Dev fallback (sessionKey empty) — accept bare UUID.
+		//   2. Forged cookie or pre-T-D plaintext UUID — reject.
+		if len(s.sessionKey) > 0 {
+			return uuid.Nil, false
+		}
+		id, err := uuid.Parse(value)
+		if err != nil {
+			return uuid.Nil, false
+		}
+		return id, true
+	}
+	idStr, sigStr := value[:dot], value[dot+1:]
+	id, err := uuid.Parse(idStr)
 	if err != nil {
+		return uuid.Nil, false
+	}
+	if len(s.sessionKey) == 0 {
+		// Cookie has a separator but we have no key to verify against.
+		// Accept the UUID prefix — degraded dev mode. Production never
+		// reaches here because SESSION_SECRET is required.
+		return id, true
+	}
+	wantSig, err := base64.RawURLEncoding.DecodeString(sigStr)
+	if err != nil {
+		return uuid.Nil, false
+	}
+	mac := hmac.New(sha256.New, s.sessionKey)
+	mac.Write([]byte(idStr))
+	gotSig := mac.Sum(nil)
+	if !hmac.Equal(gotSig, wantSig) {
 		return uuid.Nil, false
 	}
 	return id, true
