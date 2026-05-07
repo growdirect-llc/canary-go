@@ -88,6 +88,22 @@
     </div>
 
     <div class="sidebar-section">
+      <div class="sidebar-section-label">Intelligence</div>
+      <a href="/owl/dashboards" class="sidebar-item{{if eq .Page "owl_intel"}} active{{end}}" data-color="owl">
+        <span class="nav-icon" style="background: var(--nav-chirps);"></span>
+        Dashboards
+      </a>
+      <a href="/owl/parties" class="sidebar-item" data-color="owl">
+        <span class="nav-icon" style="background: var(--nav-employees);"></span>
+        Parties
+      </a>
+      <a href="/owl/lp-performance" class="sidebar-item" data-color="owl">
+        <span class="nav-icon" style="background: var(--nav-audit);"></span>
+        LP Performance
+      </a>
+    </div>
+
+    <div class="sidebar-section">
       <div class="sidebar-section-label">System</div>
       <a href="/employees" class="sidebar-item{{if eq .Page "employees"}} active{{end}}" data-color="employees">
         <span class="nav-icon" style="background: var(--nav-employees);"></span>
