@@ -14,6 +14,7 @@ import (
 	cryptoRand "crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -51,6 +52,8 @@ import (
 	"github.com/ruptiv/canary/internal/protocol/validate"
 	"github.com/ruptiv/canary/internal/db"
 	"github.com/ruptiv/canary/internal/identity"
+	"github.com/ruptiv/canary/internal/identity/jwks"
+	"github.com/ruptiv/canary/internal/identity/keystore"
 	"github.com/ruptiv/canary/internal/manifest/routewalk"
 	"github.com/ruptiv/canary/internal/mcp"
 	"github.com/ruptiv/canary/internal/protocol/anchor"
@@ -118,6 +121,15 @@ func main() {
 	evidenceHandler := evidence.New(pool, logger)
 	anchorHandler := anchor.New(pool, logger)
 
+	// JWT signing keystore + JWKS publication (T-2 / GRO-862).
+	// Reads from app.signing_keys; bootstraps a dev key on cold
+	// start when the table is empty. Production fatals on empty —
+	// keys must be published via the rotation runbook, never
+	// auto-generated.
+	keyStore := keystore.New(pool)
+	bootstrapSigningKeyIfEmpty(ctx, keyStore, logger)
+	jwksHandler := jwks.New(keyStore, logger)
+
 	// .jeffe namespace registration — Node identity layer.
 	// ORDINALSBOT_API_KEY env var selects real vs stub inscriber.
 	inscriber := sub3.NewOrdinalsBot(os.Getenv("ORDINALSBOT_API_KEY"), "signet")
@@ -163,6 +175,12 @@ func main() {
 
 	r.Get("/health", healthHandler(cfg))
 	r.Get("/.well-known/mcp.json", discoveryHandler(cfg))
+
+	// JWKS — public key set for JWT verification. T-2 / GRO-862.
+	// Mounted at the IANA-registered /.well-known/jwks.json path
+	// (RFC 5785 + RFC 7517) so AtlasView and other consumers can
+	// auto-discover. Reads from the rotation-aware keystore.
+	jwksHandler.Mount(r)
 
 	// Bilateral verification APIs — read-only, mounted outside the
 	// audit group. Reads don't need state-mutation audit semantics.
@@ -425,6 +443,37 @@ func buildResolver(ctx context.Context, pool *pgxpool.Pool, logger *zap.Logger) 
 // gorilla/csrf signs the per-session token cookie with this key — if it
 // changes between restarts, all in-flight tokens become invalid (users
 // must re-fetch a form GET before POSTing). T-E.
+// bootstrapSigningKeyIfEmpty seeds a fresh RS256 key into the
+// keystore if it has no active key. Dev-mode convenience: a fresh
+// `db-reset` leaves app.signing_keys empty, which would make every
+// JWT mint fail. In production (ENV=production) we fatal instead —
+// keys must be published via the rotation runbook, never auto-
+// generated, so a key compromise can't be silently masked by an
+// auto-recovery path.
+//
+// T-2 / GRO-862.
+func bootstrapSigningKeyIfEmpty(ctx context.Context, ks *keystore.Store, logger *zap.Logger) {
+	if _, err := ks.Active(ctx); err == nil {
+		return
+	} else if !errors.Is(err, keystore.ErrNoActiveKey) {
+		logger.Fatal("keystore active probe failed", zap.Error(err))
+	}
+
+	if os.Getenv("ENV") == "production" {
+		logger.Fatal("keystore: no active signing key in production; publish a key via the rotation runbook before boot")
+	}
+
+	logger.Warn("keystore: no active signing key; bootstrapping a dev RS256 key (auto-generated — production fatals here)")
+	sk, err := keystore.GenerateRSA()
+	if err != nil {
+		logger.Fatal("keystore bootstrap GenerateRSA", zap.Error(err))
+	}
+	if err := ks.Insert(ctx, sk); err != nil {
+		logger.Fatal("keystore bootstrap Insert", zap.Error(err))
+	}
+	logger.Info("keystore: dev key inserted", zap.String("kid", sk.Kid))
+}
+
 func buildCSRFKey(logger *zap.Logger) []byte {
 	isProd := os.Getenv("ENV") == "production"
 	key := make([]byte, 32)
