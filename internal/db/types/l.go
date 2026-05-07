@@ -1,5 +1,5 @@
-// Code generated from deploy/schema/03_l_s_locations.sql for Loop 2.
-// Wave 1 hand-written types — sqlc retrofit is Loop 3.
+// Code generated from deploy/schema/03_l_s_locations.sql for
+// Wave 1 hand-written types — sqlc retrofit is
 // Edit the SQL files in deploy/schema/, regenerate this file by hand.
 package types
 
@@ -48,7 +48,7 @@ type LocationHierarchy struct {
 	Name          string          `db:"name"`
 	HierarchyType string          `db:"hierarchy_type"`
 	Level         int32           `db:"level"`
-	Path          *string         `db:"path"` // ltree — string with TODO: ltree-aware type for Loop 3
+	Path *string `db:"path"` // ltree — string with TODO: ltree-aware type for
 	Attributes    json.RawMessage `db:"attributes"`
 	Status        string          `db:"status"`
 	CreatedAt     time.Time       `db:"created_at"`
@@ -71,7 +71,7 @@ type LocationZone struct {
 	Name         string          `db:"name"`
 	ZoneType     string          `db:"zone_type"`
 	Level        int32           `db:"level"`
-	Path         *string         `db:"path"` // ltree — string with TODO: ltree-aware type for Loop 3
+	Path *string `db:"path"` // ltree — string with TODO: ltree-aware type for
 	Geometry     json.RawMessage `db:"geometry"`
 	Attributes   json.RawMessage `db:"attributes"`
 	Status       string          `db:"status"`

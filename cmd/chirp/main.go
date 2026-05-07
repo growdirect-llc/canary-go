@@ -63,7 +63,7 @@ func main() {
 	}
 }
 
-// registerBaseline wires the seven Loop 2 wave 2 evaluators.
+// registerBaseline wires the seven evaluators.
 func registerBaseline(r *chirp.Registry, logger *zap.Logger) {
 	for _, e := range []chirp.RuleEvaluator{
 		rules.VoidThreshold{},

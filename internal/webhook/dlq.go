@@ -7,7 +7,7 @@
 // Valkey publish failure, sub1 seal failure, sub2 parse failure, or
 // any other recoverable error. Operators replay via the admin
 // endpoint POST /v1/webhooks/replay/{id}; the cron-driven retry
-// worker (Wave C scope) will pick rows up automatically once the
+// worker will pick rows up automatically once the
 // next_retry_at watermark passes.
 //
 //
@@ -147,8 +147,8 @@ func (q *DLQ) Get(ctx context.Context, id uuid.UUID) (*DLQRow, error) {
 type ListFilters struct {
 	MerchantID *uuid.UUID
 	SourceCode string
-	Status     string // pending | replayed | abandoned; empty = any
-	Limit      int    // default 50, max 200
+	Status string // pending | replayed | abandoned; empty = any
+	Limit int // default 50, max 200
 	Offset     int
 }
 

@@ -1,9 +1,9 @@
 // Package owl is the merchant intelligence aggregator. Read-only over
 // canonical schema (t.*, q.*, m.*, l.*, e.*, app.*) — no writes.
 //
-// Loop 2 dispatch. The owl.md SDD describes a much
+// The owl.md SDD describes a much
 // broader AI / MCP server (chat, personalities, embeddings, LLM
-// inference). The Loop 2 dispatch overrides that scope: this build is
+// inference). The overrides that scope: this build is
 // a read-only dashboard aggregator that turns canonical sales + cases
 // + detections data into the metrics the merchant operator looks at.
 // The chat/MCP layer is left for a later loop.
@@ -15,13 +15,13 @@
 //
 // File layout:
 //
-//	internal/owl/dtotypes/  — leaf DTOs (Period, SalesSummary, ...)
-//	internal/owl/metrics/   — raw-SQL query helpers per metric family
-//	internal/owl/period.go  — period parsing
-//	internal/owl/store.go   — pgx Store interface + impl (resolve only)
+//	internal/owl/dtotypes/ — leaf DTOs (Period, SalesSummary, ...)
+//	internal/owl/metrics/ — raw-SQL query helpers per metric family
+//	internal/owl/period.go — period parsing
+//	internal/owl/store.go — pgx Store interface + impl (resolve only)
 //	internal/owl/aggregator.go — top-level Aggregate(ctx, mid, period)
-//	internal/owl/handler.go    — chi handlers + Mount
-//	cmd/owl/main.go            — service entry point
+//	internal/owl/handler.go — chi handlers + Mount
+//	cmd/owl/main.go — service entry point
 package owl
 
 import "github.com/ruptiv/canary/internal/owl/dtotypes"

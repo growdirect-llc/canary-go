@@ -1,5 +1,5 @@
-// Code generated from deploy/schema/07_p_f_pricing_finance.sql for Loop 2.
-// Wave 1 hand-written types — sqlc retrofit is Loop 3.
+// Code generated from deploy/schema/07_p_f_pricing_finance.sql for
+// Wave 1 hand-written types — sqlc retrofit is
 // Edit the SQL files in deploy/schema/, regenerate this file by hand.
 package types
 
@@ -46,7 +46,7 @@ type ItemPrice struct {
 	ZoneID            *uuid.UUID      `db:"zone_id"`
 	Channel           *string         `db:"channel"`
 	PriceType         string          `db:"price_type"`
-	Amount            string          `db:"amount"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	Amount string `db:"amount"` // numeric — decimal.Decimal dep needed; using string for
 	Currency          string          `db:"currency"`
 	UOM               string          `db:"uom"`
 	EffectiveStart    time.Time       `db:"effective_start"`
@@ -94,7 +94,7 @@ type TaxRate struct {
 	LocationID     *uuid.UUID      `db:"location_id"`
 	Jurisdiction   *string         `db:"jurisdiction"`
 	RateType       string          `db:"rate_type"`
-	Rate           string          `db:"rate"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	Rate string `db:"rate"` // numeric — decimal.Decimal dep needed; using string for
 	EffectiveStart time.Time       `db:"effective_start"`
 	EffectiveEnd   *time.Time      `db:"effective_end"`
 	Attributes     json.RawMessage `db:"attributes"`

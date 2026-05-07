@@ -123,7 +123,7 @@ func TestSessionValidate_ValidToken_NotInValkey(t *testing.T) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Phase C.6 — /v1/identity/* endpoint coverage
+// /v1/identity/* endpoint coverage
 // ─────────────────────────────────────────────────────────────────────
 
 // testPool returns a fresh pgxpool against the test DB, plus a

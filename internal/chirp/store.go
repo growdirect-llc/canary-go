@@ -15,9 +15,9 @@ import (
 // Store is the data-access surface chirp uses. Interface (not concrete
 // pgx) so tests can stub.
 //
-// Loop 2 dispatch override: direct pgx + raw SQL. CanaryGo CLAUDE.md
-// requires sqlc; the Loop 2 dispatch explicitly waives that for this
-// wave. sqlc retrofit is Loop 3.
+// override: direct pgx + raw SQL. CanaryGo CLAUDE.md
+// requires sqlc; the explicitly waives that for this
+// wave. sqlc retrofit is
 // ErrDetectionNotFound is returned by GetDetectionByID when the row does not exist.
 var ErrDetectionNotFound = errors.New("chirp: detection not found")
 
@@ -42,7 +42,7 @@ type DetectionQuery struct {
 	TenantID uuid.UUID
 	From     *time.Time
 	To       *time.Time
-	Limit    int // pagination cap; defaults to 50 if zero
+	Limit int // pagination cap; defaults to 50 if zero
 	Offset   int
 }
 

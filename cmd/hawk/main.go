@@ -2,7 +2,7 @@
 //
 // Hawk — case-side reader binary.
 //
-// Wave C wires Hawk against the casemgmt store directly so a
+// wires Hawk against the casemgmt store directly so a
 // read-only operator dashboard can list cases / inspect actions /
 // inspect evidence without depending on cmd/case being deployed.
 // Mutating endpoints (open / close / append) are intentionally

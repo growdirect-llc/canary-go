@@ -3,7 +3,7 @@
 // Item service — master-data CRUD for items, categories, vendors, and
 // item barcodes. Port :8090 per docs/sdds/go-handoff/go-module-layout.md.
 //
-// Built in GRO-761 Loop 2 Wave 2 (Item subagent).
+// Built in GRO-761.
 package main
 
 import (

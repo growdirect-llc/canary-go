@@ -8,7 +8,7 @@ import (
 )
 
 // RefundNoReceiptParams is empty — this rule has no tunable knobs in
-// the wave 2 baseline. It fires whenever a refund-type transaction
+// the baseline. It fires whenever a refund-type transaction
 // has no parent_transaction_id link.
 type RefundNoReceiptParams struct{}
 

@@ -3,7 +3,7 @@
 // load-bearing primitives a production deployment needs: idempotency,
 // dead-letter queue, backpressure, and replay.
 //
-// Spec: GRO-764 Phase A.1.
+// Spec: GRO-764
 // See docs/conventions.md for the package-layout pattern this file
 // follows.
 //
@@ -13,9 +13,9 @@
 // receipt is observed via the IsDuplicate path and short-circuits.
 //
 // References:
-//   - https://valkey.io/commands/set/ (NX + EX options)
-//   - The "stripe-style" idempotency key pattern: a caller-supplied
-//     key combined with a deterministic short-circuit on repeat.
+// - https://valkey.io/commands/set/ (NX + EX options)
+// - The "stripe-style" idempotency key pattern: a caller-supplied
+// key combined with a deterministic short-circuit on repeat.
 package webhook
 
 import (

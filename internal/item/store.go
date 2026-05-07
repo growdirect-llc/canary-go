@@ -1,20 +1,20 @@
 // internal/item/store.go
 //
-// pgx-backed store for the item domain. Direct SQL — Loop 2 dispatch
+// pgx-backed store for the item domain. Direct SQL — 
 // overrides the codebase-wide sqlc rule (CanaryGo/CLAUDE.md). The
 // generated sqlc retrofit is a Loop 3 deliverable.
 //
 // Design notes:
-//   - Every read/write is tenant-scoped. The schema's UNIQUE constraints
-//     are (tenant_id, …); queries always include tenant_id in the
-//     predicate to avoid cross-tenant reads even on indexed lookups.
-//   - The barcode resolve query (GetByBarcode) is the keystone POS-scan
-//     path. It hits idx_barcodes_lookup (a partial unique index on
-//     active barcodes), joins catalog.items once, returns in a single round
-//     trip. No N+1, no extra fetches before the hot path returns.
-//   - Soft delete: DELETE flips status to 'inactive'. The dispatch said
-//     soft-delete unless the schema demands hard delete; catalog.items has a
-//     status column so soft is the right call.
+// - Every read/write is tenant-scoped. The schema's UNIQUE constraints
+// are (tenant_id, …); queries always include tenant_id in the
+// predicate to avoid cross-tenant reads even on indexed lookups.
+// - The barcode resolve query (GetByBarcode) is the keystone POS-scan
+// path. It hits idx_barcodes_lookup (a partial unique index on
+// active barcodes), joins catalog.items once, returns in a single round
+// trip. No N+1, no extra fetches before the hot path returns.
+// - Soft delete: DELETE flips status to 'inactive'. The dispatch said
+// soft-delete unless the schema demands hard delete; catalog.items has a
+// status column so soft is the right call.
 
 package item
 
@@ -81,7 +81,7 @@ const itemColumns = `id, tenant_id, sku, description, short_description, item_ty
 // scanItem reads one catalog.items row from a Row interface (Row or RowsRow).
 // Numeric columns are cast to ::text in the SELECT so pgx delivers them
 // as Go strings — Wave 1 types use string for numerics until decimal
-// support lands in Loop 3.
+// support lands in
 func scanItem(row pgx.Row) (types.Item, error) {
 	var it types.Item
 	err := row.Scan(
@@ -612,9 +612,9 @@ func derefBoolOr(p *bool, def bool) bool {
 
 // mapWriteErr translates a pgx error into the domain's sentinel set.
 // We care about three categories:
-//   - unique violation (23505) → ErrConflict
-//   - foreign-key violation (23503) → ErrValidation (caller passed a bad ID)
-//   - everything else → wrapped pgx error
+// - unique violation (23505) → ErrConflict
+// - foreign-key violation (23503) → ErrValidation (caller passed a bad ID)
+// - everything else → wrapped pgx error
 func mapWriteErr(err error, op string) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound

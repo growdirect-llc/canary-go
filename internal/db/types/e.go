@@ -1,5 +1,5 @@
-// Code generated from deploy/schema/04_c_e_customers_employees.sql for Loop 2.
-// Wave 1 hand-written types — sqlc retrofit is Loop 3.
+// Code generated from deploy/schema/04_c_e_customers_employees.sql for
+// Wave 1 hand-written types — sqlc retrofit is
 // Edit the SQL files in deploy/schema/, regenerate this file by hand.
 package types
 

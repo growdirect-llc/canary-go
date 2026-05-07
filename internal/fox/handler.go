@@ -36,7 +36,7 @@ type Service interface {
 // Handler wires HTTP endpoints onto a chi.Router.
 type Handler struct {
 	svc    Service
-	party  *party.Store // optional: party-based subject resolution (Wave B C.2)
+	party *party.Store // optional: party-based subject resolution
 	cfg    EscalationConfig
 	logger *zap.Logger
 	now    func() time.Time
@@ -63,7 +63,7 @@ func New(svc Service, cfg EscalationConfig, logger *zap.Logger) *Handler {
 // WithPartyResolver attaches a party.Store so case-open routes
 // resolve subjects through party.parties instead of the legacy
 // employee_id / customer_id lookup. Per Wave A canonical-data-model-
-// party-edits §D and Wave B C.2.
+// party-edits §D and
 //
 // When set: subjectFromDetection uses
 // party.ResolveFromDetection → party.ResolveSubject and falls back
@@ -101,7 +101,7 @@ type fromDetectionResp struct {
 }
 
 type createCaseReq struct {
-	MerchantID   string   `json:"merchant_id"` // interpreted as tenant_id
+	MerchantID string `json:"merchant_id"` // interpreted as tenant_id
 	SubjectID    string   `json:"subject_id,omitempty"`
 	LocationID   string   `json:"location_id,omitempty"`
 	DetectionIDs []string `json:"detection_ids,omitempty"`
@@ -545,7 +545,7 @@ func (h *Handler) closeCase(w http.ResponseWriter, r *http.Request) {
 // neither is present, returns nil and
 // the case opens with primary_subject_id NULL.
 func (h *Handler) subjectFromDetection(ctx context.Context, det *types.Detection) *uuid.UUID {
-	// Wave B C.2: when a party.Store is wired, route through party.
+	// C.2: when a party.Store is wired, route through party.
 	// Per docs/sdds/go-handoff/canonical-data-model-party-edits.md §D.
 	if h.party != nil {
 		partyID, err := h.party.ResolveFromDetection(ctx, det)

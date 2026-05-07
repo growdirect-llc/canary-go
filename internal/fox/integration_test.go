@@ -7,7 +7,7 @@
 //	go test -tags=integration -v ./internal/fox/...
 //
 // Wave 3 coordinator runs this post-merge — the per-subagent verify
-// pass for Loop 2 Wave 2 explicitly does NOT run integration tests.
+// pass for explicitly does NOT run integration tests.
 package fox
 
 import (

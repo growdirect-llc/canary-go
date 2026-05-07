@@ -73,7 +73,7 @@ type evaluateBatchRequest struct {
 //
 // SDD-conflict: dispatch uses "merchant_id" as the request key; the
 // canonical schema treats tenant_id as the multi-tenant boundary.
-// The wave 2 mapping is 1:1 (app.merchants.tenant_id), so we accept
+// The mapping is 1:1 (app.merchants.tenant_id), so we accept
 // merchant_id in the request and pass it through as tenant_id.
 func (h *Handler) EvaluateBatch(w http.ResponseWriter, r *http.Request) {
 	var req evaluateBatchRequest

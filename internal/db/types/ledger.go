@@ -1,5 +1,5 @@
-// Code generated from deploy/schema/10_ledger.sql for Loop 2.
-// Wave 1 hand-written types — sqlc retrofit is Loop 3.
+// Code generated from deploy/schema/10_ledger.sql for
+// Wave 1 hand-written types — sqlc retrofit is
 // Edit the SQL files in deploy/schema/, regenerate this file by hand.
 package types
 
@@ -18,9 +18,9 @@ type StockLedgerEntry struct {
 	PostedAt            time.Time       `db:"posted_at"`
 	ItemID              uuid.UUID       `db:"item_id"`
 	LocationID          uuid.UUID       `db:"location_id"`
-	QuantityDelta       string          `db:"quantity_delta"` // numeric — decimal.Decimal dep needed; using string for Loop 2
-	CostPerUnit         string          `db:"cost_per_unit"`  // numeric — decimal.Decimal dep needed; using string for Loop 2
-	CostAmount          string          `db:"cost_amount"`    // numeric — decimal.Decimal dep needed; using string for Loop 2 (GENERATED)
+	QuantityDelta string `db:"quantity_delta"` // numeric — decimal.Decimal dep needed; using string for
+	CostPerUnit string `db:"cost_per_unit"` // numeric — decimal.Decimal dep needed; using string for
+	CostAmount string `db:"cost_amount"` // numeric — decimal.Decimal dep needed; using string for Loop 2 (GENERATED)
 	CostMethod          string          `db:"cost_method"`
 	GLAccountID         *uuid.UUID      `db:"gl_account_id"`
 	Attributes          json.RawMessage `db:"attributes"`
@@ -31,12 +31,12 @@ type StockLedgerEntry struct {
 type ILDWACPosition struct {
 	ID                   uuid.UUID       `db:"id"`
 	TenantID             uuid.UUID       `db:"tenant_id"`
-	PositionPeriod       string          `db:"position_period"` // tstzrange — string with TODO: tstzrange-aware type for Loop 3
+	PositionPeriod string `db:"position_period"` // tstzrange — string with TODO: tstzrange-aware type for
 	CadenceStep          string          `db:"cadence_step"`
 	LStorageSatoshis     int64           `db:"l_storage_satoshis"`
 	WWorkloadSatoshis    int64           `db:"w_workload_satoshis"`
 	CCaptureSatoshis     int64           `db:"c_capture_satoshis"`
-	TotalSatoshis        int64           `db:"total_satoshis"` // GENERATED
+	TotalSatoshis int64 `db:"total_satoshis"` // GENERATED
 	BytesUnderManagement *int64          `db:"bytes_under_management"`
 	WorkloadUnits        *int64          `db:"workload_units"`
 	CaptureTier          *string         `db:"capture_tier"`
@@ -52,10 +52,10 @@ type RIBBatch struct {
 	TenantID         uuid.UUID       `db:"tenant_id"`
 	ItemID           uuid.UUID       `db:"item_id"`
 	LocationID       *uuid.UUID      `db:"location_id"`
-	BatchPeriod      string          `db:"batch_period"`        // tstzrange — string with TODO: tstzrange-aware type for Loop 3
-	TotalQuantity    string          `db:"total_quantity"`      // numeric — decimal.Decimal dep needed; using string for Loop 2
-	TotalCost        string          `db:"total_cost"`          // numeric — decimal.Decimal dep needed; using string for Loop 2
-	WeightedAvgCost  string          `db:"weighted_avg_cost"`   // numeric — decimal.Decimal dep needed; using string for Loop 2 (GENERATED)
+	BatchPeriod string `db:"batch_period"` // tstzrange — string with TODO: tstzrange-aware type for
+	TotalQuantity string `db:"total_quantity"` // numeric — decimal.Decimal dep needed; using string for
+	TotalCost string `db:"total_cost"` // numeric — decimal.Decimal dep needed; using string for
+	WeightedAvgCost string `db:"weighted_avg_cost"` // numeric — decimal.Decimal dep needed; using string for Loop 2 (GENERATED)
 	ReceiptCount     int32           `db:"receipt_count"`
 	ClosedAt         *time.Time      `db:"closed_at"`
 	Attributes       json.RawMessage `db:"attributes"`
@@ -67,14 +67,14 @@ type RIBBatch struct {
 type L402OTBBudget struct {
 	ID                uuid.UUID       `db:"id"`
 	TenantID          uuid.UUID       `db:"tenant_id"`
-	BudgetPeriod      string          `db:"budget_period"` // tstzrange — string with TODO: tstzrange-aware type for Loop 3
+	BudgetPeriod string `db:"budget_period"` // tstzrange — string with TODO: tstzrange-aware type for
 	ScopeType         string          `db:"scope_type"`
 	ScopeID           *uuid.UUID      `db:"scope_id"`
 	BudgetSatoshis    int64           `db:"budget_satoshis"`
 	ConsumedSatoshis  int64           `db:"consumed_satoshis"`
-	RemainingSatoshis int64           `db:"remaining_satoshis"` // GENERATED
+	RemainingSatoshis int64 `db:"remaining_satoshis"` // GENERATED
 	HardLimit         bool            `db:"hard_limit"`
-	AlertThresholdPct *string         `db:"alert_threshold_pct"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	AlertThresholdPct *string `db:"alert_threshold_pct"` // numeric — decimal.Decimal dep needed; using string for
 	Status            string          `db:"status"`
 	Attributes        json.RawMessage `db:"attributes"`
 	CreatedAt         time.Time       `db:"created_at"`

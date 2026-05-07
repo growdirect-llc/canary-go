@@ -5,9 +5,9 @@
 // sales, cases, and detections into the dashboard a merchant operator
 // looks at first thing in the morning.
 //
-// Loop 2 dispatch. Owl's longer-arc role per
+// Owl's longer-arc role per
 // docs/sdds/go-handoff/owl.md is the AI / MCP intelligence layer
-// (chat, personalities, embeddings); that's deferred. Loop 2 ships
+// (chat, personalities, embeddings); that's deferred. ships
 // the dashboard surface only — the SQL spine that the AI layer will
 // eventually wrap.
 //
@@ -46,7 +46,7 @@ func main() {
 	}
 	defer pool.Close()
 
-	// Wave A obs scaffold — first module to fully exercise tracer +
+	// obs scaffold — first module to fully exercise tracer +
 	// trace-aware logger + chi span middleware. 
 	obsLogger := obs.NewLogger(serviceName)
 	tracer, err := obs.NewTracer(ctx, serviceName)
@@ -71,7 +71,7 @@ func main() {
 	r.Get("/health", healthHandler(cfg))
 	handler.Mount(r)
 
-	// Wave C dashboard endpoints under API-key auth.
+	// dashboard endpoints under API-key auth.
 	r.Group(func(r chi.Router) {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
 			Pool:     pool,

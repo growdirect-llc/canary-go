@@ -16,13 +16,13 @@ import (
 
 // Handler serves Owl's read-only HTTP surface. Five endpoints:
 //
-//	GET /v1/owl/dashboard   — full dashboard envelope
-//	GET /v1/owl/sales       — sales summary only
-//	GET /v1/owl/top-items   — top items by units|revenue
-//	GET /v1/owl/cases       — cases summary only
-//	GET /v1/owl/exposure    — cashier exposure top-N
+//	GET /v1/owl/dashboard — full dashboard envelope
+//	GET /v1/owl/sales — sales summary only
+//	GET /v1/owl/top-items — top items by units|revenue
+//	GET /v1/owl/cases — cases summary only
+//	GET /v1/owl/exposure — cashier exposure top-N
 //
-// Loop 2 dispatch deliberately leaves auth out of scope. The full
+// deliberately leaves auth out of scope. The full
 // owl.md SDD specifies JWT — that's a Loop 3 graft. Until then
 // merchant_id comes off the query string.
 type Handler struct {

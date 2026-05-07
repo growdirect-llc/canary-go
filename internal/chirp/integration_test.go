@@ -10,7 +10,7 @@
 //	go test -tags=integration -v ./internal/chirp/...
 //
 // Wave 3 coordinator runs this; do NOT run it in parallel subagent
-// sessions or it will collide with other Loop 2 wave 2 fixtures.
+// sessions or it will collide with other fixtures.
 package chirp_test
 
 import (

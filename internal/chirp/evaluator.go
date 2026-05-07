@@ -93,7 +93,7 @@ func (e *Engine) SetAllowListStore(a AllowListLookup) {
 //
 // SDD-vague: chirp.md describes evaluation as "fan-out to all enabled
 // rules" without specifying what "enabled" means relative to
-// evaluation_frequency. Loop 2 wave 2 fires only on_event rules from
+// evaluation_frequency. fires only on_event rules from
 // this entry point; hourly/daily/weekly are deferred to a scheduler
 // that lands in a later wave.
 func (e *Engine) EvaluateTransaction(ctx context.Context, transactionID uuid.UUID) ([]Detection, error) {

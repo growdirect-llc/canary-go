@@ -2,27 +2,27 @@
 // service. It is the runtime over the canonical i.inventory_positions and
 // i.inventory_movements tables (see deploy/schema/05_i_inventory.sql).
 //
-// Scope (Loop 2 Wave 2):
-//   - Position read: GET /v1/inventory/positions/{item_id}/{location_id}
-//     and the list endpoint.
-//   - Movement append: POST /v1/inventory/movements — append-only, never
-//     UPDATE/DELETE. The position row is maintained inside the same tx as
-//     a cached running balance.
-//   - Movement list: audit trail read for an (item, location) over a time
-//     window.
+// Scope:
+// - Position read: GET /v1/inventory/positions/{item_id}/{location_id}
+// and the list endpoint.
+// - Movement append: POST /v1/inventory/movements — append-only, never
+// UPDATE/DELETE. The position row is maintained inside the same tx as
+// a cached running balance.
+// - Movement list: audit trail read for an (item, location) over a time
+// window.
 //
 // Out of scope: reservations, BOPIS holds, fulfillment routing, MCP tool
 // surface, Valkey hot-path caching. Those land in later loops; the SDD
 // `docs/sdds/go-handoff/inventory-as-a-service.md` carries the full vision.
 //
 // SDD-conflict (canonical schema vs IaaS SDD):
-//   - SDD speaks of `merchants(id)`; canonical schema uses `app.tenants(id)`
-//     as the multi-tenant scope. Public DTOs accept "merchant_id" for
-//     ergonomics; the store treats it as `tenant_id` against the schema.
-//   - SDD has reasons {received, sold_instore, ...}; canonical schema uses
-//     {goods_receipt, sale, return, transfer_in, transfer_out, rtv,
-//     adjustment, write_off, cycle_count_correction, reservation,
-//     release_reservation}. We follow the canonical schema enum.
+// - SDD speaks of `merchants(id)`; canonical schema uses `app.tenants(id)`
+// as the multi-tenant scope. Public DTOs accept "merchant_id" for
+// ergonomics; the store treats it as `tenant_id` against the schema.
+// - SDD has reasons {received, sold_instore, ...}; canonical schema uses
+// {goods_receipt, sale, return, transfer_in, transfer_out, rtv,
+// adjustment, write_off, cycle_count_correction, reservation,
+// release_reservation}. We follow the canonical schema enum.
 package inventory
 
 import (

@@ -1,5 +1,5 @@
-// Code generated from deploy/schema/09_q_canary_mechanics.sql for Loop 2.
-// Wave 1 hand-written types — sqlc retrofit is Loop 3.
+// Code generated from deploy/schema/09_q_canary_mechanics.sql for
+// Wave 1 hand-written types — sqlc retrofit is
 // Edit the SQL files in deploy/schema/, regenerate this file by hand.
 package types
 
@@ -61,8 +61,8 @@ type Case struct {
 	OpenedAt            time.Time       `db:"opened_at"`
 	ResolvedAt          *time.Time      `db:"resolved_at"`
 	ResolutionType      *string         `db:"resolution_type"`
-	LossAmountEstimated *string         `db:"loss_amount_estimated"` // numeric — decimal.Decimal dep needed; using string for Loop 2
-	LossAmountRecovered *string         `db:"loss_amount_recovered"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	LossAmountEstimated *string `db:"loss_amount_estimated"` // numeric — decimal.Decimal dep needed; using string for
+	LossAmountRecovered *string `db:"loss_amount_recovered"` // numeric — decimal.Decimal dep needed; using string for
 	Attributes          json.RawMessage `db:"attributes"`
 	CreatedAt           time.Time       `db:"created_at"`
 	UpdatedAt           time.Time       `db:"updated_at"`
@@ -80,7 +80,7 @@ type Detection struct {
 	CashierEmployeeID *uuid.UUID      `db:"cashier_employee_id"`
 	CustomerID        *uuid.UUID      `db:"customer_id"`
 	Severity          string          `db:"severity"`
-	SignalStrength    *string         `db:"signal_strength"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	SignalStrength *string `db:"signal_strength"` // numeric — decimal.Decimal dep needed; using string for
 	Evidence          json.RawMessage `db:"evidence"`
 	CaseID            *uuid.UUID      `db:"case_id"`
 	Status            string          `db:"status"`

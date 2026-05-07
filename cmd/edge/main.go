@@ -5,7 +5,6 @@
 // every 60 seconds and publishes sale document events to the Canary
 // protocol pipeline via Valkey Streams (protocol:events).
 //
-// Loop 4 implementation.
 package main
 
 import (

@@ -2,7 +2,7 @@
 //
 // Report — job-dispatch layer for async report generation.
 // POST enqueues; GET polls. In-memory job store until app.report_jobs
-// is migrated (Wave E schema).
+// is migrated.
 // Tenant-scoped, API-key gated.
 //
 //

@@ -4,7 +4,7 @@
 // HTTP surface.
 //
 // Registers the investigation_lifecycle workflow at boot. Endpoints
-// are gated by the API-key middleware (Wave A C.4).
+// are gated by the API-key middleware
 package main
 
 import (

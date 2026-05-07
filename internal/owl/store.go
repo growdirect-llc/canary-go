@@ -15,9 +15,9 @@ import (
 // Store is the read-only data access surface for Owl. All methods take
 // a (tenant, period) tuple — tenant resolved upstream from merchant_id.
 //
-// Loop 2 dispatch overrides the CanaryGo CLAUDE.md "no raw SQL" rule —
+// overrides the CanaryGo CLAUDE.md "no raw SQL" rule —
 // Owl is allowed direct pgx + raw SQL because the dashboard surface is
-// fluid and the sqlc retrofit happens in Loop 3.
+// fluid and the sqlc retrofit happens in
 type Store interface {
 	// ResolveMerchant turns a merchant_id into (tenant_id, IANA timezone).
 	// Returns ErrMerchantNotFound if the merchant doesn't exist.

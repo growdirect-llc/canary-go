@@ -1,5 +1,5 @@
-// Code generated from deploy/schema/08_t_transactions.sql for Loop 2.
-// Wave 1 hand-written types — sqlc retrofit is Loop 3.
+// Code generated from deploy/schema/08_t_transactions.sql for
+// Wave 1 hand-written types — sqlc retrofit is
 // Edit the SQL files in deploy/schema/, regenerate this file by hand.
 package types
 
@@ -28,10 +28,10 @@ type Transaction struct {
 	Status              string          `db:"status"`
 	TicketNumber        *int32          `db:"ticket_number"`
 	ItemCount           int32           `db:"item_count"`
-	Subtotal            string          `db:"subtotal"`        // numeric — decimal.Decimal dep needed; using string for Loop 2
-	TaxTotal            string          `db:"tax_total"`       // numeric — decimal.Decimal dep needed; using string for Loop 2
-	DiscountTotal       string          `db:"discount_total"`  // numeric — decimal.Decimal dep needed; using string for Loop 2
-	GrandTotal          string          `db:"grand_total"`     // numeric — decimal.Decimal dep needed; using string for Loop 2
+	Subtotal string `db:"subtotal"` // numeric — decimal.Decimal dep needed; using string for
+	TaxTotal string `db:"tax_total"` // numeric — decimal.Decimal dep needed; using string for
+	DiscountTotal string `db:"discount_total"` // numeric — decimal.Decimal dep needed; using string for
+	GrandTotal string `db:"grand_total"` // numeric — decimal.Decimal dep needed; using string for
 	Currency            string          `db:"currency"`
 	Channel             string          `db:"channel"`
 	POSSoftwareVersion  *string         `db:"pos_software_version"`
@@ -55,17 +55,17 @@ type TransactionLineItem struct {
 	ItemID               *uuid.UUID      `db:"item_id"`
 	BarcodeScanned       *string         `db:"barcode_scanned"`
 	Description          string          `db:"description"`
-	Quantity             string          `db:"quantity"`         // numeric — decimal.Decimal dep needed; using string for Loop 2
+	Quantity string `db:"quantity"` // numeric — decimal.Decimal dep needed; using string for
 	UnitOfMeasure        string          `db:"unit_of_measure"`
-	UnitPrice            string          `db:"unit_price"`       // numeric — decimal.Decimal dep needed; using string for Loop 2
-	ListPrice            *string         `db:"list_price"`       // numeric — decimal.Decimal dep needed; using string for Loop 2
-	UnitDiscount         string          `db:"unit_discount"`    // numeric — decimal.Decimal dep needed; using string for Loop 2
-	UnitTax              string          `db:"unit_tax"`         // numeric — decimal.Decimal dep needed; using string for Loop 2
-	ExtendedPrice        string          `db:"extended_price"`   // numeric — decimal.Decimal dep needed; using string for Loop 2 (GENERATED)
-	ExtendedTax          string          `db:"extended_tax"`     // numeric — decimal.Decimal dep needed; using string for Loop 2 (GENERATED)
-	LineTotal            string          `db:"line_total"`       // numeric — decimal.Decimal dep needed; using string for Loop 2 (GENERATED)
-	CostBasis            *string         `db:"cost_basis"`       // numeric — decimal.Decimal dep needed; using string for Loop 2
-	Margin               string          `db:"margin"`           // numeric — decimal.Decimal dep needed; using string for Loop 2 (GENERATED)
+	UnitPrice string `db:"unit_price"` // numeric — decimal.Decimal dep needed; using string for
+	ListPrice *string `db:"list_price"` // numeric — decimal.Decimal dep needed; using string for
+	UnitDiscount string `db:"unit_discount"` // numeric — decimal.Decimal dep needed; using string for
+	UnitTax string `db:"unit_tax"` // numeric — decimal.Decimal dep needed; using string for
+	ExtendedPrice string `db:"extended_price"` // numeric — decimal.Decimal dep needed; using string for Loop 2 (GENERATED)
+	ExtendedTax string `db:"extended_tax"` // numeric — decimal.Decimal dep needed; using string for Loop 2 (GENERATED)
+	LineTotal string `db:"line_total"` // numeric — decimal.Decimal dep needed; using string for Loop 2 (GENERATED)
+	CostBasis *string `db:"cost_basis"` // numeric — decimal.Decimal dep needed; using string for
+	Margin string `db:"margin"` // numeric — decimal.Decimal dep needed; using string for Loop 2 (GENERATED)
 	CategoryID           *uuid.UUID      `db:"category_id"`
 	ZoneID               *uuid.UUID      `db:"zone_id"`
 	LotID                *uuid.UUID      `db:"lot_id"`
@@ -87,10 +87,10 @@ type TransactionTender struct {
 	TransactionID      uuid.UUID       `db:"transaction_id"`
 	TenderSequence     int32           `db:"tender_sequence"`
 	TenderTypeID       uuid.UUID       `db:"tender_type_id"`
-	Amount             string          `db:"amount"`          // numeric — decimal.Decimal dep needed; using string for Loop 2
+	Amount string `db:"amount"` // numeric — decimal.Decimal dep needed; using string for
 	Currency           string          `db:"currency"`
-	CashBackAmount     string          `db:"cash_back_amount"` // numeric — decimal.Decimal dep needed; using string for Loop 2
-	ChangeAmount       string          `db:"change_amount"`    // numeric — decimal.Decimal dep needed; using string for Loop 2
+	CashBackAmount string `db:"cash_back_amount"` // numeric — decimal.Decimal dep needed; using string for
+	ChangeAmount string `db:"change_amount"` // numeric — decimal.Decimal dep needed; using string for
 	CardToken          *string         `db:"card_token"`
 	CardLast4          *string         `db:"card_last_4"`
 	CardBrand          *string         `db:"card_brand"`
@@ -114,8 +114,8 @@ type TransactionDiscount struct {
 	DiscountType            string          `db:"discount_type"`
 	SourcePromotionID       *uuid.UUID      `db:"source_promotion_id"`
 	PromotionRuleID         *uuid.UUID      `db:"promotion_rule_id"`
-	Amount                  string          `db:"amount"`     // numeric — decimal.Decimal dep needed; using string for Loop 2
-	Percentage              *string         `db:"percentage"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	Amount string `db:"amount"` // numeric — decimal.Decimal dep needed; using string for
+	Percentage *string `db:"percentage"` // numeric — decimal.Decimal dep needed; using string for
 	ReasonCode              *string         `db:"reason_code"`
 	AuthorizedByEmployeeID  *uuid.UUID      `db:"authorized_by_employee_id"`
 	Attributes              json.RawMessage `db:"attributes"`
@@ -147,11 +147,11 @@ type CashDrawerEvent struct {
 	CashierEmployeeID *uuid.UUID      `db:"cashier_employee_id"`
 	EventType         string          `db:"event_type"`
 	EventAt           time.Time       `db:"event_at"`
-	ExpectedAmount    *string         `db:"expected_amount"`     // numeric — decimal.Decimal dep needed; using string for Loop 2
-	CountedAmount     *string         `db:"counted_amount"`      // numeric — decimal.Decimal dep needed; using string for Loop 2
-	Variance          *string         `db:"variance"`            // numeric — decimal.Decimal dep needed; using string for Loop 2 (GENERATED)
+	ExpectedAmount *string `db:"expected_amount"` // numeric — decimal.Decimal dep needed; using string for
+	CountedAmount *string `db:"counted_amount"` // numeric — decimal.Decimal dep needed; using string for
+	Variance *string `db:"variance"` // numeric — decimal.Decimal dep needed; using string for Loop 2 (GENERATED)
 	Reason            *string         `db:"reason"`
-	PaidInOutAmount   *string         `db:"paid_in_out_amount"`  // numeric — decimal.Decimal dep needed; using string for Loop 2
+	PaidInOutAmount *string `db:"paid_in_out_amount"` // numeric — decimal.Decimal dep needed; using string for
 	Reference         *string         `db:"reference"`
 	Attributes        json.RawMessage `db:"attributes"`
 	CreatedAt         time.Time       `db:"created_at"`
@@ -167,9 +167,9 @@ type ShiftEvent struct {
 	ShiftStart           time.Time       `db:"shift_start"`
 	ShiftEnd             *time.Time      `db:"shift_end"`
 	TransactionCount     int32           `db:"transaction_count"`
-	TotalSales           *string         `db:"total_sales"`            // numeric — decimal.Decimal dep needed; using string for Loop 2
-	StartingDrawerAmount *string         `db:"starting_drawer_amount"` // numeric — decimal.Decimal dep needed; using string for Loop 2
-	EndingDrawerAmount   *string         `db:"ending_drawer_amount"`   // numeric — decimal.Decimal dep needed; using string for Loop 2
+	TotalSales *string `db:"total_sales"` // numeric — decimal.Decimal dep needed; using string for
+	StartingDrawerAmount *string `db:"starting_drawer_amount"` // numeric — decimal.Decimal dep needed; using string for
+	EndingDrawerAmount *string `db:"ending_drawer_amount"` // numeric — decimal.Decimal dep needed; using string for
 	Attributes           json.RawMessage `db:"attributes"`
 	CreatedAt            time.Time       `db:"created_at"`
 	UpdatedAt            time.Time       `db:"updated_at"`
@@ -183,7 +183,7 @@ type LoyaltyEvent struct {
 	TransactionID       *uuid.UUID      `db:"transaction_id"`
 	EventType           string          `db:"event_type"`
 	PointsDelta         int64           `db:"points_delta"`
-	AmountBasis         *string         `db:"amount_basis"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	AmountBasis *string `db:"amount_basis"` // numeric — decimal.Decimal dep needed; using string for
 	Reason              *string         `db:"reason"`
 	Attributes          json.RawMessage `db:"attributes"`
 	CreatedAt           time.Time       `db:"created_at"`
@@ -196,8 +196,8 @@ type GiftCardEvent struct {
 	GiftCardID        uuid.UUID       `db:"gift_card_id"`
 	TransactionID     *uuid.UUID      `db:"transaction_id"`
 	EventType         string          `db:"event_type"`
-	AmountDelta       string          `db:"amount_delta"`  // numeric — decimal.Decimal dep needed; using string for Loop 2
-	BalanceAfter      string          `db:"balance_after"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	AmountDelta string `db:"amount_delta"` // numeric — decimal.Decimal dep needed; using string for
+	BalanceAfter string `db:"balance_after"` // numeric — decimal.Decimal dep needed; using string for
 	AuthorizationCode *string         `db:"authorization_code"`
 	Attributes        json.RawMessage `db:"attributes"`
 	CreatedAt         time.Time       `db:"created_at"`

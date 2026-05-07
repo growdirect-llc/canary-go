@@ -2,9 +2,9 @@
 // upstream-of-customer identity node that resolves cashier / customer
 // / loyalty references into a single canonical party.parties row.
 //
-// Wave A B.5 landed the schema (party.parties, party.identifiers,
+// B.5 landed the schema (party.parties, party.identifiers,
 // party.resolution_events, party.households, party.household_memberships,
-// party.household_evidence, party.decisioning_facts MV). Wave B C.2
+// party.household_evidence, party.decisioning_facts MV).
 // (this package) ships the resolution helpers Fox + downstream
 // modules call: ResolveFromDetection + ResolveSubject.
 //
@@ -72,7 +72,7 @@ func NewStore(pool *pgxpool.Pool) *Store {
 //
 // Returns nil when neither field is populated (detection has no
 // resolvable signal subject) — Fox handles this as "open case with
-// primary_subject_id NULL", same as Loop 2 behavior.
+// primary_subject_id NULL", same as behavior.
 //
 // LAZY-mode: each call performs UPSERT on
 // party.identifiers(tenant_id, identifier_type, identifier_value_hash)

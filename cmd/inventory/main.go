@@ -1,11 +1,11 @@
 // cmd/inventory/main.go
 //
-// Inventory service (Loop 4). SOH read/write + sale event consumer.
+// Inventory service. SOH read/write + sale event consumer.
 //
 // Two goroutines run concurrently:
-//  1. HTTP server — position reads, movement appends, cycle-count adjustments
-//  2. SaleConsumer — polls transaction_line_items for unlinked sale lines,
-//     applies inventory movements, emits replenish signals to Valkey
+// 1. HTTP server — position reads, movement appends, cycle-count adjustments
+// 2. SaleConsumer — polls transaction_line_items for unlinked sale lines,
+// applies inventory movements, emits replenish signals to Valkey
 package main
 
 import (

@@ -3,7 +3,7 @@
 // from q.detection_rules, evaluates them against transaction events,
 // and writes matched detections to q.detections.
 //
-// Loop 2 Wave 2 baseline: 7 of the legacy 37-rule catalog. The rest
+// baseline: 7 of the legacy 37-rule catalog. The rest
 // land in subsequent waves once the engine shape proves out under
 // load.
 package chirp
@@ -44,7 +44,7 @@ type (
 //
 // SDD-vague: chirp.md describes evaluators as having access to "the
 // transaction and recent activity windows" without bounding the
-// window. Loop 2 wave 2 hard-codes 60-minute windows for frequency
+// window. hard-codes 60-minute windows for frequency
 // rules; rule_definition.window_minutes can override per rule.
 type EvalContext struct {
 	TenantID    uuid.UUID
@@ -70,8 +70,8 @@ type EvalContext struct {
 // rule_id / tenant_id / source_entity_* / detected_at.
 type MatchedDetection struct {
 	Severity       string
-	SignalStrength *string         // 0.0-1.0 numeric as string for Loop 2
-	Evidence       json.RawMessage // arbitrary JSON describing the signal
+	SignalStrength *string // 0.0-1.0 numeric as string for
+	Evidence json.RawMessage // arbitrary JSON describing the signal
 	// Optional overrides — when nil/zero the evaluator has nothing more
 	// specific than the source transaction.
 	LocationID        *uuid.UUID
@@ -98,8 +98,8 @@ type RuleEvaluator interface {
 // JSONB. Convention:
 //
 //	{
-//	  "rule_type": "void_threshold",
-//	  "parameters": { "threshold_cents": 5000 }
+//	 "rule_type": "void_threshold",
+//	 "parameters": { "threshold_cents": 5000 }
 //	}
 //
 // SDD-conflict: chirp.md references a flat top-level parameter shape

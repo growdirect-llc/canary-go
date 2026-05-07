@@ -44,7 +44,7 @@ var ErrNoDefaultTenderType = errors.New("no default tender_type for tenant+sourc
 // uq_tender_source_default. The seed in deploy/schema/99_seed.sql
 // installs one row per (tenant, source) — §B.2.
 //
-// Loop 3 Wave 1: simple per-call query. Loop 3 Wave 2 will add an
+//: simple per-call query. will add an
 // LRU cache (the lookup is invariant once seeded; cache eviction only
 // needed when an admin re-classifies a tender_type, which is rare).
 //
