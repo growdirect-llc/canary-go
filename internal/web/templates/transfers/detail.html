@@ -86,10 +86,10 @@
     </div>
 
     <div style="display:flex;flex-direction:column;gap:8px;">
-      <form action="#" method="POST">
+      <form action="#" method="POST">{{ .CSRFField }}
         <button type="submit" style="width:100%;padding:10px 16px;background:var(--health-green);color:#000;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Confirm Receipt</button>
       </form>
-      <form action="#" method="POST">
+      <form action="#" method="POST">{{ .CSRFField }}
         <button type="submit" style="width:100%;padding:10px 16px;background:transparent;color:var(--critical-red);border:1px solid var(--critical-red);border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Flag Variance</button>
       </form>
     </div>

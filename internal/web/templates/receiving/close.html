@@ -61,7 +61,7 @@
 <!-- Confirm form -->
 <div class="ops-card">
   <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Post to Inventory</div>
-  <form action="/receiving/{{.Session.ID}}/close" method="POST">
+  <form action="/receiving/{{.Session.ID}}/close" method="POST">{{ .CSRFField }}
     <div style="margin-bottom:16px;">
       <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Notes</label>
       <textarea name="notes" rows="3" style="width:100%;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:4px;color:var(--text-primary);font-size:13px;resize:vertical;box-sizing:border-box;"></textarea>

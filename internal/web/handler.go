@@ -44,6 +44,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/gorilla/csrf"
 	"go.uber.org/zap"
 
 	"github.com/ruptiv/canary/internal/alert"
@@ -76,6 +77,17 @@ type PageData struct {
 	User  UserData
 	Theme string // CSS theme file stem, e.g. "canary-dark"
 	Data  any    // page-specific data
+
+	// CSRF — populated by render() from gorilla/csrf when the
+	// middleware is wired (production path). Tests that build a
+	// Handler without the gateway wrapper see empty values, which
+	// is fine: they don't go through the CSRF gate.
+	//
+	// Forms embed {{ .CSRFField }} as a hidden input.
+	// HTMX/Alpine reads {{ .CSRFToken }} from a base.html meta tag.
+	// T-E / GRO-849.
+	CSRFField template.HTML
+	CSRFToken string
 }
 
 // UserData is the authenticated user context injected into every page.
@@ -502,10 +514,12 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, tmplName, activ
 		return
 	}
 	pd := PageData{
-		Page:  activePage,
-		Theme: "canary-dark", // TODO: resolve from tenant config
-		User:  stubUser(),
-		Data:  data,
+		Page:      activePage,
+		Theme:     "canary-dark", // TODO: resolve from tenant config
+		User:      stubUser(),
+		Data:      data,
+		CSRFField: csrf.TemplateField(r),
+		CSRFToken: csrf.Token(r),
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")

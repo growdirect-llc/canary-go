@@ -17,7 +17,7 @@
 
 <div class="ops-card" style="margin-bottom:24px;">
   <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Add Supplier</div>
-  <form method="POST" action="/suppliers" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr auto;gap:8px;align-items:center;">
+  <form method="POST" action="/suppliers" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr auto;gap:8px;align-items:center;">{{ .CSRFField }}
     <input type="text" name="supplier_name" placeholder="Supplier name" required style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"/>
     <input type="email" name="contact_email" placeholder="contact@..." style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"/>
     <input type="text" name="contact_phone" placeholder="Phone" style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"/>

@@ -49,13 +49,13 @@
         <td style="padding:12px;text-align:right;color:var(--text-primary);font-weight:600;">{{.SuggestedQty}}</td>
         <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.EstCost}}</td>
         <td style="padding:12px 0;text-align:right;">
-          <form method="POST" action="/orders/suggested/{{.ID}}/approve" style="display:inline;">
+          <form method="POST" action="/orders/suggested/{{.ID}}/approve" style="display:inline;">{{ .CSRFField }}
             <button type="submit" style="font-size:11px;padding:3px 8px;background:transparent;border:1px solid var(--health-green);color:var(--health-green);border-radius:4px;cursor:pointer;margin-right:4px;">Approve</button>
           </form>
-          <form method="POST" action="/orders/suggested/{{.ID}}/reject" style="display:inline;">
+          <form method="POST" action="/orders/suggested/{{.ID}}/reject" style="display:inline;">{{ .CSRFField }}
             <button type="submit" style="font-size:11px;padding:3px 8px;background:transparent;border:1px solid var(--text-muted);color:var(--text-muted);border-radius:4px;cursor:pointer;margin-right:4px;">Reject</button>
           </form>
-          <form method="POST" action="/orders/suggested/{{.ID}}/send" style="display:inline;">
+          <form method="POST" action="/orders/suggested/{{.ID}}/send" style="display:inline;">{{ .CSRFField }}
             <button type="submit" style="font-size:11px;padding:3px 8px;background:transparent;border:1px solid var(--signal-yellow);color:var(--signal-yellow);border-radius:4px;cursor:pointer;">Send</button>
           </form>
         </td>

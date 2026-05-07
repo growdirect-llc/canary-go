@@ -20,6 +20,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/gorilla/csrf"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -265,7 +266,27 @@ func main() {
 		POStore:          poPkg.NewStore(pool),
 		MerchantResolver: squareSvc.MerchantFromRequest,
 	}
-	web.New(webDeps, logger).Mount(r)
+	// T-E / GRO-849: wrap the merchant UI in CSRF + body-size caps.
+	// CSRF runs the gorilla synchronizer-token pattern (signed,
+	// HttpOnly cookie + per-form hidden field). Body cap fails fast
+	// at 64 KiB on POST/PUT/PATCH. Both apply to the entire web tree
+	// — public routes (/, /connect, /welcome, /errors/*) get a CSRF
+	// token planted on first GET so subsequent forms have one.
+	csrfKey := buildCSRFKey(logger)
+	csrfMW := csrf.Protect(
+		csrfKey,
+		csrf.Secure(os.Getenv("ENV") == "production"),
+		csrf.SameSite(csrf.SameSiteLaxMode),
+		csrf.HttpOnly(true),
+		csrf.Path("/"),
+		csrf.FieldName("csrf_token"),
+		csrf.CookieName("__Host-csrf"),
+	)
+	r.Group(func(r chi.Router) {
+		r.Use(web.MaxBytesMiddleware(64 * 1024))
+		r.Use(csrfMW)
+		web.New(webDeps, logger).Mount(r)
+	})
 
 	// MANIFEST_ROUTEWALK=1 — emit build/routes-seen.json then continue
 	// boot. Pure observation; consumed by the manifest reconciler to
@@ -401,6 +422,36 @@ func buildResolver(ctx context.Context, pool *pgxpool.Pool, logger *zap.Logger) 
 		zap.String("project_id", projectID),
 	)
 	return smResolver
+}
+
+// buildCSRFKey loads the CSRF auth key from CSRF_SECRET (32-byte hex).
+// Production requires it; dev generates an ephemeral key + warns.
+// gorilla/csrf signs the per-session token cookie with this key — if it
+// changes between restarts, all in-flight tokens become invalid (users
+// must re-fetch a form GET before POSTing). T-E / GRO-849.
+func buildCSRFKey(logger *zap.Logger) []byte {
+	isProd := os.Getenv("ENV") == "production"
+	key := make([]byte, 32)
+	keyHex := os.Getenv("CSRF_SECRET")
+	if keyHex != "" {
+		decoded, err := hex.DecodeString(keyHex)
+		if err != nil || len(decoded) != 32 {
+			if isProd {
+				logger.Fatal("CSRF_SECRET invalid in production; must be 64-char hex (32 bytes)",
+					zap.Error(err))
+			}
+			logger.Warn("CSRF_SECRET invalid; generating random key (dev fallback)")
+		} else {
+			copy(key, decoded)
+			return key
+		}
+	}
+	if isProd {
+		logger.Fatal("CSRF_SECRET required in production (ENV=production); set to a 64-char hex string")
+	}
+	_, _ = cryptoRand.Read(key)
+	logger.Warn("CSRF_SECRET not set; using ephemeral random key (dev only)")
+	return key
 }
 
 // buildValidateHandler constructs the L402 validation handler from env vars.

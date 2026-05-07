@@ -80,3 +80,30 @@ func (h *Handler) requireTenantMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+
+// MaxBytesMiddleware caps the request body at maxBytes. Returns a
+// chi-compatible middleware. Wraps r.Body in http.MaxBytesReader so
+// downstream io.ReadAll / json.NewDecoder calls fail fast with a
+// "http: request body too large" error after the cap.
+//
+// 64 KiB is the T-E default — every form on every page is well
+// under that. Routes that need a higher cap (e.g. evidence upload
+// when that lands) should register their own MaxBytesReader inside
+// the handler before parsing the body, overriding the upstream
+// limit.
+//
+// Method-gated to POST/PUT/PATCH so GETs aren't penalized by the
+// body wrapping (they shouldn't have bodies, but defensive).
+//
+// T-E / GRO-849.
+func MaxBytesMiddleware(maxBytes int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodPost, http.MethodPut, http.MethodPatch:
+				r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}

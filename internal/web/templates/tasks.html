@@ -64,16 +64,16 @@
         <td style="padding:10px 12px;color:var(--text-muted);font-size:11px;">{{.CreatedAt}}</td>
         <td style="padding:10px 0;text-align:right;">
           {{if .Claimable}}
-          <form method="POST" action="/tasks/{{.ID}}/claim" style="display:inline;">
+          <form method="POST" action="/tasks/{{.ID}}/claim" style="display:inline;">{{ .CSRFField }}
             <button type="submit" style="font-size:11px;padding:3px 8px;background:transparent;border:1px solid var(--accent-blue);color:var(--accent-blue);border-radius:4px;cursor:pointer;margin-right:4px;">Claim</button>
           </form>
           {{end}}
           {{if .Completable}}
-          <form method="POST" action="/tasks/{{.ID}}/complete" style="display:inline;">
+          <form method="POST" action="/tasks/{{.ID}}/complete" style="display:inline;">{{ .CSRFField }}
             <button type="submit" style="font-size:11px;padding:3px 8px;background:transparent;border:1px solid var(--health-green);color:var(--health-green);border-radius:4px;cursor:pointer;margin-right:4px;">Complete</button>
           </form>
           {{end}}
-          <form method="POST" action="/tasks/{{.ID}}/exception" style="display:inline;">
+          <form method="POST" action="/tasks/{{.ID}}/exception" style="display:inline;">{{ .CSRFField }}
             <input type="hidden" name="reason_code" value="other"/>
             <button type="submit" style="font-size:11px;padding:3px 8px;background:transparent;border:1px solid var(--text-muted);color:var(--text-muted);border-radius:4px;cursor:pointer;">Exception</button>
           </form>

@@ -41,7 +41,7 @@
       {{end}}
     </tbody>
   </table>
-  <form method="POST" action="/onboarding/rules/enable" style="margin-top:16px;">
+  <form method="POST" action="/onboarding/rules/enable" style="margin-top:16px;">{{ .CSRFField }}
     <button type="submit" class="ops-btn ops-btn-primary" style="font-size:12px;padding:8px 18px;">Enable defaults</button>
   </form>
 </div>

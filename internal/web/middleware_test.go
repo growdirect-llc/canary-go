@@ -2,6 +2,8 @@ package web
 
 import (
 	"context"
+	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -202,5 +204,67 @@ func TestMount_ProtectedRoutes_RedirectWhenNoTenant(t *testing.T) {
 		if loc := rec.Header().Get("Location"); loc != "/connect" {
 			t.Errorf("protected path %s redirect: got %q, want /connect", p, loc)
 		}
+	}
+}
+
+// TestMaxBytesMiddleware_GetRequest_NotCapped verifies the middleware
+// is method-gated to POST/PUT/PATCH — GET requests pass through
+// untouched (their body is empty anyway, but the middleware should
+// not wrap r.Body since wrapping unnecessarily incurs allocation).
+func TestMaxBytesMiddleware_GetRequest_NotCapped(t *testing.T) {
+	mw := MaxBytesMiddleware(8)
+	called := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	rec := httptest.NewRecorder()
+	mw(next).ServeHTTP(rec, httptest.NewRequest("GET", "/x", nil))
+
+	if !called {
+		t.Fatal("next never called for GET")
+	}
+	if rec.Code != http.StatusOK {
+		t.Errorf("status: got %d, want 200", rec.Code)
+	}
+}
+
+// TestMaxBytesMiddleware_PostRequest_ReadsUpToCap verifies a POST
+// body within the cap reads cleanly — the wrapper does not block
+// or truncate compliant requests.
+func TestMaxBytesMiddleware_PostRequest_ReadsUpToCap(t *testing.T) {
+	mw := MaxBytesMiddleware(64)
+	body := bytes.NewBufferString("compliant=yes")
+	read := -1
+	next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		buf, _ := io.ReadAll(r.Body)
+		read = len(buf)
+	})
+
+	mw(next).ServeHTTP(httptest.NewRecorder(),
+		httptest.NewRequest("POST", "/x", body))
+
+	if read != 13 {
+		t.Errorf("read: got %d bytes, want 13", read)
+	}
+}
+
+// TestMaxBytesMiddleware_PostOverCap_FailsRead verifies that a body
+// over the cap causes the io.ReadAll call to error — defense-in-
+// depth against unbounded request bodies.
+func TestMaxBytesMiddleware_PostOverCap_FailsRead(t *testing.T) {
+	mw := MaxBytesMiddleware(8)
+	body := bytes.NewBufferString("more-than-eight-bytes-here")
+	var readErr error
+	next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		_, readErr = io.ReadAll(r.Body)
+	})
+
+	mw(next).ServeHTTP(httptest.NewRecorder(),
+		httptest.NewRequest("POST", "/x", body))
+
+	if readErr == nil {
+		t.Fatal("io.ReadAll over-cap body did not error")
 	}
 }

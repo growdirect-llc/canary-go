@@ -88,7 +88,7 @@
 
     <!-- Toggle -->
     <div class="ops-card">
-      <form method="POST" action="/rules/{{.Rule.ID}}/toggle">
+      <form method="POST" action="/rules/{{.Rule.ID}}/toggle">{{ .CSRFField }}
         {{if .Rule.Enabled}}
         <button type="submit" style="width:100%;padding:8px 12px;background:transparent;color:var(--critical-red);border:1px solid var(--critical-red);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
           Disable Rule

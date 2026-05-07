@@ -56,7 +56,7 @@
             <span class="badge" style="background:var(--critical-red);color:#fff;">{{.Variance}}</span>
             {{if .VarianceReason}}<div style="font-size:10px;color:var(--text-muted);margin-top:4px;">{{.VarianceReason}}</div>{{end}}
             {{else}}
-            <form method="POST" action="/receiving/{{$.Session.ID}}/lines/{{.LineID}}/discrepancy" style="display:inline;">
+            <form method="POST" action="/receiving/{{$.Session.ID}}/lines/{{.LineID}}/discrepancy" style="display:inline;">{{ .CSRFField }}
               <input type="hidden" name="reason" value="operator_marked"/>
               <button type="submit" title="Mark line as discrepancy" style="font-size:11px;padding:3px 8px;background:transparent;border:1px solid var(--text-muted);color:var(--text-muted);border-radius:4px;cursor:pointer;">Mark</button>
             </form>

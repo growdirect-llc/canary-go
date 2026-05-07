@@ -77,7 +77,7 @@
         <a href="/cases/new?exception={{.ID}}" style="display:block;text-align:center;padding:8px 16px;background:var(--accent-blue);color:#fff;border-radius:6px;font-size:13px;font-weight:500;text-decoration:none;">
           Escalate to Case
         </a>
-        <form action="/exceptions/{{.ID}}/dismiss" method="POST">
+        <form action="/exceptions/{{.ID}}/dismiss" method="POST">{{ .CSRFField }}
           <button type="submit" style="width:100%;padding:8px 16px;background:transparent;border:1px solid var(--border-subtle);color:var(--text-secondary);border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">
             Dismiss
           </button>

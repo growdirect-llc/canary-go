@@ -19,7 +19,7 @@
   <div class="ops-card">
     <h3 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;">Dispatch Remediation</h3>
 
-    <form action="#" method="POST">
+    <form action="#" method="POST">{{ .CSRFField }}
       <div style="margin-bottom:18px;">
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Target Module</label>
         <select name="target_module"

@@ -17,7 +17,7 @@
 
 <div class="ops-card" style="margin-bottom:24px;">
   <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Add Hierarchy Node</div>
-  <form method="POST" action="/admin/hierarchy" style="display:grid;grid-template-columns:1fr 100px 1fr auto;gap:12px;align-items:center;">
+  <form method="POST" action="/admin/hierarchy" style="display:grid;grid-template-columns:1fr 100px 1fr auto;gap:12px;align-items:center;">{{ .CSRFField }}
     <input type="text" name="name" placeholder="e.g. West Region" required style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"/>
     <input type="number" name="level" placeholder="Level" min="1" max="10" required style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"/>
     <input type="text" name="parent_id" placeholder="parent UUID (optional)" style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;font-family:'Space Grotesk',monospace;"/>

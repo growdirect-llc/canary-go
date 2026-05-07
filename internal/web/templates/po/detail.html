@@ -21,19 +21,19 @@
 <div class="ops-card" style="margin-bottom:24px;">
   <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Lifecycle</div>
   <div style="display:flex;gap:8px;">
-    <form method="POST" action="/po/{{.PO.ID}}/status" style="display:inline;">
+    <form method="POST" action="/po/{{.PO.ID}}/status" style="display:inline;">{{ .CSRFField }}
       <input type="hidden" name="status" value="submitted"/>
       <button type="submit" style="font-size:11px;padding:5px 12px;background:transparent;border:1px solid var(--accent-blue);color:var(--accent-blue);border-radius:4px;cursor:pointer;">Submit</button>
     </form>
-    <form method="POST" action="/po/{{.PO.ID}}/status" style="display:inline;">
+    <form method="POST" action="/po/{{.PO.ID}}/status" style="display:inline;">{{ .CSRFField }}
       <input type="hidden" name="status" value="received"/>
       <button type="submit" style="font-size:11px;padding:5px 12px;background:transparent;border:1px solid var(--signal-yellow);color:var(--signal-yellow);border-radius:4px;cursor:pointer;">Mark Received</button>
     </form>
-    <form method="POST" action="/po/{{.PO.ID}}/status" style="display:inline;">
+    <form method="POST" action="/po/{{.PO.ID}}/status" style="display:inline;">{{ .CSRFField }}
       <input type="hidden" name="status" value="closed"/>
       <button type="submit" style="font-size:11px;padding:5px 12px;background:transparent;border:1px solid var(--health-green);color:var(--health-green);border-radius:4px;cursor:pointer;">Close</button>
     </form>
-    <form method="POST" action="/po/{{.PO.ID}}/status" style="display:inline;margin-left:auto;">
+    <form method="POST" action="/po/{{.PO.ID}}/status" style="display:inline;margin-left:auto;">{{ .CSRFField }}
       <input type="hidden" name="status" value="cancelled"/>
       <button type="submit" style="font-size:11px;padding:5px 12px;background:transparent;border:1px solid var(--critical-red);color:var(--critical-red);border-radius:4px;cursor:pointer;">Cancel</button>
     </form>

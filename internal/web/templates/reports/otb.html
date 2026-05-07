@@ -58,13 +58,13 @@
         </td>
         <td style="padding:12px 0;text-align:right;">
           {{if .Lockable}}
-          <form method="POST" action="/reports/otb/{{.ID}}/lock" style="display:inline;">
+          <form method="POST" action="/reports/otb/{{.ID}}/lock" style="display:inline;">{{ .CSRFField }}
             <input type="hidden" name="action" value="lock"/>
             <button type="submit" style="font-size:11px;padding:4px 10px;background:transparent;border:1px solid var(--signal-yellow);color:var(--signal-yellow);border-radius:4px;cursor:pointer;">Lock period</button>
           </form>
           {{end}}
           {{if .Unlockable}}
-          <form method="POST" action="/reports/otb/{{.ID}}/lock" style="display:inline;">
+          <form method="POST" action="/reports/otb/{{.ID}}/lock" style="display:inline;">{{ .CSRFField }}
             <input type="hidden" name="action" value="unlock"/>
             <button type="submit" style="font-size:11px;padding:4px 10px;background:transparent;border:1px solid var(--health-green);color:var(--health-green);border-radius:4px;cursor:pointer;">Unlock</button>
           </form>
