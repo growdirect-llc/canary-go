@@ -88,6 +88,18 @@
     </div>
 
     <div class="sidebar-section">
+      <div class="sidebar-section-label">Channels</div>
+      <a href="/ecom/orders" class="sidebar-item{{if eq .Page "channels"}} active{{end}}" data-color="channels">
+        <span class="nav-icon" style="background: var(--nav-transactions);"></span>
+        Ecom Orders
+      </a>
+      <a href="/ecom/sync" class="sidebar-item" data-color="channels">
+        <span class="nav-icon" style="background: var(--nav-chirps);"></span>
+        Ecom Sync
+      </a>
+    </div>
+
+    <div class="sidebar-section">
       <div class="sidebar-section-label">Procurement</div>
       <a href="/suppliers" class="sidebar-item{{if eq .Page "procurement"}} active{{end}}" data-color="procurement">
         <span class="nav-icon" style="background: var(--nav-employees);"></span>

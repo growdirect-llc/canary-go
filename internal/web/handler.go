@@ -203,6 +203,8 @@ func New(deps Deps, logger *zap.Logger) *Handler {
 	h.mustParseMobile("m_cycle_count", "templates/mobile/cycle_count.html")
 	h.mustParseMobile("m_alert_detail", "templates/mobile/alert_detail.html")
 	h.mustParseMobile("m_alerts", "templates/mobile/alert_detail.html")
+	h.mustParse("ecom_orders", "templates/ecom/orders.html")
+	h.mustParse("ecom_sync", "templates/ecom/sync.html")
 	return h
 }
 
@@ -411,6 +413,10 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/m/receiving", h.mobileReceivingPage)
 	r.Get("/m/cycle-count", h.mobileCycleCountPage)
 	r.Get("/m/alerts/{id}", h.mobileAlertDetailPage)
+
+	// Ecom channel surface — W15 / GRO-834.
+	r.Get("/ecom/orders", h.ecomOrdersPage)
+	r.Get("/ecom/sync", h.ecomSyncPage)
 
 	// Cross-domain exceptions
 	r.Get("/exceptions", h.page("exceptions", "exceptions_list", func(_ *http.Request) any {
