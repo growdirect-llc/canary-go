@@ -314,9 +314,6 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/reports/distribution", h.reportDistributionPage)
 	r.Get("/reports/inventory", h.reportInventoryPage)
 	r.Get("/reports/category", h.reportCategoryPage)
-	r.Get("/reports/category", h.page("reports", "report_category", func(_ *http.Request) any {
-		return map[string]any{"TotalCategories": 0, "TopCategory": "—", "AvgMargin": "—", "SKUsTracked": 0, "Categories": nil}
-	}))
 
 	// Items + category report — wired W2c / GRO-817.
 	r.Get("/items", h.itemListPage)
@@ -2804,16 +2801,8 @@ func stubDashboard(_ *http.Request) any {
 	}
 }
 
-func stubChirps(_ *http.Request) any {
-	return map[string]any{"Chirps": nil}
-}
-
 func stubTransactions(_ *http.Request) any {
 	return map[string]any{"Transactions": nil, "TotalCount": 0}
-}
-
-func stubAlerts(_ *http.Request) any {
-	return map[string]any{"Alerts": nil, "OpenCount": 0, "TotalCount": 0}
 }
 
 func stubCases(_ *http.Request) any {
@@ -2838,10 +2827,6 @@ func stubSettings(_ *http.Request) any {
 	}
 }
 
-func stubRules(_ *http.Request) any {
-	return map[string]any{"Rules": nil, "ActiveCount": 0, "TotalCount": 0}
-}
-
 func stubConnect(_ *http.Request) any {
 	days := []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
 	type lookbackOpt struct {
@@ -2854,22 +2839,6 @@ func stubConnect(_ *http.Request) any {
 		"Lookback":    "30",
 		"LookbackOpts": []lookbackOpt{
 			{"7", "7 days"}, {"30", "30 days"}, {"90", "90 days"}, {"all", "All"},
-		},
-	}
-}
-
-func stubHawkList(_ *http.Request) any {
-	type statusOpt struct {
-		Value string
-		Label string
-	}
-	return map[string]any{
-		"Cases":        nil,
-		"OpenCount":    0,
-		"StatusFilter": "open",
-		"Statuses": []statusOpt{
-			{"open", "Open"}, {"investigating", "Investigating"},
-			{"closed", "Closed"}, {"", "All"},
 		},
 	}
 }
@@ -3177,243 +3146,11 @@ func customerDisplayName(c customer.CustomerDTO) string {
 	return c.ID.String()[:8]
 }
 
-// exceptionDetailPage — exception drill-down with module-aware context
-// (W16 / GRO-835). "Exception" today maps to an alert row — the alert
-// system is the cross-domain exception substrate. When the operations-hub
-// table lands, the lookup widens beyond alerts.
-func (h *Handler) exceptionDetailPage(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	shortID := idStr
-	if len(idStr) >= 8 {
-		shortID = idStr[:8]
-	}
-	view := map[string]any{
-		"Exception": map[string]any{
-			"ID":             idStr,
-			"ShortID":        shortID,
-			"Domain":         "—",
-			"Type":           "—",
-			"Severity":       "—",
-			"Status":         "—",
-			"Store":          "—",
-			"DetectedAt":     "—",
-			"AssignedTo":     "—",
-			"TriggerRule":    "—",
-			"TriggerProcess": "—",
-			"SignalSummary":  "—",
-		},
-	}
-	if id, err := uuid.Parse(idStr); err == nil && h.deps.AlertStore != nil {
-		ctx := r.Context()
-		tenantID := tenantIDFromCtx(ctx)
-		if a, err := h.deps.AlertStore.GetByID(ctx, tenantID, id); err == nil && a != nil {
-			loc := "—"
-			if a.LocationID != nil {
-				loc = a.LocationID.String()[:8]
-			}
-			view["Exception"] = map[string]any{
-				"ID":             idStr,
-				"ShortID":        shortID,
-				"Domain":         a.SourceEntityType,
-				"Type":           a.RuleCategory,
-				"Severity":       a.Severity,
-				"Status":         a.Status,
-				"Store":          loc,
-				"DetectedAt":     a.DetectedAt.Format("2006-01-02 15:04"),
-				"AssignedTo":     "—",
-				"TriggerRule":    a.RuleCode,
-				"TriggerProcess": a.SourceEntityType,
-				"SignalSummary":  a.RuleCategory + " · severity=" + a.Severity,
-			}
-		}
-	}
-	h.render(w, r, "exceptions_detail", "exceptions", view)
-}
-
-func (h *Handler) casesNewPage(w http.ResponseWriter, r *http.Request) {
-	exceptionID := r.URL.Query().Get("exception")
-	preFillTitle := ""
-	if exceptionID != "" {
-		preFillTitle = "Exception " + exceptionID
-	}
-	h.render(w, r, "cases_new", "cases", map[string]any{
-		"ExceptionID":  exceptionID,
-		"PreFillTitle": preFillTitle,
-	})
-}
-
-// casesEvidencePage — cross-domain evidence aggregation (W16 / GRO-835,
-// E.5.3). Reads casemgmt.Case + ListEvidence; domain counts are derived
-// from evidence.SourceEntityType (alert / detection / inventory_movement /
-// goods_receipt / etc.).
-func (h *Handler) casesEvidencePage(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	shortID := idStr
-	if len(idStr) >= 8 {
-		shortID = idStr[:8]
-	}
-	view := map[string]any{
-		"Case": map[string]any{
-			"ID":      idStr,
-			"ShortID": shortID,
-			"Title":   "Case " + shortID,
-		},
-		"Evidence":     nil,
-		"DomainCounts": map[string]int{"lp": 0, "inventory": 0, "finance": 0, "receiving": 0},
-	}
-	if id, err := uuid.Parse(idStr); err == nil && h.deps.CaseStore != nil {
-		ctx := r.Context()
-		tenantID := tenantIDFromCtx(ctx)
-		if c, err := h.deps.CaseStore.GetCase(ctx, tenantID, id); err == nil {
-			view["Case"] = map[string]any{
-				"ID":      c.ID.String(),
-				"ShortID": c.ID.String()[:8],
-				"Title":   c.Title,
-			}
-		}
-		if ev, err := h.deps.CaseStore.ListEvidence(ctx, id); err == nil {
-			counts := map[string]int{"lp": 0, "inventory": 0, "finance": 0, "receiving": 0}
-			rows := make([]map[string]any, 0, len(ev))
-			for _, e := range ev {
-				domain := classifyEvidenceDomain(e.SourceEntityType)
-				counts[domain]++
-				et := "—"
-				if e.SourceEntityType != nil {
-					et = *e.SourceEntityType
-				}
-				rows = append(rows, map[string]any{
-					"EvidenceType":     e.EvidenceType,
-					"SourceEntityType": et,
-					"Domain":           domain,
-					"CollectedAt":      e.CollectedAt.Format("2006-01-02 15:04"),
-				})
-			}
-			view["Evidence"] = rows
-			view["DomainCounts"] = counts
-		}
-	}
-	h.render(w, r, "cases_evidence", "cases", view)
-}
-
-// classifyEvidenceDomain maps a CaseEvidence.SourceEntityType to the
-// cross-domain bucket the evidence template renders. Deterministic
-// (no ML correlation per dispatch out-of-scope).
-func classifyEvidenceDomain(srcType *string) string {
-	if srcType == nil {
-		return "lp"
-	}
-	switch *srcType {
-	case "alert", "detection", "chirp":
-		return "lp"
-	case "inventory_movement", "inventory_position", "inventory_document":
-		return "inventory"
-	case "transaction", "tender", "refund":
-		return "finance"
-	case "goods_receipt", "transfer", "rtv":
-		return "receiving"
-	default:
-		return "lp"
-	}
-}
-
-// casesCorrelationPage — subject-based pattern surface across modules
-// (W16 / GRO-835, E.5.4). Deterministic per dispatch out-of-scope:
-// finds other cases with the same primary_subject_id. ML correlation
-// is filed for follow-on.
-func (h *Handler) casesCorrelationPage(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	shortID := idStr
-	if len(idStr) >= 8 {
-		shortID = idStr[:8]
-	}
-	view := map[string]any{
-		"Case": map[string]any{
-			"ID":          idStr,
-			"ShortID":     shortID,
-			"SubjectID":   "—",
-		},
-		"RelatedCases": nil,
-		"Timeline":     nil,
-	}
-	if id, err := uuid.Parse(idStr); err == nil && h.deps.CaseStore != nil {
-		ctx := r.Context()
-		tenantID := tenantIDFromCtx(ctx)
-		c, err := h.deps.CaseStore.GetCase(ctx, tenantID, id)
-		if err == nil && c != nil {
-			subj := "—"
-			if c.PrimarySubjectID != nil {
-				subj = c.PrimarySubjectID.String()[:8]
-			}
-			view["Case"] = map[string]any{
-				"ID":        c.ID.String(),
-				"ShortID":   c.ID.String()[:8],
-				"SubjectID": subj,
-			}
-			// Find other cases with the same primary subject.
-			if c.PrimarySubjectID != nil {
-				all, err := h.deps.CaseStore.ListCases(ctx, casemgmt.ListFilters{TenantID: tenantID, Limit: 100})
-				if err == nil {
-					rows := make([]map[string]any, 0)
-					for _, related := range all {
-						if related.ID == c.ID {
-							continue
-						}
-						if related.PrimarySubjectID != nil && *related.PrimarySubjectID == *c.PrimarySubjectID {
-							rows = append(rows, map[string]any{
-								"ID":         related.ID.String(),
-								"ShortID":    related.ID.String()[:8],
-								"Title":      related.Title,
-								"Severity":   related.Severity,
-								"Status":     related.Status,
-								"OpenedAt":   related.OpenedAt.Format("2006-01-02"),
-							})
-						}
-					}
-					view["RelatedCases"] = rows
-				}
-			}
-		}
-	}
-	h.render(w, r, "cases_correlation", "cases", view)
-}
-
-// casesRemediatePage — dispatch remediation to target module workflow
-// (W16 / GRO-835, E.5.5). Surfaces a static catalog of remediation
-// actions; each links to the workflow KickOff path that lands when
-// W4 ships the operator-facing workflow advance UI.
-func (h *Handler) casesRemediatePage(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	shortID := idStr
-	if len(idStr) >= 8 {
-		shortID = idStr[:8]
-	}
-	view := map[string]any{
-		"Case": map[string]any{
-			"ID":      idStr,
-			"ShortID": shortID,
-			"Title":   "Case " + shortID,
-		},
-		"Catalog": []map[string]any{
-			{"Code": "open_three_way_match", "Name": "Open three-way match", "Module": "workflow", "Note": "Triggers workflow.KickOff(three_way_match) — W4 wired this from receiving close."},
-			{"Code": "create_directed_task", "Name": "Create directed task", "Module": "task", "Note": "Adds a receiving / replenishment / cycle_count task to the queue."},
-			{"Code": "lock_otb_period", "Name": "Lock OTB period", "Module": "billing", "Note": "Locks the active L402 OTB budget — blocks further satoshi spend."},
-			{"Code": "flag_inventory_loss", "Name": "Flag inventory loss", "Module": "asset", "Note": "Writes an adjustment movement; SOH consumer reconciles."},
-		},
-		"Remediations": nil,
-	}
-	if id, err := uuid.Parse(idStr); err == nil && h.deps.CaseStore != nil {
-		ctx := r.Context()
-		tenantID := tenantIDFromCtx(ctx)
-		if c, err := h.deps.CaseStore.GetCase(ctx, tenantID, id); err == nil && c != nil {
-			view["Case"] = map[string]any{
-				"ID":      c.ID.String(),
-				"ShortID": c.ID.String()[:8],
-				"Title":   c.Title,
-			}
-		}
-	}
-	h.render(w, r, "cases_remediate", "cases", view)
-}
+// W16 case-management capstone handlers (exceptionDetailPage, casesNewPage,
+// casesEvidencePage, classifyEvidenceDomain, casesCorrelationPage,
+// casesRemediatePage) live in handler_w16.go per the per-W-series
+// file convention. Route registrations stay in this file's Mount().
+// Sprint 2 T-J / GRO-853.
 
 // tenantIDFromCtx extracts the tenant UUID from the request context.
 // Returns uuid.Nil until auth middleware (GRO-769) is wired.
