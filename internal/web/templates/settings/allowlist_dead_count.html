@@ -25,7 +25,8 @@
           <th style="text-align:left;padding:8px 12px 8px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Cashier ID</th>
           <th style="text-align:left;padding:8px 12px 8px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Store</th>
           <th style="text-align:left;padding:8px 12px 8px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Added by</th>
-          <th style="text-align:left;padding:8px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Added at</th>
+          <th style="text-align:left;padding:8px 12px 8px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Added at</th>
+          <th style="text-align:right;padding:8px 0;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;"></th>
         </tr>
       </thead>
       <tbody>
@@ -34,7 +35,12 @@
           <td style="padding:10px 12px 10px 0;color:var(--text-primary);font-family:'Space Grotesk',sans-serif;">{{.CashierID}}</td>
           <td style="padding:10px 12px 10px 0;color:var(--text-secondary);">{{.Store}}</td>
           <td style="padding:10px 12px 10px 0;color:var(--text-secondary);">{{.AddedBy}}</td>
-          <td style="padding:10px 0;color:var(--text-muted);">{{.AddedAt}}</td>
+          <td style="padding:10px 12px 10px 0;color:var(--text-muted);">{{.AddedAt}}</td>
+          <td style="padding:10px 0;text-align:right;">
+            <form method="POST" action="/settings/allowlist/dead-count/{{.ID}}/delete" style="display:inline;">
+              <button type="submit" style="background:transparent;border:1px solid var(--border-subtle);color:var(--text-muted);padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;">Delete</button>
+            </form>
+          </td>
         </tr>
         {{end}}
       </tbody>
@@ -46,7 +52,7 @@
 
   <div class="ops-card">
     <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:16px;">Add Entry</h3>
-    <form action="#" method="POST" style="display:grid;gap:16px;">
+    <form action="/settings/allowlist/dead-count" method="POST" style="display:grid;gap:16px;">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
         <div>
           <label style="display:block;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Cashier ID</label>

@@ -1,0 +1,44 @@
+{{template "base.html" .}}
+
+{{define "title"}}MCP Tools — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>MCP Tools</h1>
+  <p class="page-subtitle">Tools exposed by the Canary protocol gateway &middot; {{.Count}} registered</p>
+</div>
+
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Tool Catalog</div>
+  {{if .Tools}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Tool</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Module</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Tools}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;font-family:'Space Grotesk',monospace;color:var(--text-primary);">{{.Name}}</td>
+        <td style="padding:10px 12px;color:var(--text-secondary);">{{.Module}}</td>
+        <td style="padding:10px 0;color:var(--text-secondary);font-size:12px;">{{.Description}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No MCP tools registered.</p>
+  {{end}}
+</div>
+
+<div class="ops-card" style="margin-top:24px;">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:12px;">Discovery Endpoint</div>
+  <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">Programmatic clients can discover this catalog at:</div>
+  <code style="font-family:'Space Grotesk',monospace;font-size:12px;color:var(--accent-blue);background:rgba(59,130,246,0.06);padding:6px 10px;border-radius:4px;display:inline-block;">GET /.well-known/mcp.json</code>
+</div>
+{{end}}
+{{end}}

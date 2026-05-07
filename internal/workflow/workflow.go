@@ -262,6 +262,82 @@ func (s *Store) Complete(
 // GetExecution returns a snapshot of the execution by id without
 // taking the advisory lock. Read-only — callers expect Eventually
 // Consistent reads.
+// ListExecutionsFilter scopes a ListExecutions query.
+type ListExecutionsFilter struct {
+	TenantID   uuid.UUID
+	WorkflowID *uuid.UUID
+	Status     string
+	Limit      int
+}
+
+// ListExecutions returns app.workflow_executions rows for the tenant,
+// optionally filtered by workflow_id and status. Used by the portal
+// /workflows surface (W4 / GRO-823) to show in-flight workflows.
+// Ordered by started_at DESC.
+func (s *Store) ListExecutions(ctx context.Context, f ListExecutionsFilter) ([]Execution, error) {
+	limit := f.Limit
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	args := []any{f.TenantID}
+	q := `SELECT id, tenant_id, workflow_id, external_ref, status,
+	             current_step, context, started_at::text,
+	             finished_at::text, error_message, attributes
+	      FROM app.workflow_executions
+	      WHERE tenant_id = $1`
+	if f.WorkflowID != nil {
+		args = append(args, *f.WorkflowID)
+		q += fmt.Sprintf(" AND workflow_id = $%d", len(args))
+	}
+	if f.Status != "" {
+		args = append(args, f.Status)
+		q += fmt.Sprintf(" AND status = $%d", len(args))
+	}
+	args = append(args, limit)
+	q += fmt.Sprintf(" ORDER BY started_at DESC LIMIT $%d", len(args))
+
+	rows, err := s.pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("workflow: list executions: %w", err)
+	}
+	defer rows.Close()
+	out := make([]Execution, 0, limit)
+	for rows.Next() {
+		exec, err := scanExecution(rows)
+		if err != nil {
+			return nil, fmt.Errorf("workflow: list executions scan: %w", err)
+		}
+		out = append(out, *exec)
+	}
+	return out, rows.Err()
+}
+
+// ListDefinitions returns all registered workflow definitions.
+// Used by the portal /workflows surface to label executions by code.
+func (s *Store) ListDefinitions(ctx context.Context) ([]Definition, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, workflow_code, display_name, version, status,
+		       attributes, registered_at::text
+		FROM app.workflow_definitions
+		ORDER BY workflow_code, version DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("workflow: list definitions: %w", err)
+	}
+	defer rows.Close()
+	out := make([]Definition, 0, 16)
+	for rows.Next() {
+		var d Definition
+		if err := rows.Scan(
+			&d.ID, &d.WorkflowCode, &d.DisplayName, &d.Version,
+			&d.Status, &d.Attributes, &d.RegisteredAt,
+		); err != nil {
+			return nil, fmt.Errorf("workflow: list definitions scan: %w", err)
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) GetExecution(ctx context.Context, executionID uuid.UUID) (*Execution, error) {
 	const q = `
 		SELECT id, tenant_id, workflow_id, external_ref, status,
