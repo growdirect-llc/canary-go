@@ -22,7 +22,9 @@ func newRouter(t *testing.T) *chi.Mux {
 
 func TestServicePage_rendersShellForKnownService(t *testing.T) {
 	r := newRouter(t)
-	for _, name := range []string{"catalog", "manifest", "observability", "pipeline", "qa-agent"} {
+	// catalog and api-docs use custom handlers (TestCatalog_* / TestApiDocs_*).
+	// This test exercises the generic six-zone shell for the rest.
+	for _, name := range []string{"manifest", "observability", "pipeline", "qa-agent"} {
 		req := httptest.NewRequest(http.MethodGet, "/devops/"+name, nil)
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
@@ -242,5 +244,126 @@ func TestApiDocs_includedInKnownServices(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("api-docs not in KnownServices()")
+	}
+}
+
+func _sampleCatalog() *Catalog {
+	port := 9100
+	return &Catalog{
+		GeneratedAt: "2026-05-07T00:00:00Z",
+		Axes: []CatalogAxis{
+			{Key: "A", Name: "Adapter", Direction: "POS → Canary"},
+			{Key: "B", Name: "Resource", Direction: "Canary → external"},
+			{Key: "C", Name: "Agent", Direction: "Canary → AI agents"},
+		},
+		Tiers: []string{"stream", "change-feed", "daily-batch", "bulk-window", "reference"},
+		Cells: []CatalogCell{
+			{Axis: "A", Tier: "stream", EndpointCount: 0, Services: nil},
+			{Axis: "A", Tier: "change-feed", EndpointCount: 0, Services: nil},
+			{Axis: "A", Tier: "daily-batch", EndpointCount: 0, Services: nil},
+			{Axis: "A", Tier: "bulk-window", EndpointCount: 0, Services: nil},
+			{Axis: "A", Tier: "reference", EndpointCount: 0, Services: nil},
+			{Axis: "B", Tier: "stream", EndpointCount: 0, Services: nil},
+			{Axis: "B", Tier: "change-feed", EndpointCount: 5, Services: []string{"observability"}},
+			{Axis: "B", Tier: "daily-batch", EndpointCount: 0, Services: nil},
+			{Axis: "B", Tier: "bulk-window", EndpointCount: 0, Services: nil},
+			{Axis: "B", Tier: "reference", EndpointCount: 8, Services: []string{"catalog", "manifest"}},
+			{Axis: "C", Tier: "stream", EndpointCount: 0, Services: nil},
+			{Axis: "C", Tier: "change-feed", EndpointCount: 4, Services: []string{"qa-agent"}},
+			{Axis: "C", Tier: "daily-batch", EndpointCount: 0, Services: nil},
+			{Axis: "C", Tier: "bulk-window", EndpointCount: 0, Services: nil},
+			{Axis: "C", Tier: "reference", EndpointCount: 0, Services: nil},
+		},
+		Services: []CatalogSvc{
+			{Name: "catalog", Port: &port, Priority: "P0", Category: "cross-tenant infra", Cells: []string{"B×reference"}, EndpointCount: 3},
+			{Name: "qa-agent", Port: &port, Priority: "P0", Category: "cross-tenant infra", Cells: []string{"C×change-feed"}, EndpointCount: 4},
+		},
+		Totals: CatalogTotals{ServiceCount: 5, EndpointCount: 17},
+	}
+}
+
+func TestCatalog_pageRendersGridAndServices(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	h.catalog = _sampleCatalog()
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/devops/catalog", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+
+	// Grid headers — all 5 tiers + all 3 axes appear
+	for _, tier := range []string{"stream", "change-feed", "daily-batch", "bulk-window", "reference"} {
+		if !strings.Contains(body, tier) {
+			t.Errorf("grid missing tier header %q", tier)
+		}
+	}
+	for _, axis := range []string{"Adapter", "Resource", "Agent"} {
+		if !strings.Contains(body, axis) {
+			t.Errorf("grid missing axis name %q", axis)
+		}
+	}
+	// Cell counts that are non-zero
+	for _, want := range []string{">5<", ">8<", ">4<"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("grid missing non-zero cell count snippet %q", want)
+		}
+	}
+	// Service rows
+	for _, name := range []string{"catalog", "qa-agent"} {
+		if !strings.Contains(body, `href="/devops/`+name+`"`) {
+			t.Errorf("service table missing link for %q", name)
+		}
+	}
+	// Totals strip
+	if !strings.Contains(body, ">5<") || !strings.Contains(body, ">17<") {
+		t.Errorf("totals strip missing service/endpoint counts")
+	}
+}
+
+func TestCatalog_pageRendersPlaceholderWhenMissing(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	h.catalog = nil
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/devops/catalog", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "CATALOG NOT LOADED") {
+		t.Errorf("placeholder banner missing")
+	}
+	if strings.Contains(body, "Cadence Ladder — Axis × Tier") {
+		t.Errorf("grid should NOT render when catalog missing")
+	}
+}
+
+func TestCatalog_setsNoStoreCacheControl(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	h.catalog = _sampleCatalog()
+	r := chi.NewRouter()
+	h.Mount(r)
+	req := httptest.NewRequest(http.MethodGet, "/devops/catalog", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if got := rr.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control: got %q, want no-store", got)
 	}
 }

@@ -21,6 +21,7 @@ package devops
 
 import (
 	"embed"
+	"encoding/json"
 	"html/template"
 	"net/http"
 	"os"
@@ -29,6 +30,49 @@ import (
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 )
+
+// Catalog is the JSON shape emitted by parse_manifest.py's
+// build_catalog() — see services/canary-protocol/manifest/gen/.
+// Keep the field tags in lockstep with that emitter.
+type Catalog struct {
+	GeneratedAt string         `json:"generated_at"`
+	Axes        []CatalogAxis  `json:"axes"`
+	Tiers       []string       `json:"tiers"`
+	Cells       []CatalogCell  `json:"cells"`
+	Services    []CatalogSvc   `json:"services"`
+	Totals      CatalogTotals  `json:"totals"`
+}
+
+type CatalogAxis struct {
+	Key       string `json:"key"`
+	Name      string `json:"name"`
+	Direction string `json:"direction"`
+}
+
+type CatalogCell struct {
+	Axis          string   `json:"axis"`
+	Tier          string   `json:"tier"`
+	EndpointCount int      `json:"endpoint_count"`
+	Services      []string `json:"services"`
+}
+
+type CatalogSvc struct {
+	Name           string   `json:"name"`
+	Port           *int     `json:"port"`
+	Priority       string   `json:"priority"`
+	Category       string   `json:"category"`
+	Scope          string   `json:"scope"`
+	Owner          string   `json:"owner"`
+	Card           string   `json:"card"`
+	Cells          []string `json:"cells"`
+	EndpointCount  int      `json:"endpoint_count"`
+	PythonPriorArt *string  `json:"python_prior_art"`
+}
+
+type CatalogTotals struct {
+	ServiceCount  int `json:"service_count"`
+	EndpointCount int `json:"endpoint_count"`
+}
 
 //go:embed templates
 var embedFS embed.FS
@@ -118,6 +162,7 @@ type Handler struct {
 	logger     *zap.Logger
 	index      map[string]*Service // name → metadata, built once at New()
 	openAPIRaw []byte              // openapi.yaml loaded once at boot for /devops/api-docs/openapi.yaml
+	catalog    *Catalog            // devops-catalog.json loaded once at boot for /devops/catalog
 }
 
 // New constructs a Handler. Returns an error if templates fail to
@@ -134,6 +179,7 @@ func New(logger *zap.Logger) (*Handler, error) {
 		"templates/shell.html",
 		"templates/sidebar.html",
 		"templates/api_docs.html",
+		"templates/catalog.html",
 	)
 	if err != nil {
 		return nil, err
@@ -147,7 +193,42 @@ func New(logger *zap.Logger) (*Handler, error) {
 	}
 	h := &Handler{tmpl: tmpl, logger: logger, index: idx}
 	h.openAPIRaw = loadOpenAPI(logger)
+	h.catalog = loadCatalog(logger)
 	return h, nil
+}
+
+// loadCatalog reads devops-catalog.json from the same candidate set as
+// loadOpenAPI. Returns nil if the file is missing or unparseable; the
+// catalog page degrades to a placeholder.
+func loadCatalog(logger *zap.Logger) *Catalog {
+	candidates := []string{
+		"services/canary-protocol/manifest/devops-catalog.json",
+		"../services/canary-protocol/manifest/devops-catalog.json",
+		"../../services/canary-protocol/manifest/devops-catalog.json",
+	}
+	for _, c := range candidates {
+		data, err := os.ReadFile(c)
+		if err != nil {
+			continue
+		}
+		var cat Catalog
+		if err := json.Unmarshal(data, &cat); err != nil {
+			abs, _ := filepath.Abs(c)
+			logger.Warn("catalog: devops-catalog.json malformed",
+				zap.String("path", abs), zap.Error(err))
+			continue
+		}
+		abs, _ := filepath.Abs(c)
+		logger.Info("catalog: devops-catalog.json loaded",
+			zap.String("path", abs),
+			zap.Int("services", cat.Totals.ServiceCount),
+			zap.Int("endpoints", cat.Totals.EndpointCount),
+		)
+		return &cat
+	}
+	logger.Warn("catalog: devops-catalog.json not found in any candidate location " +
+		"(catalog page will render placeholder; run `make manifest`)")
+	return nil
 }
 
 // loadOpenAPI reads openapi.yaml from a couple of candidate locations
@@ -188,12 +269,14 @@ func loadOpenAPI(logger *zap.Logger) []byte {
 func (h *Handler) Mount(r chi.Router) {
 	// Special routes — rendered with custom handlers, NOT the generic
 	// six-zone shell. T2.35: api-docs serves Redoc + raw openapi.yaml.
+	// T2.34: catalog renders the 3×5 grid heat-map from devops-catalog.json.
 	r.Get("/devops/api-docs", h.apiDocsPage)
 	r.Get("/devops/api-docs/openapi.yaml", h.apiDocsSpec)
+	r.Get("/devops/catalog", h.catalogPage)
 
 	for name := range h.index {
-		if name == "api-docs" {
-			continue // already mounted with the Redoc handler above
+		if name == "api-docs" || name == "catalog" {
+			continue // mounted above with custom handlers
 		}
 		path := "/devops/" + name
 		r.Get(path, h.servicePage)
@@ -271,4 +354,43 @@ func (h *Handler) apiDocsSpec(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	_, _ = w.Write(h.openAPIRaw)
+}
+
+// catalogPage renders the 3×5 axis-tier heat-map plus a service list.
+// Manifest-driven: data comes from devops-catalog.json loaded at boot.
+// When the file is absent, a placeholder explains how to regenerate.
+func (h *Handler) catalogPage(w http.ResponseWriter, r *http.Request) {
+	svc := h.index["catalog"]
+	view := map[string]any{
+		"Service":    svc,
+		"Categories": Categories,
+		"Active":     "catalog",
+		"Tenant":     "all",
+		"Env":        "lab",
+		"Catalog":    h.catalog,
+		"Loaded":     h.catalog != nil,
+	}
+	if h.catalog != nil {
+		// Pre-arrange cells into a row-per-axis structure for the template:
+		// rows[i] = the 5 cells of axis i in tier order.
+		rows := make(map[string][]CatalogCell, len(h.catalog.Axes))
+		for _, c := range h.catalog.Cells {
+			rows[c.Axis] = append(rows[c.Axis], c)
+		}
+		// Compute max endpoint count for heat-color scaling.
+		maxCount := 0
+		for _, c := range h.catalog.Cells {
+			if c.EndpointCount > maxCount {
+				maxCount = c.EndpointCount
+			}
+		}
+		view["GridRows"] = rows
+		view["MaxCellCount"] = maxCount
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := h.tmpl.ExecuteTemplate(w, "catalog.html", view); err != nil {
+		h.logger.Error("catalog template", zap.Error(err))
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
 }
