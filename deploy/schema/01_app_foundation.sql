@@ -501,3 +501,34 @@ CREATE INDEX IF NOT EXISTS idx_workflow_exec_workflow
 CREATE INDEX IF NOT EXISTS idx_workflow_exec_external_ref
     ON app.workflow_executions(tenant_id, external_ref)
     WHERE external_ref IS NOT NULL;
+
+-- ─── JWT signing keys (T-2 / GRO-862) ─────────────────────────────────
+-- JWKS keystore with two-key rotation. One active row mints; active +
+-- retiring rows both verify; expired rows kept for forensic lookup.
+-- See deploy/migrations/033_signing_keys.up.sql for migration narrative.
+
+CREATE TABLE IF NOT EXISTS app.signing_keys (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    kid             TEXT NOT NULL UNIQUE,
+    alg             TEXT NOT NULL CHECK (alg IN ('RS256', 'ES256', 'EdDSA')),
+    public_jwk      JSONB NOT NULL,
+    private_key_pem TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'active'
+                    CHECK (status IN ('active', 'retiring', 'expired')),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    retiring_at     TIMESTAMPTZ,
+    retired_at      TIMESTAMPTZ,
+    CONSTRAINT signing_keys_status_timestamps_consistent CHECK (
+        (status = 'active'   AND retiring_at IS NULL AND retired_at IS NULL) OR
+        (status = 'retiring' AND retiring_at IS NOT NULL AND retired_at IS NULL) OR
+        (status = 'expired'  AND retiring_at IS NOT NULL AND retired_at IS NOT NULL)
+    )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS signing_keys_one_active
+    ON app.signing_keys (status)
+    WHERE status = 'active';
+
+CREATE INDEX IF NOT EXISTS signing_keys_verify_set
+    ON app.signing_keys (status, kid)
+    WHERE status IN ('active', 'retiring');
