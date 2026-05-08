@@ -106,6 +106,78 @@ func loadDrift(logger *zap.Logger) *Drift {
 	return &Drift{}
 }
 
+// TierInfo is the per-tier metadata block surfaced on /devops/observability.
+// Values are pinned to spec §"Per-tier infrastructure" — change here if the
+// spec evolves. Field shape mirrors the table columns of that spec section.
+type TierInfo struct {
+	Name      string // tier key — matches manifest.yaml's `tiers` array entries
+	Protocol  string
+	Auth      string
+	RateLimit string
+	Health    string
+	Cache     string
+	Recovery  string
+}
+
+// TierCatalog is the canonical per-tier metadata. Order matches the cadence-
+// ladder progression (fastest → slowest); this is the order the
+// observability page renders the tier cards.
+var TierCatalog = []TierInfo{
+	{
+		Name:      "stream",
+		Protocol:  "SSE / WebSocket / Valkey XREAD tail",
+		Auth:      "Long-lived token",
+		RateLimit: "Concurrent connections",
+		Health:    "Heartbeat (no msg in N sec)",
+		Cache:     "N/A",
+		Recovery:  "Replay from queue",
+	},
+	{
+		Name:      "change-feed",
+		Protocol:  "REST polling with cursor / sub with watermark",
+		Auth:      "API key per request",
+		RateLimit: "Requests/min per key",
+		Health:    "Lag exceeded / queue depth",
+		Cache:     "Short TTL (~5 min)",
+		Recovery:  "Catch up from watermark",
+	},
+	{
+		Name:      "daily-batch",
+		Protocol:  "Cron-driven export",
+		Auth:      "Service-to-service signed",
+		RateLimit: "Rate-of-runs",
+		Health:    "Schedule missed / checksum diff",
+		Cache:     "N/A",
+		Recovery:  "Rerun the job",
+	},
+	{
+		Name:      "bulk-window",
+		Protocol:  "Scheduled file drop / blob",
+		Auth:      "Signed URL",
+		RateLimit: "Window-bounded",
+		Health:    "Didn't land / row count off",
+		Cache:     "N/A",
+		Recovery:  "Reschedule",
+	},
+	{
+		Name:      "reference",
+		Protocol:  "REST GET with strong cache headers",
+		Auth:      "API key (anon-read possible)",
+		RateLimit: "High requests/min",
+		Health:    "Version drift",
+		Cache:     "Long TTL (~60s hot)",
+		Recovery:  "Force resync",
+	},
+}
+
+// TierRollup is the rendered shape — one card per tier with services list
+// rolled up across all axes. Used by observabilityPage.
+type TierRollup struct {
+	TierInfo
+	EndpointCount int
+	Services      []string // dedup-sorted across A/B/C axes for the tier
+}
+
 // parseTrailingInt extracts the trailing integer from lines like
 // "manifest endpoints:   80" or "manifest-only:                 78".
 // Returns 0 on parse failure (the field stays zero-valued — the template
@@ -296,6 +368,7 @@ func New(logger *zap.Logger) (*Handler, error) {
 		"templates/api_docs.html",
 		"templates/catalog.html",
 		"templates/manifest.html",
+		"templates/observability.html",
 	)
 	if err != nil {
 		return nil, err
@@ -391,9 +464,11 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/devops/api-docs/openapi.yaml", h.apiDocsSpec)
 	r.Get("/devops/catalog", h.catalogPage)
 	r.Get("/devops/manifest", h.manifestPage)
+	r.Get("/devops/observability", h.observabilityPage)
 
 	for name := range h.index {
-		if name == "api-docs" || name == "catalog" || name == "manifest" {
+		switch name {
+		case "api-docs", "catalog", "manifest", "observability":
 			continue // mounted above with custom handlers
 		}
 		path := "/devops/" + name
@@ -558,4 +633,86 @@ func (h *Handler) manifestPage(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error("manifest template", zap.Error(err))
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
+}
+
+// observabilityPage renders the /devops/observability viewer — five tier
+// cards covering the full cadence ladder. Each tier card surfaces the
+// per-tier infrastructure metadata (protocol/auth/rate-limit/health/
+// cache/recovery) per spec §"Per-tier infrastructure", plus the dedup-
+// sorted set of services declared in any cell of that tier.
+//
+// Live health checks and per-service drill-down are out of scope here —
+// they land in T3A.4 ("per-tier health rollups" middleware ticket) and
+// follow-on Phase 3 work respectively. This page renders the contract
+// (what each tier means + which services occupy it), not live telemetry.
+//
+// T3B.2 / GRO-883.
+func (h *Handler) observabilityPage(w http.ResponseWriter, r *http.Request) {
+	svc := h.index["observability"]
+	rollups := buildTierRollups(h.catalog)
+	cellsCovered, cellsEmpty, servicesTracked := 0, 0, 0
+	if h.catalog != nil {
+		seen := map[string]bool{}
+		for _, c := range h.catalog.Cells {
+			if c.EndpointCount > 0 {
+				cellsCovered++
+			} else {
+				cellsEmpty++
+			}
+			for _, s := range c.Services {
+				if !seen[s] {
+					seen[s] = true
+					servicesTracked++
+				}
+			}
+		}
+	}
+	view := map[string]any{
+		"Service":         svc,
+		"Categories":      Categories,
+		"Active":          "observability",
+		"Tenant":          "all",
+		"Env":             "lab",
+		"Catalog":         h.catalog,
+		"CatalogLoaded":   h.catalog != nil,
+		"Tiers":           rollups,
+		"CellsCovered":    cellsCovered,
+		"CellsEmpty":      cellsEmpty,
+		"ServicesTracked": servicesTracked,
+		"TotalTiers":      len(TierCatalog),
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := h.tmpl.ExecuteTemplate(w, "observability.html", view); err != nil {
+		h.logger.Error("observability template", zap.Error(err))
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
+}
+
+// buildTierRollups walks the Catalog cells and rolls services up by tier.
+// A nil catalog yields rollups with empty service lists — the template
+// still renders the tier metadata cards so the page is self-explanatory
+// even when devops-catalog.json is absent.
+func buildTierRollups(cat *Catalog) []TierRollup {
+	out := make([]TierRollup, 0, len(TierCatalog))
+	for _, ti := range TierCatalog {
+		r := TierRollup{TierInfo: ti}
+		if cat != nil {
+			seen := map[string]bool{}
+			for _, c := range cat.Cells {
+				if c.Tier != ti.Name {
+					continue
+				}
+				r.EndpointCount += c.EndpointCount
+				for _, s := range c.Services {
+					if !seen[s] {
+						seen[s] = true
+						r.Services = append(r.Services, s)
+					}
+				}
+			}
+		}
+		out = append(out, r)
+	}
+	return out
 }

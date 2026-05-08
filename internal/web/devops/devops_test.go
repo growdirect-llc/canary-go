@@ -22,10 +22,10 @@ func newRouter(t *testing.T) *chi.Mux {
 
 func TestServicePage_rendersShellForKnownService(t *testing.T) {
 	r := newRouter(t)
-	// catalog, api-docs, and manifest use custom handlers (TestCatalog_* /
-	// TestApiDocs_* / TestManifest_*). This test exercises the generic
-	// six-zone shell for the rest.
-	for _, name := range []string{"observability", "pipeline", "qa-agent"} {
+	// catalog, api-docs, manifest, and observability use custom handlers
+	// (TestCatalog_* / TestApiDocs_* / TestManifest_* / TestObservability_*).
+	// This test exercises the generic six-zone shell for the rest.
+	for _, name := range []string{"pipeline", "qa-agent"} {
 		req := httptest.NewRequest(http.MethodGet, "/devops/"+name, nil)
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
@@ -588,6 +588,232 @@ func TestParseTrailingInt_extractsClean(t *testing.T) {
 	for in, want := range cases {
 		if got := parseTrailingInt(in); got != want {
 			t.Errorf("parseTrailingInt(%q) = %d, want %d", in, got, want)
+		}
+	}
+}
+
+// _sampleCatalogForObservability gives every tier at least one service so
+// the observability page renders all five tier-services lists with content.
+func _sampleCatalogForObservability() *Catalog {
+	return &Catalog{
+		Axes:  []CatalogAxis{{Key: "B", Name: "Resource", Direction: "Canary → external"}},
+		Tiers: []string{"stream", "change-feed", "daily-batch", "bulk-window", "reference"},
+		Cells: []CatalogCell{
+			{Axis: "B", Tier: "stream", EndpointCount: 2, Services: []string{"parsers", "devices"}},
+			{Axis: "B", Tier: "change-feed", EndpointCount: 16, Services: []string{"alert", "chirp", "casemgmt"}},
+			{Axis: "B", Tier: "daily-batch", EndpointCount: 1, Services: []string{"etl"}},
+			{Axis: "B", Tier: "bulk-window", EndpointCount: 0, Services: nil},
+			{Axis: "B", Tier: "reference", EndpointCount: 29, Services: []string{"catalog", "manifest", "api-docs"}},
+		},
+		Services: []CatalogSvc{},
+		Totals:   CatalogTotals{ServiceCount: 9, EndpointCount: 48},
+	}
+}
+
+func TestObservability_pageRendersFiveTiers(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	h.catalog = _sampleCatalogForObservability()
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/devops/observability", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+
+	// Six-zone canonical layout
+	for _, zone := range []string{
+		"Capability",
+		"KPIs",
+		"Endpoints (Source files)",
+		"Tier rollup",
+		"Activity — Live health (planned)",
+		"Linked",
+	} {
+		if !strings.Contains(body, zone) {
+			t.Errorf("observability page missing zone %q", zone)
+		}
+	}
+
+	// All 5 tier names rendered with their data-tier attribute (border-color hook)
+	for _, tier := range []string{"stream", "change-feed", "daily-batch", "bulk-window", "reference"} {
+		if !strings.Contains(body, `data-tier="`+tier+`"`) {
+			t.Errorf("tier card missing for %q (expected data-tier attribute)", tier)
+		}
+	}
+
+	// Per-tier metadata content is verbatim from spec §"Per-tier infrastructure"
+	for _, want := range []string{
+		"SSE / WebSocket / Valkey XREAD tail", // stream protocol
+		"REST polling with cursor",            // change-feed protocol
+		"Cron-driven export",                  // daily-batch protocol
+		"Scheduled file drop / blob",          // bulk-window protocol
+		"REST GET with strong cache headers",  // reference protocol
+		"Replay from queue",                   // stream recovery
+		"Catch up from watermark",             // change-feed recovery
+		"Force resync",                        // reference recovery
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("tier metadata missing %q", want)
+		}
+	}
+}
+
+func TestObservability_pageListsServicesPerTier(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	h.catalog = _sampleCatalogForObservability()
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/devops/observability", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+
+	// Each non-empty tier has its services rendered as /devops/<name> links
+	for _, want := range []string{
+		`href="/devops/parsers"`,  // stream
+		`href="/devops/devices"`,  // stream
+		`href="/devops/alert"`,    // change-feed
+		`href="/devops/chirp"`,    // change-feed
+		`href="/devops/casemgmt"`, // change-feed
+		`href="/devops/etl"`,      // daily-batch
+		`href="/devops/catalog"`,  // reference
+		`href="/devops/manifest"`, // reference
+		`href="/devops/api-docs"`, // reference
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("tier services list missing %q", want)
+		}
+	}
+	// Empty tier shows the placeholder
+	if !strings.Contains(body, "No services declared on this tier yet") {
+		t.Errorf("empty-tier placeholder missing for bulk-window")
+	}
+
+	// KPI tile counts
+	if !strings.Contains(body, ">5<") {
+		t.Errorf("KPI tile missing tier count 5")
+	}
+	if !strings.Contains(body, ">9<") {
+		t.Errorf("KPI tile missing services-tracked count 9")
+	}
+	if !strings.Contains(body, ">4<") {
+		t.Errorf("KPI tile missing cells-with-endpoints count 4")
+	}
+}
+
+func TestObservability_pageDegradesWhenCatalogMissing(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	h.catalog = nil
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/devops/observability", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+	// Tier metadata still renders even when catalog is missing
+	if !strings.Contains(body, "SSE / WebSocket / Valkey XREAD tail") {
+		t.Errorf("tier metadata should render even when catalog missing")
+	}
+	// Services tracked should be muted
+	if !strings.Contains(body, `class="value muted">—`) {
+		t.Errorf("KPI tile should show muted dash when catalog missing")
+	}
+}
+
+func TestObservability_setsNoStoreCacheControl(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	h.catalog = _sampleCatalogForObservability()
+	r := chi.NewRouter()
+	h.Mount(r)
+	req := httptest.NewRequest(http.MethodGet, "/devops/observability", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if got := rr.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control: got %q, want no-store", got)
+	}
+}
+
+func TestObservability_includedInKnownServices(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	found := false
+	for _, n := range h.KnownServices() {
+		if n == "observability" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("observability not in KnownServices()")
+	}
+}
+
+func TestBuildTierRollups_dedupsServicesAcrossAxes(t *testing.T) {
+	cat := &Catalog{
+		Cells: []CatalogCell{
+			// Same service appears in multiple cells of the same tier — should dedup
+			{Axis: "B", Tier: "reference", EndpointCount: 5, Services: []string{"catalog", "manifest"}},
+			{Axis: "C", Tier: "reference", EndpointCount: 3, Services: []string{"catalog"}}, // catalog repeats
+			{Axis: "A", Tier: "stream", EndpointCount: 2, Services: []string{"devices"}},
+		},
+	}
+	rollups := buildTierRollups(cat)
+
+	if len(rollups) != len(TierCatalog) {
+		t.Fatalf("rollups: got %d tiers, want %d", len(rollups), len(TierCatalog))
+	}
+	// Find the reference tier rollup
+	var ref *TierRollup
+	for i := range rollups {
+		if rollups[i].Name == "reference" {
+			ref = &rollups[i]
+		}
+	}
+	if ref == nil {
+		t.Fatal("reference tier rollup not found")
+	}
+	if ref.EndpointCount != 8 { // 5 + 3
+		t.Errorf("reference EndpointCount: got %d, want 8", ref.EndpointCount)
+	}
+	if len(ref.Services) != 2 {
+		t.Errorf("reference Services should dedup to 2, got %d (%v)", len(ref.Services), ref.Services)
+	}
+}
+
+func TestBuildTierRollups_nilCatalogReturnsMetadataOnly(t *testing.T) {
+	rollups := buildTierRollups(nil)
+	if len(rollups) != len(TierCatalog) {
+		t.Fatalf("rollups: got %d tiers, want %d", len(rollups), len(TierCatalog))
+	}
+	for _, r := range rollups {
+		if len(r.Services) != 0 {
+			t.Errorf("nil catalog tier %q should have empty Services, got %v", r.Name, r.Services)
+		}
+		if r.Protocol == "" {
+			t.Errorf("tier %q metadata not preserved when catalog is nil", r.Name)
 		}
 	}
 }
