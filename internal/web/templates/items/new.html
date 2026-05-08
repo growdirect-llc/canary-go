@@ -1,0 +1,188 @@
+{{template "base.html" .}}
+
+{{define "title"}}New item — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+{{$csrf := $.CSRFField}}
+{{$form := .Form}}
+<div class="page-header">
+  <h1>New item</h1>
+  <p class="page-subtitle">Manual entry — required fields only. Optional details land later.</p>
+</div>
+
+{{if .Flash}}
+<div class="ops-card" style="margin-bottom:16px;border-left:3px solid var(--signal-yellow);">
+  <div style="font-size:13px;color:var(--text-primary);">
+    {{if eq .Flash "missing_sku"}}SKU is required.
+    {{else if eq .Flash "missing_description"}}Item name is required.
+    {{else if eq .Flash "missing_unit_cost"}}Unit cost is required.
+    {{else if eq .Flash "missing_selling_price"}}Selling price is required.
+    {{else if eq .Flash "duplicate_sku"}}SKU "{{(index .Form "sku")}}" already exists in this tenant. <a href="/items?q={{(index .Form "sku")}}" style="color:var(--accent-blue);text-decoration:underline;">Open existing item</a>
+    {{else if eq .Flash "validation_failed"}}Validation failed. Check the values and try again.
+    {{else if eq .Flash "create_failed"}}Could not create the item. Logged for review; try again or contact support if it persists.
+    {{else if eq .Flash "no_store"}}Item store not wired in this environment.
+    {{else if eq .Flash "invalid_form"}}Form data could not be parsed.
+    {{else}}Something went wrong: {{.Flash}}
+    {{end}}
+  </div>
+</div>
+{{end}}
+
+<form method="POST" action="/items/new" class="ops-card" style="max-width:640px;">
+  {{$csrf}}
+
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">
+    Required
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr;gap:16px;">
+
+    <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-primary);">
+      Item name
+      <input
+        type="text"
+        name="description"
+        value="{{(index .Form "description")}}"
+        required
+        maxlength="200"
+        placeholder="e.g. Organic Whole Milk, Half Gallon"
+        style="padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"
+      />
+    </label>
+
+    <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-primary);">
+      SKU
+      <input
+        type="text"
+        name="sku"
+        value="{{(index .Form "sku")}}"
+        required
+        maxlength="64"
+        placeholder="merchant or vendor SKU"
+        style="padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;font-family:'Space Grotesk',monospace;"
+      />
+    </label>
+
+    <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-primary);">
+      Category
+      <select
+        name="category_id"
+        style="padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"
+      >
+        <option value="">— No category —</option>
+        {{range .Categories}}
+        <option value="{{.ID}}" {{if eq (index $form "category_id") .ID}}selected{{end}}>{{.Name}}</option>
+        {{end}}
+      </select>
+    </label>
+
+    <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-primary);">
+      Barcode <span style="color:var(--text-muted);font-weight:400;font-size:11px;">scan or type; PLU generation lands later</span>
+      <input
+        type="text"
+        name="barcode"
+        value="{{(index .Form "barcode")}}"
+        maxlength="32"
+        placeholder="e.g. 0123456789012"
+        style="padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;font-family:'Space Grotesk',monospace;"
+      />
+    </label>
+
+    <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-primary);">
+      Supplier
+      <select
+        name="vendor_id"
+        style="padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"
+      >
+        <option value="">— No supplier yet —</option>
+        {{range .Vendors}}
+        <option value="{{.ID}}" {{if eq (index $form "vendor_id") .ID}}selected{{end}}>{{.Name}}</option>
+        {{end}}
+      </select>
+    </label>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-primary);">
+        Unit cost
+        <input
+          type="number"
+          name="unit_cost"
+          value="{{(index .Form "unit_cost")}}"
+          required
+          step="0.0001"
+          min="0"
+          placeholder="0.00"
+          style="padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"
+        />
+      </label>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-primary);">
+        Selling price
+        <input
+          type="number"
+          name="selling_price"
+          value="{{(index .Form "selling_price")}}"
+          required
+          step="0.0001"
+          min="0"
+          placeholder="0.00"
+          style="padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"
+        />
+      </label>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-primary);">
+        Unit of measure
+        <select
+          name="unit_of_measure"
+          style="padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"
+        >
+          {{$uom := index .Form "unit_of_measure"}}
+          <option value="EA" {{if or (eq $uom "EA") (eq $uom "")}}selected{{end}}>EA — Each</option>
+          <option value="LB" {{if eq $uom "LB"}}selected{{end}}>LB — Pound</option>
+          <option value="KG" {{if eq $uom "KG"}}selected{{end}}>KG — Kilogram</option>
+          <option value="OZ" {{if eq $uom "OZ"}}selected{{end}}>OZ — Ounce</option>
+          <option value="GAL" {{if eq $uom "GAL"}}selected{{end}}>GAL — Gallon</option>
+          <option value="L" {{if eq $uom "L"}}selected{{end}}>L — Liter</option>
+          <option value="FT" {{if eq $uom "FT"}}selected{{end}}>FT — Foot</option>
+          <option value="M" {{if eq $uom "M"}}selected{{end}}>M — Meter</option>
+        </select>
+      </label>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-primary);">
+        Case pack
+        <input
+          type="number"
+          name="case_pack"
+          value="{{(index .Form "case_pack")}}"
+          step="1"
+          min="1"
+          placeholder="1"
+          style="padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"
+        />
+      </label>
+    </div>
+
+    <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-primary);">
+      Status
+      <select
+        name="status"
+        style="padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"
+      >
+        {{$status := index .Form "status"}}
+        <option value="hidden" {{if or (eq $status "hidden") (eq $status "")}}selected{{end}}>Hidden — set up but not yet at POS</option>
+        <option value="active" {{if eq $status "active"}}selected{{end}}>Active — start selling</option>
+      </select>
+    </label>
+
+  </div>
+
+  <div style="display:flex;gap:12px;align-items:center;margin-top:24px;padding-top:20px;border-top:1px solid var(--border-subtle);">
+    <button type="submit" style="padding:10px 20px;background:var(--signal-yellow);color:#000;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
+      Save item
+    </button>
+    <a href="/items" style="padding:10px 16px;color:var(--text-muted);text-decoration:none;font-size:13px;">Cancel</a>
+  </div>
+</form>
+{{end}}
+{{end}}
