@@ -23,11 +23,11 @@ func newRouter(t *testing.T) *chi.Mux {
 
 func TestServicePage_rendersShellForKnownService(t *testing.T) {
 	r := newRouter(t)
-	// catalog, api-docs, manifest, observability, and pipeline use custom
-	// handlers (TestCatalog_* / TestApiDocs_* / TestManifest_* /
-	// TestObservability_* / TestPipeline_*). This test exercises the
-	// generic six-zone shell for the rest.
-	for _, name := range []string{"qa-agent"} {
+	// All P0 services in Phase 1 skeleton (catalog, manifest, observability,
+	// pipeline, qa-agent) plus api-docs now have custom handlers. The
+	// generic shell still backs evidence/anchor/mcp until they get
+	// dedicated pages — exercise via those.
+	for _, name := range []string{"evidence", "anchor", "mcp"} {
 		req := httptest.NewRequest(http.MethodGet, "/devops/"+name, nil)
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
@@ -89,24 +89,24 @@ func TestServicePage_sidebarHighlightsActiveService(t *testing.T) {
 }
 
 // TestServicePage_renders_serviceMetadata verifies that the generic shell
-// renders service metadata correctly. Uses qa-agent — the last P0 service
-// still on the generic shell after T3B.1/2/3 migrated catalog, manifest,
-// observability, and pipeline to custom handlers.
+// renders service metadata correctly. Uses evidence — one of the remaining
+// services on the generic shell after T3B.1/2/3/4 migrated catalog,
+// manifest, observability, pipeline, and qa-agent to custom handlers.
 func TestServicePage_renders_serviceMetadata(t *testing.T) {
 	r := newRouter(t)
-	req := httptest.NewRequest(http.MethodGet, "/devops/qa-agent", nil)
+	req := httptest.NewRequest(http.MethodGet, "/devops/evidence", nil)
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 	body := rr.Body.String()
 	for _, want := range []string{
-		":9104",                // qa-agent port
-		"P0",                   // priority
-		"cross-tenant infra",   // category
-		"C × change-feed",      // cell
-		"Page-aware operator",  // status text snippet (from Service.Status)
+		":9201",              // evidence port
+		"P0",                 // priority
+		"cross-tenant infra", // category
+		"B × reference",      // cell
+		"Append-only",        // status text snippet (from Service.Status)
 	} {
 		if !strings.Contains(body, want) {
-			t.Errorf("qa-agent page missing %q", want)
+			t.Errorf("evidence page missing %q", want)
 		}
 	}
 }
@@ -955,6 +955,142 @@ func TestPipelineFlow_stagesAreSequential(t *testing.T) {
 		}
 		if len(st.Packages) == 0 {
 			t.Errorf("PipelineFlow[%d] (%s) declares no backing packages", i, st.Name)
+		}
+	}
+}
+
+func TestQAAgent_pageRendersToolCategories(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/qa-agent", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+
+	// Six-zone canonical layout
+	for _, zone := range []string{
+		"Capability",
+		"KPIs",
+		"Endpoints (Source files)",
+		"Sidecar architecture",
+		"Tool catalog",
+		"Activity — Chat sessions + bugs filed (planned)",
+		"Linked",
+	} {
+		if !strings.Contains(body, zone) {
+			t.Errorf("qa-agent page missing zone %q", zone)
+		}
+	}
+
+	// All tool categories from the system prompt render as cards
+	for _, cat := range []string{"Atlas", "Alerts", "Analytics", "Chirp", "Fox", "Identity", "Owl", "TSP", "Scenarios", "Bug filing"} {
+		if !strings.Contains(body, cat) {
+			t.Errorf("tool catalog missing category %q", cat)
+		}
+	}
+}
+
+func TestQAAgent_pageListsAllTools(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/qa-agent", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+
+	// Spot-check tools across categories — verbatim from system prompt
+	for _, tool := range []string{
+		"atlas_figure", "atlas_search",
+		"list_alerts", "rank_alerts",
+		"get_dashboard", "score_metrics",
+		"validate_thresholds",
+		"list_cases", "verify_chain",
+		"get_merchant", "list_employees",
+		"knowledge_search",
+		"get_stream_health", "get_dead_letters",
+		"fire_scenario", "list_scenarios",
+		"file_linear_bug",
+	} {
+		if !strings.Contains(body, tool) {
+			t.Errorf("tool catalog missing tool %q", tool)
+		}
+	}
+
+	// KPI tile counts: 10 categories, sum of all tools across QAToolCatalog
+	if !strings.Contains(body, ">10<") {
+		t.Errorf("KPI tile should show 10 tool categories")
+	}
+	// Total tool count is whatever len() across QAToolCatalog gives — assert it lands somewhere
+	totalTools := 0
+	for _, c := range QAToolCatalog {
+		totalTools += len(c.Tools)
+	}
+	if totalTools < 30 {
+		t.Errorf("expected at least 30 tools across catalog, got %d", totalTools)
+	}
+}
+
+func TestQAAgent_pageRendersSidecarContract(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/qa-agent", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+
+	for _, want := range []string{
+		"Merchant page",
+		"Go gateway",
+		"Sidecar",
+		"Anthropic SDK",
+		"Page: &lt;path&gt;",      // page-context contract (HTML-escaped angle brackets)
+		"Merchant: &lt;uuid&gt;",  // RLS context
+		"50 msg/session",          // session limit
+		"200 msg/day",             // daily budget
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("sidecar contract section missing %q", want)
+		}
+	}
+}
+
+func TestQAAgent_setsNoStoreCacheControl(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/qa-agent", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if got := rr.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control: got %q, want no-store", got)
+	}
+}
+
+func TestQAAgent_includedInKnownServices(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	found := false
+	for _, n := range h.KnownServices() {
+		if n == "qa-agent" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("qa-agent not in KnownServices()")
+	}
+}
+
+func TestQAToolCatalog_invariants(t *testing.T) {
+	if len(QAToolCatalog) < 9 {
+		t.Errorf("QAToolCatalog should have at least 9 categories (Atlas/Alerts/Analytics/Chirp/Fox/Identity/Owl/TSP/Scenarios), got %d", len(QAToolCatalog))
+	}
+	for _, c := range QAToolCatalog {
+		if c.Name == "" || c.Role == "" {
+			t.Errorf("category has empty Name or Role: %+v", c)
+		}
+		if len(c.Tools) == 0 {
+			t.Errorf("category %q declares no tools", c.Name)
 		}
 	}
 }

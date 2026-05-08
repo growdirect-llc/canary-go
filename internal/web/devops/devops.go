@@ -195,6 +195,76 @@ type PipelineStage struct {
 	Tier     string // cadence-ladder tier this stage operates on
 }
 
+// ToolCategory is one MCP tool grouping surfaced on /devops/qa-agent.
+// Pinned to the system prompt content in
+// Canary/canary/services/qa_agent/agent.py (lines 45-55) — the canonical
+// taxonomy operators see when the agent surfaces "what tools are available."
+//
+// T3B.4 / GRO-887. Live MCP tool dispatch is out of scope; this page renders
+// the discoverable contract (categories + tools + roles) so operators
+// understand the agent's capability surface before the runtime ships.
+type ToolCategory struct {
+	Name  string   // "Alerts"
+	Role  string   // one-sentence description
+	Tools []string // tool names exactly as the system prompt declares them
+}
+
+// QAToolCatalog is the canonical tool catalog. Order matches the system
+// prompt's category-list order — change here when the agent's tool surface
+// evolves.
+var QAToolCatalog = []ToolCategory{
+	{
+		Name: "Atlas",
+		Role: "System architecture diagrams + figure search (Mermaid engine).",
+		Tools: []string{"atlas_figure", "atlas_search", "atlas_validate", "atlas_index"},
+	},
+	{
+		Name: "Alerts",
+		Role: "LP alert listing, ranking, and lifecycle introspection.",
+		Tools: []string{"list_alerts", "get_alert", "lifecycle_summary", "rank_alerts"},
+	},
+	{
+		Name: "Analytics",
+		Role: "KPI rollups, trends, top risks, scoring.",
+		Tools: []string{"get_dashboard", "get_trends", "get_top_risks", "score_metrics"},
+	},
+	{
+		Name: "Chirp",
+		Role: "Detection rule catalog + threshold validation.",
+		Tools: []string{"get_rules", "get_rule", "get_config_summary", "validate_thresholds"},
+	},
+	{
+		Name: "Fox",
+		Role: "Case management + evidence chain verification.",
+		Tools: []string{"list_cases", "get_case", "get_timeline", "verify_chain"},
+	},
+	{
+		Name: "Identity",
+		Role: "Merchant + employee + location lookup.",
+		Tools: []string{"get_merchant", "list_employees", "list_locations"},
+	},
+	{
+		Name: "Owl",
+		Role: "Semantic search + Q&A + payment scoring (pgvector + EJ spine).",
+		Tools: []string{"search", "ask", "knowledge_search", "score_payment"},
+	},
+	{
+		Name: "TSP",
+		Role: "Pipeline health + ingestion stats + dead-letter triage.",
+		Tools: []string{"get_stream_health", "get_ingestion_stats", "get_dead_letters"},
+	},
+	{
+		Name: "Scenarios",
+		Role: "Scripted test scenarios — fire, poll, list, threshold reads.",
+		Tools: []string{"fire_scenario", "poll_scenario", "list_scenarios", "get_thresholds"},
+	},
+	{
+		Name: "Bug filing",
+		Role: "One-shot Linear bug filing — title + description, no confirmation needed.",
+		Tools: []string{"file_linear_bug"},
+	},
+}
+
 // PipelineFlow is the canonical TSP pipeline flow. Phase 3 / T3B.3 / GRO-885.
 // Order matches the documented data flow; do not reorder without updating
 // the Webhook Pipeline SDD.
@@ -418,6 +488,7 @@ func New(logger *zap.Logger) (*Handler, error) {
 		"templates/manifest.html",
 		"templates/observability.html",
 		"templates/pipeline.html",
+		"templates/qa_agent.html",
 	)
 	if err != nil {
 		return nil, err
@@ -515,10 +586,11 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/devops/manifest", h.manifestPage)
 	r.Get("/devops/observability", h.observabilityPage)
 	r.Get("/devops/pipeline", h.pipelinePage)
+	r.Get("/devops/qa-agent", h.qaAgentPage)
 
 	for name := range h.index {
 		switch name {
-		case "api-docs", "catalog", "manifest", "observability", "pipeline":
+		case "api-docs", "catalog", "manifest", "observability", "pipeline", "qa-agent":
 			continue // mounted above with custom handlers
 		}
 		path := "/devops/" + name
@@ -735,6 +807,44 @@ func (h *Handler) observabilityPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if err := h.tmpl.ExecuteTemplate(w, "observability.html", view); err != nil {
 		h.logger.Error("observability template", zap.Error(err))
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
+}
+
+// qaAgentPage renders the /devops/qa-agent discovery surface — the
+// canonical six-zone page that explains what the agent is, what tools
+// it has, and the sidecar contract by which Canary will dispatch chat
+// requests to an Anthropic-SDK-backed runtime.
+//
+// Recovery target: Canary/canary/services/qa_agent/ (1,071 LOC across
+// server.py + agent.py + tools.py + linear_client.py). Full chat runtime
+// requires a Go sidecar + dispatch loop + MCP tool registry — separate
+// ticket. This page makes the contract legible so operators understand
+// the agent's capability surface before the runtime ships.
+//
+// T3B.4 / GRO-887.
+func (h *Handler) qaAgentPage(w http.ResponseWriter, r *http.Request) {
+	svc := h.index["qa-agent"]
+	totalTools := 0
+	for _, c := range QAToolCatalog {
+		totalTools += len(c.Tools)
+	}
+	view := map[string]any{
+		"Service":         svc,
+		"Categories":      Categories,
+		"Active":          "qa-agent",
+		"Tenant":          "all",
+		"Env":             "lab",
+		"ToolCategories":  QAToolCatalog,
+		"CategoryCount":   len(QAToolCatalog),
+		"TotalTools":      totalTools,
+		"DailyMsgBudget":  200, // matches MAX_MESSAGES_PER_DAY in Python prior art
+		"SessionMsgLimit": 50,  // matches MAX_MESSAGES_PER_SESSION
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := h.tmpl.ExecuteTemplate(w, "qa_agent.html", view); err != nil {
+		h.logger.Error("qa-agent template", zap.Error(err))
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
 }
