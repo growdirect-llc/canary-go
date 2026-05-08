@@ -4,6 +4,8 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"time"
 )
 
 type Config struct {
@@ -20,6 +22,29 @@ type Config struct {
 	Port                  string
 	ServiceName           string
 	PublicURL             string // base URL for discovery doc (e.g. https://demo.growdirect.io)
+
+	// Reference-tier cache (T3A.1 / GRO-894). Default off — enable per
+	// service via TIER_REFERENCE_CACHE=1. TTL via
+	// TIER_REFERENCE_CACHE_TTL=Ns (default 60s, matches spec
+	// §"Per-tier infrastructure" reference row "Long TTL (~60s hot)").
+	TierReferenceCache    bool
+	TierReferenceCacheTTL time.Duration
+
+	// Change-feed tier middleware (T3A.2 / GRO-899). Adds cursor +
+	// watermark + lag tracking to /v1/alerts/*, /v1/owl/*, /v1/chirp/detections.
+	// LagThreshold matches spec §"Per-tier infrastructure" change-feed
+	// row health semantics ("lag exceeded"). CacheTTL matches "Short TTL
+	// (~5 min)".
+	TierChangeFeed             bool
+	TierChangeFeedLagThreshold time.Duration
+	TierChangeFeedCacheTTL     time.Duration
+
+	// Stream tier at edge (T3A.3 / GRO-900). SSE handler for chirp event
+	// consumers + others. Heartbeat keeps proxies from idle-killing the
+	// connection — matches spec §"Per-tier infrastructure" stream row
+	// health semantics ("heartbeat — no msg in N sec").
+	TierStream          bool
+	TierStreamHeartbeat time.Duration
 }
 
 // Load reads required environment variables and panics on missing ones.
@@ -35,6 +60,15 @@ func Load(serviceName string) *Config {
 		Port:                  getOr("PORT", "8080"),
 		ServiceName:           serviceName,
 		PublicURL:             getOr("PUBLIC_URL", ""),
+		TierReferenceCache:    getBool("TIER_REFERENCE_CACHE", false),
+		TierReferenceCacheTTL: getDuration("TIER_REFERENCE_CACHE_TTL", 60*time.Second),
+
+		TierChangeFeed:             getBool("TIER_CHANGE_FEED", false),
+		TierChangeFeedLagThreshold: getDuration("TIER_CHANGE_FEED_LAG_THRESHOLD", 5*time.Minute),
+		TierChangeFeedCacheTTL:     getDuration("TIER_CHANGE_FEED_CACHE_TTL", 5*time.Minute),
+
+		TierStream:          getBool("TIER_STREAM", false),
+		TierStreamHeartbeat: getDuration("TIER_STREAM_HEARTBEAT", 30*time.Second),
 	}
 	return cfg
 }
@@ -50,6 +84,38 @@ func require(key string) string {
 func getOr(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return def
+}
+
+// getBool reads an env var as a bool. Anything matching "1", "true", "TRUE",
+// or "yes" is true; otherwise the default applies. Used for feature flags.
+func getBool(key string, def bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	switch v {
+	case "1", "true", "TRUE", "yes", "YES":
+		return true
+	case "0", "false", "FALSE", "no", "NO":
+		return false
+	}
+	if b, err := strconv.ParseBool(v); err == nil {
+		return b
+	}
+	return def
+}
+
+// getDuration parses a duration env var (e.g. "60s", "5m"). Default applies
+// when unset or unparseable.
+func getDuration(key string, def time.Duration) time.Duration {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	if d, err := time.ParseDuration(v); err == nil {
+		return d
 	}
 	return def
 }

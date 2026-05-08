@@ -1,0 +1,230 @@
+{{define "test_lab.html"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>test-lab · Canary Sysadmin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0e1117;
+      --bg-2: #161b22;
+      --bg-3: #1f2630;
+      --border: #2a313c;
+      --text: #c9d1d9;
+      --text-muted: #8b949e;
+      --accent: #FBBF24;
+      --accent-2: #58a6ff;
+      --p0: #f85149;
+      --warn: #d29922;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; font-size: 14px; line-height: 1.5; }
+    code, pre, .mono { font-family: 'JetBrains Mono', Menlo, monospace; }
+
+    .sidebar { background: var(--bg-2); border-right: 1px solid var(--border); padding: 20px 16px; overflow-y: auto; }
+    .sidebar-brand { font-weight: 700; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); margin-bottom: 24px; }
+    .sidebar-group-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 16px 0 8px; }
+    .sidebar a { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 13px; }
+    .sidebar a:hover { background: var(--bg-3); }
+    .sidebar a.active { background: var(--bg-3); color: var(--accent); font-weight: 500; }
+    .sidebar-tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--bg-3); color: var(--text-muted); }
+    .sidebar a.active .sidebar-tag { background: var(--accent); color: var(--bg); }
+
+    main { padding: 24px 32px; overflow-x: auto; }
+    .topnav { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .topnav-spacer { flex: 1; }
+    .topnav-selector { background: var(--bg-2); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px; }
+    .topnav-selector label { color: var(--text-muted); margin-right: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    .zone { background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+    .zone-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 12px; }
+
+    .zone-header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+    .zone-header h1 { font-size: 24px; font-weight: 600; }
+    .zone-header .port { font-family: 'JetBrains Mono', Menlo, monospace; color: var(--text-muted); }
+    .zone-header .priority { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; background: var(--p0); color: white; }
+    .zone-header .scope { color: var(--text-muted); font-size: 12px; }
+
+    .capability { display: grid; grid-template-columns: 120px 1fr; gap: 8px 16px; align-items: center; font-size: 13px; }
+    .capability dt { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .capability dd .pill { display: inline-block; background: var(--bg-3); border: 1px solid var(--border); padding: 2px 8px; border-radius: 4px; margin-right: 4px; font-size: 12px; font-family: 'JetBrains Mono', Menlo, monospace; }
+
+    .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .kpi-tile { background: var(--bg-3); border-radius: 6px; padding: 16px; text-align: center; }
+    .kpi-tile .value { font-size: 28px; font-weight: 700; color: var(--accent); }
+    .kpi-tile .value.muted { color: var(--text-muted); }
+    .kpi-tile .value.warn { color: var(--warn); }
+    .kpi-tile .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-top: 4px; }
+
+    .source-list { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+    .source-row { display: flex; justify-content: space-between; padding: 8px 12px; background: var(--bg-3); border-radius: 6px; }
+    .source-row a { color: var(--accent-2); text-decoration: none; font-family: 'JetBrains Mono', Menlo, monospace; font-size: 12px; }
+    .source-row .role { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* Tabs */
+    .tab-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .tab-card { background: var(--bg-3); border: 1px solid var(--border); border-radius: 8px; padding: 16px; border-left: 3px solid var(--accent); }
+    .tab-card .tab-name { font-size: 16px; font-weight: 600; color: var(--accent); margin-bottom: 8px; }
+    .tab-card .tab-role { font-size: 13px; color: var(--text); line-height: 1.5; margin-bottom: 12px; }
+    .tab-card .tab-tags { display: flex; flex-wrap: wrap; gap: 4px; padding-top: 8px; border-top: 1px solid var(--border); }
+    .tab-card .tab-tag { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 10px; padding: 2px 6px; background: var(--bg-2); border-radius: 3px; color: var(--text-muted); }
+    @media (max-width: 900px) { .tab-grid { grid-template-columns: 1fr; } }
+
+    /* Stages */
+    .stage-flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+    .stage-card { background: var(--bg-3); border: 1px solid var(--border); border-radius: 8px; padding: 12px; position: relative; border-top: 3px solid var(--accent-2); }
+    .stage-card:not(:last-child)::after { content: "→"; position: absolute; right: -12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 16px; z-index: 2; }
+    .stage-card .stage-num { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600; margin-bottom: 4px; }
+    .stage-card .stage-name { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    .stage-card .stage-role { font-size: 11px; color: var(--text); line-height: 1.4; }
+    @media (max-width: 1100px) {
+      .stage-flow { grid-template-columns: 1fr; }
+      .stage-card:not(:last-child)::after { content: "↓"; right: 50%; top: auto; bottom: -14px; transform: translateX(50%); }
+    }
+
+    .guard-box { background: var(--bg-3); border: 1px solid var(--warn); border-radius: 8px; padding: 16px; margin-top: 12px; }
+    .guard-box .guard-title { color: var(--warn); font-weight: 600; font-size: 13px; margin-bottom: 8px; }
+    .guard-box .guard-cond { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 12px; color: var(--text); padding: 6px 10px; background: var(--bg-2); border-radius: 4px; margin: 4px 0; }
+
+    .placeholder { padding: 32px; text-align: center; color: var(--text-muted); background: var(--bg-3); border-radius: 6px; }
+
+    .linked-list { display: flex; gap: 12px; flex-wrap: wrap; }
+    .linked-card { flex: 1; min-width: 180px; padding: 12px 16px; background: var(--bg-3); border-radius: 6px; }
+    .linked-card .name { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+    .linked-card .name a { color: var(--accent-2); text-decoration: none; }
+    .linked-card .role { color: var(--text-muted); font-size: 11px; }
+  </style>
+</head>
+<body>
+  {{template "sidebar.html" .}}
+
+  <main>
+    <div class="topnav">
+      <div class="topnav-selector mono"><label>Tenant</label>{{.Tenant}}</div>
+      <div class="topnav-selector mono"><label>Env</label>{{.Env}}</div>
+      <div class="topnav-spacer"></div>
+      <div class="topnav-selector"><label>Status</label><span style="color: var(--text-muted);">discovery surface only · runtime not built</span></div>
+    </div>
+
+    <div class="zone zone-header">
+      <h1>test-lab</h1>
+      <span class="port mono">:{{.Service.Port}}</span>
+      <span class="priority">{{.Service.Priority}}</span>
+      <span class="scope">{{.Service.Category}} · {{.Service.Scope}}</span>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Capability</div>
+      <dl class="capability">
+        <dt>Owner</dt><dd>{{.Service.Owner}}</dd>
+        <dt>Cells</dt><dd>{{range .Service.Cells}}<span class="pill">{{.}}</span>{{end}}</dd>
+        <dt>Purpose</dt><dd>End-to-end pipeline testing — fire payments through the full TSP loop, watch detections trigger, verify Owl scoring.</dd>
+        <dt>Recovery</dt><dd>From <code class="mono">Canary/canary/blueprints/ops_console.py</code> + <code class="mono">templates/ops/test_lab.html</code> (~1,900 LOC). Runtime port = follow-on tickets T3B.8 scenarios + T3B.10 live-fire.</dd>
+      </dl>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">KPIs</div>
+      <div class="kpi-strip">
+        <div class="kpi-tile"><div class="value">{{.TabCount}}</div><div class="label">Console tabs</div></div>
+        <div class="kpi-tile"><div class="value">{{.StageCount}}</div><div class="label">Pipeline stages</div></div>
+        <div class="kpi-tile"><div class="value warn">sandbox</div><div class="label">Env guard</div></div>
+        <div class="kpi-tile"><div class="value muted">admin</div><div class="label">Role gate</div></div>
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Endpoints (Source files)</div>
+      <div class="source-list">
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/Canary/canary/blueprints/ops_console.py">Canary/canary/blueprints/ops_console.py</a>
+          <span class="role">Flask blueprint (682 LOC)</span>
+        </div>
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/Canary/templates/ops/test_lab.html">Canary/templates/ops/test_lab.html</a>
+          <span class="role">Single-page UI (1,218 LOC)</span>
+        </div>
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/docs/sdds/go-handoff/webhook-pipeline.md">docs/sdds/go-handoff/webhook-pipeline.md</a>
+          <span class="role">Pipeline contract</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Console tabs</div>
+      <div class="tab-grid">
+        {{range .Tabs}}
+        <div class="tab-card">
+          <div class="tab-name">{{.Name}}</div>
+          <div class="tab-role">{{.Role}}</div>
+          <div class="tab-tags">
+            {{range .Tags}}<span class="tab-tag">{{.}}</span>{{end}}
+          </div>
+        </div>
+        {{end}}
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Pipeline progress</div>
+      <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 12px;">Each test run advances through these 5 stages with live status indicators in the Python prototype. Live status updates port via SSE/WS in a Phase 3 follow-on.</p>
+      <div class="stage-flow">
+        {{range .Stages}}
+        <div class="stage-card">
+          <div class="stage-num">Stage {{.Index}}</div>
+          <div class="stage-name">{{.Name}}</div>
+          <div class="stage-role">{{.Role}}</div>
+        </div>
+        {{end}}
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Sandbox guard</div>
+      <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 8px;">Both the Python prototype and the Go port require <strong>both</strong> conditions before the test-lab is reachable. Production environments cannot fire test transactions.</p>
+      <div class="guard-box">
+        <div class="guard-title">Required conditions</div>
+        <div class="guard-cond">SQUARE_ENVIRONMENT == "sandbox"</div>
+        <div class="guard-cond">session.user has admin role</div>
+        <p style="color: var(--text-muted); font-size: 11px; margin-top: 8px;">Admin role enforcement depends on identity middleware (GRO-769/770). Until that lands, the page is reachable to any authenticated user in sandbox.</p>
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Activity — Run history (planned)</div>
+      <div class="placeholder">
+        Run history (start time · scenario · payment count · alerts triggered · Owl verification result · duration) wires alongside T3B.8 scenarios + T3B.10 live-fire when the runtime ports to Go.
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Linked</div>
+      <div class="linked-list">
+        <div class="linked-card">
+          <div class="name"><a href="/devops/scenarios">scenarios</a></div>
+          <div class="role">T3B.8 — Scripted scenario list + execution surface</div>
+        </div>
+        <div class="linked-card">
+          <div class="name"><a href="/devops/live-fire">live-fire</a></div>
+          <div class="role">T3B.10 — Single-payment trace + Square sandbox SDK</div>
+        </div>
+        <div class="linked-card">
+          <div class="name"><a href="/devops/pos-lab">pos-lab</a></div>
+          <div class="role">T3B.9 — POS adapter testing (DriftPOS / RapidPOS / Counterpoint)</div>
+        </div>
+        <div class="linked-card">
+          <div class="name"><a href="/devops/pipeline">pipeline</a></div>
+          <div class="role">TSP pipeline visualization — same 5-stage flow at runtime</div>
+        </div>
+        <div class="linked-card">
+          <div class="name"><a href="/devops/qa-agent">qa-agent</a></div>
+          <div class="role">Operator agent — fire_scenario tool dispatches the same scripted runs</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>{{end}}

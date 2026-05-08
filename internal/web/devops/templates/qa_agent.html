@@ -1,0 +1,223 @@
+{{define "qa_agent.html"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>qa-agent · Canary Sysadmin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0e1117;
+      --bg-2: #161b22;
+      --bg-3: #1f2630;
+      --border: #2a313c;
+      --text: #c9d1d9;
+      --text-muted: #8b949e;
+      --accent: #FBBF24;
+      --accent-2: #58a6ff;
+      --p0: #f85149;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; font-size: 14px; line-height: 1.5; }
+    code, pre, .mono { font-family: 'JetBrains Mono', Menlo, monospace; }
+    pre { background: var(--bg-3); border: 1px solid var(--border); border-radius: 6px; padding: 12px; overflow-x: auto; font-size: 12px; line-height: 1.5; }
+
+    .sidebar { background: var(--bg-2); border-right: 1px solid var(--border); padding: 20px 16px; overflow-y: auto; }
+    .sidebar-brand { font-weight: 700; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); margin-bottom: 24px; }
+    .sidebar-group-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 16px 0 8px; }
+    .sidebar a { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 13px; }
+    .sidebar a:hover { background: var(--bg-3); }
+    .sidebar a.active { background: var(--bg-3); color: var(--accent); font-weight: 500; }
+    .sidebar-tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--bg-3); color: var(--text-muted); }
+    .sidebar a.active .sidebar-tag { background: var(--accent); color: var(--bg); }
+
+    main { padding: 24px 32px; overflow-x: auto; }
+    .topnav { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .topnav-spacer { flex: 1; }
+    .topnav-selector { background: var(--bg-2); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px; }
+    .topnav-selector label { color: var(--text-muted); margin-right: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    .zone { background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+    .zone-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 12px; }
+
+    .zone-header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+    .zone-header h1 { font-size: 24px; font-weight: 600; }
+    .zone-header .port { font-family: 'JetBrains Mono', Menlo, monospace; color: var(--text-muted); }
+    .zone-header .priority { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; background: var(--p0); color: white; }
+    .zone-header .scope { color: var(--text-muted); font-size: 12px; }
+
+    .capability { display: grid; grid-template-columns: 120px 1fr; gap: 8px 16px; align-items: center; font-size: 13px; }
+    .capability dt { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .capability dd .pill { display: inline-block; background: var(--bg-3); border: 1px solid var(--border); padding: 2px 8px; border-radius: 4px; margin-right: 4px; font-size: 12px; font-family: 'JetBrains Mono', Menlo, monospace; }
+
+    .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .kpi-tile { background: var(--bg-3); border-radius: 6px; padding: 16px; text-align: center; }
+    .kpi-tile .value { font-size: 28px; font-weight: 700; color: var(--accent); }
+    .kpi-tile .value.muted { color: var(--text-muted); }
+    .kpi-tile .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-top: 4px; }
+
+    .source-list { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+    .source-row { display: flex; justify-content: space-between; padding: 8px 12px; background: var(--bg-3); border-radius: 6px; }
+    .source-row a { color: var(--accent-2); text-decoration: none; font-family: 'JetBrains Mono', Menlo, monospace; font-size: 12px; }
+    .source-row .role { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* Tool category cards */
+    .tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+    .tool-card { background: var(--bg-3); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+    .tool-card .cat-name { font-size: 14px; font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+    .tool-card .cat-role { font-size: 12px; color: var(--text); margin-bottom: 10px; line-height: 1.45; }
+    .tool-card .cat-tools { display: flex; flex-wrap: wrap; gap: 4px; }
+    .tool-card .cat-tool { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 11px; padding: 2px 6px; background: var(--bg-2); border-radius: 3px; color: var(--text-muted); }
+
+    /* Sidecar architecture */
+    .arch-flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; align-items: stretch; margin-bottom: 16px; }
+    .arch-step { background: var(--bg-3); border: 1px solid var(--border); border-radius: 6px; padding: 12px; position: relative; }
+    .arch-step:not(:last-child)::after { content: "→"; position: absolute; right: -10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 16px; z-index: 2; }
+    .arch-step .arch-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+    .arch-step .arch-name { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    .arch-step .arch-detail { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 11px; color: var(--text-muted); }
+    @media (max-width: 1100px) {
+      .arch-flow { grid-template-columns: 1fr; }
+      .arch-step:not(:last-child)::after { content: "↓"; right: 50%; top: auto; bottom: -16px; transform: translateX(50%); }
+    }
+
+    .placeholder { padding: 32px; text-align: center; color: var(--text-muted); background: var(--bg-3); border-radius: 6px; }
+
+    .linked-list { display: flex; gap: 12px; flex-wrap: wrap; }
+    .linked-card { flex: 1; min-width: 180px; padding: 12px 16px; background: var(--bg-3); border-radius: 6px; }
+    .linked-card .name { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+    .linked-card .name a { color: var(--accent-2); text-decoration: none; }
+    .linked-card .role { color: var(--text-muted); font-size: 11px; }
+  </style>
+</head>
+<body>
+  {{template "sidebar.html" .}}
+
+  <main>
+    <div class="topnav">
+      <div class="topnav-selector mono"><label>Tenant</label>{{.Tenant}}</div>
+      <div class="topnav-selector mono"><label>Env</label>{{.Env}}</div>
+      <div class="topnav-spacer"></div>
+      <div class="topnav-selector"><label>Status</label><span style="color: var(--text-muted);">discovery surface only · runtime not built</span></div>
+    </div>
+
+    <div class="zone zone-header">
+      <h1>qa-agent</h1>
+      <span class="port mono">:{{.Service.Port}}</span>
+      <span class="priority">{{.Service.Priority}}</span>
+      <span class="scope">{{.Service.Category}} · {{.Service.Scope}}</span>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Capability</div>
+      <dl class="capability">
+        <dt>Owner</dt><dd>{{.Service.Owner}}</dd>
+        <dt>Cells</dt><dd>{{range .Service.Cells}}<span class="pill">{{.}}</span>{{end}}</dd>
+        <dt>Recovery</dt><dd>From <code class="mono">Canary/canary/services/qa_agent/</code> (1,071 LOC Python). This page = discovery surface; chat runtime + sidecar = follow-on.</dd>
+        <dt>Page-aware</dt><dd>Every user message gets a context header prepended: <code class="mono">[Page: &lt;path&gt; | Merchant: &lt;uuid&gt; | Visible: &lt;json&gt;]</code></dd>
+      </dl>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">KPIs</div>
+      <div class="kpi-strip">
+        <div class="kpi-tile"><div class="value">{{.CategoryCount}}</div><div class="label">Tool categories</div></div>
+        <div class="kpi-tile"><div class="value">{{.TotalTools}}</div><div class="label">Total tools</div></div>
+        <div class="kpi-tile"><div class="value muted">offline</div><div class="label">Sidecar status</div></div>
+        <div class="kpi-tile"><div class="value">{{.DailyMsgBudget}}</div><div class="label">Daily message budget</div></div>
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Endpoints (Source files)</div>
+      <div class="source-list">
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/Canary/canary/services/qa_agent/agent.py">Canary/canary/services/qa_agent/agent.py</a>
+          <span class="role">System prompt + proxy</span>
+        </div>
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/Canary/canary/services/qa_agent/server.py">Canary/canary/services/qa_agent/server.py</a>
+          <span class="role">Sidecar HTTP server (Anthropic SDK dispatch)</span>
+        </div>
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/Canary/canary/services/qa_agent/tools.py">Canary/canary/services/qa_agent/tools.py</a>
+          <span class="role">MCP tool registry</span>
+        </div>
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/Canary/canary/services/qa_agent/linear_client.py">Canary/canary/services/qa_agent/linear_client.py</a>
+          <span class="role">Linear bug filing client</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Sidecar architecture</div>
+      <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 12px;">Operator chat lives in the merchant page; the gateway proxies to a separate sidecar that owns the Anthropic SDK dispatch loop. Clean boundary — easy to swap engines.</p>
+      <div class="arch-flow">
+        <div class="arch-step">
+          <div class="arch-label">Origin</div>
+          <div class="arch-name">Merchant page</div>
+          <div class="arch-detail">/ops/qa textarea + page context</div>
+        </div>
+        <div class="arch-step">
+          <div class="arch-label">Step 1</div>
+          <div class="arch-name">Go gateway</div>
+          <div class="arch-detail">POST /chat — auth + rate limit + RLS bind</div>
+        </div>
+        <div class="arch-step">
+          <div class="arch-label">Step 2</div>
+          <div class="arch-name">Sidecar</div>
+          <div class="arch-detail">Anthropic SDK dispatch loop · MCP tool exec</div>
+        </div>
+        <div class="arch-step">
+          <div class="arch-label">Step 3</div>
+          <div class="arch-name">Response</div>
+          <div class="arch-detail">{text, tool_calls[], model}</div>
+        </div>
+      </div>
+      <p style="color: var(--text-muted); font-size: 11px;">Rate limits: <strong>{{.SessionMsgLimit}} msg/session · {{.DailyMsgBudget}} msg/day</strong> per Python prototype. Merchant context bound from <code class="mono">Merchant: &lt;uuid&gt;</code> header in user messages — RLS isolation per request.</p>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Tool catalog</div>
+      <div class="tool-grid">
+        {{range .ToolCategories}}
+        <div class="tool-card">
+          <div class="cat-name">{{.Name}}</div>
+          <div class="cat-role">{{.Role}}</div>
+          <div class="cat-tools">
+            {{range .Tools}}<span class="cat-tool">{{.}}</span>{{end}}
+          </div>
+        </div>
+        {{end}}
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Activity — Chat sessions + bugs filed (planned)</div>
+      <div class="placeholder">
+        Session log + Linear bugs filed wire when the sidecar runtime ships. Expected fields: session_id · merchant · message count · last activity · tool dispatch trace · Linear issue links for filed bugs.
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Linked</div>
+      <div class="linked-list">
+        <div class="linked-card">
+          <div class="name"><a href="/devops/scenarios">scenarios</a></div>
+          <div class="role">Scripted scenarios — agent calls fire_scenario / list_scenarios</div>
+        </div>
+        <div class="linked-card">
+          <div class="name"><a href="/devops/atlas">atlas</a></div>
+          <div class="role">Mermaid diagram engine — atlas_figure surfaces architecture</div>
+        </div>
+        <div class="linked-card">
+          <div class="name"><a href="/devops/mcp">mcp</a></div>
+          <div class="role">MCP tool catalog — same registry the agent dispatches against</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>{{end}}
