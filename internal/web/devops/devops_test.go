@@ -3,6 +3,7 @@ package devops
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -22,10 +23,11 @@ func newRouter(t *testing.T) *chi.Mux {
 
 func TestServicePage_rendersShellForKnownService(t *testing.T) {
 	r := newRouter(t)
-	// catalog, api-docs, manifest, and observability use custom handlers
-	// (TestCatalog_* / TestApiDocs_* / TestManifest_* / TestObservability_*).
-	// This test exercises the generic six-zone shell for the rest.
-	for _, name := range []string{"pipeline", "qa-agent"} {
+	// catalog, api-docs, manifest, observability, and pipeline use custom
+	// handlers (TestCatalog_* / TestApiDocs_* / TestManifest_* /
+	// TestObservability_* / TestPipeline_*). This test exercises the
+	// generic six-zone shell for the rest.
+	for _, name := range []string{"qa-agent"} {
 		req := httptest.NewRequest(http.MethodGet, "/devops/"+name, nil)
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
@@ -86,21 +88,25 @@ func TestServicePage_sidebarHighlightsActiveService(t *testing.T) {
 	}
 }
 
+// TestServicePage_renders_serviceMetadata verifies that the generic shell
+// renders service metadata correctly. Uses qa-agent — the last P0 service
+// still on the generic shell after T3B.1/2/3 migrated catalog, manifest,
+// observability, and pipeline to custom handlers.
 func TestServicePage_renders_serviceMetadata(t *testing.T) {
 	r := newRouter(t)
-	req := httptest.NewRequest(http.MethodGet, "/devops/pipeline", nil)
+	req := httptest.NewRequest(http.MethodGet, "/devops/qa-agent", nil)
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 	body := rr.Body.String()
 	for _, want := range []string{
-		":9103",              // port
-		"P0",                 // priority
-		"cross-tenant infra", // category
-		"B × change-feed",    // cell
-		"TSP pipeline",       // status text snippet
+		":9104",                // qa-agent port
+		"P0",                   // priority
+		"cross-tenant infra",   // category
+		"C × change-feed",      // cell
+		"Page-aware operator",  // status text snippet (from Service.Status)
 	} {
 		if !strings.Contains(body, want) {
-			t.Errorf("pipeline page missing %q", want)
+			t.Errorf("qa-agent page missing %q", want)
 		}
 	}
 }
@@ -814,6 +820,141 @@ func TestBuildTierRollups_nilCatalogReturnsMetadataOnly(t *testing.T) {
 		}
 		if r.Protocol == "" {
 			t.Errorf("tier %q metadata not preserved when catalog is nil", r.Name)
+		}
+	}
+}
+
+func TestPipeline_pageRendersFiveStages(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/pipeline", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+
+	// Six-zone canonical layout
+	for _, zone := range []string{
+		"Capability",
+		"KPIs",
+		"Endpoints (Source files)",
+		"Pipeline flow",
+		"Activity — Live event tracing (planned)",
+		"Linked",
+	} {
+		if !strings.Contains(body, zone) {
+			t.Errorf("pipeline page missing zone %q", zone)
+		}
+	}
+
+	// All 5 stages render with their data-tier attribute
+	for _, stage := range []string{"Webhook Receipt", "Valkey Stream", "Sub1 — Seal", "Sub2 — Parse", "Sub3 — Merkle"} {
+		if !strings.Contains(body, stage) {
+			t.Errorf("pipeline page missing stage %q", stage)
+		}
+	}
+
+	// Stage indices ("Stage 1" through "Stage 5")
+	for i := 1; i <= 5; i++ {
+		want := "Stage " + strconv.Itoa(i)
+		if !strings.Contains(body, want) {
+			t.Errorf("pipeline page missing %q", want)
+		}
+	}
+
+	// Tier badges — pipeline spans stream, change-feed, daily-batch tiers
+	for _, tier := range []string{`data-tier="stream"`, `data-tier="change-feed"`, `data-tier="daily-batch"`} {
+		if !strings.Contains(body, tier) {
+			t.Errorf("pipeline page missing tier attribute %q", tier)
+		}
+	}
+}
+
+func TestPipeline_pageListsBackingPackages(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/pipeline", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+
+	for _, pkg := range []string{
+		"internal/protocol/webhook",
+		"internal/protocol/hmac",
+		"internal/protocol/publisher",
+		"internal/protocol/sub1",
+		"internal/protocol/sub2",
+		"internal/protocol/sub3",
+	} {
+		if !strings.Contains(body, pkg) {
+			t.Errorf("pipeline page missing backing package %q", pkg)
+		}
+	}
+
+	// KPI tile should reflect the unique-package count (6 in PipelineFlow).
+	if !strings.Contains(body, ">6<") {
+		t.Errorf("KPI tile should show 6 backing packages")
+	}
+	// Stage count tile = 5.
+	if !strings.Contains(body, ">5<") {
+		t.Errorf("KPI tile should show 5 stages")
+	}
+}
+
+func TestPipeline_setsNoStoreCacheControl(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/pipeline", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if got := rr.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control: got %q, want no-store", got)
+	}
+}
+
+func TestPipeline_includedInKnownServices(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	found := false
+	for _, n := range h.KnownServices() {
+		if n == "pipeline" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("pipeline not in KnownServices()")
+	}
+}
+
+func TestPipeline_renderedSourceLinks(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/pipeline", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+	for _, want := range []string{
+		"docs/sdds/go-handoff/tsp.md",
+		"docs/sdds/go-handoff/webhook-pipeline.md",
+		"CanaryGo/internal/protocol/",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("source-files zone missing %q", want)
+		}
+	}
+}
+
+func TestPipelineFlow_stagesAreSequential(t *testing.T) {
+	for i, st := range PipelineFlow {
+		if st.Index != i+1 {
+			t.Errorf("PipelineFlow[%d].Index = %d, want %d", i, st.Index, i+1)
+		}
+		if st.Name == "" || st.Role == "" || st.Tier == "" {
+			t.Errorf("PipelineFlow[%d] has empty required field", i)
+		}
+		if len(st.Packages) == 0 {
+			t.Errorf("PipelineFlow[%d] (%s) declares no backing packages", i, st.Name)
 		}
 	}
 }

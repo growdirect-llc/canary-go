@@ -178,6 +178,54 @@ type TierRollup struct {
 	Services      []string // dedup-sorted across A/B/C axes for the tier
 }
 
+// PipelineStage is one cell of the TSP pipeline flow rendered on
+// /devops/pipeline. The stages run left-to-right:
+//   Webhook Receipt → Valkey Stream → Sub1 (Seal) → Sub2 (Parse) → Sub3 (Merkle)
+//
+// Content is pinned to the documented flow in the Python prior art
+// (Canary/canary/blueprints/devops_monitor.py) and the Webhook Pipeline
+// SDD — operators read this page to understand the contract, not the
+// runtime state. Live throughput/depth/lag wire in a follow-on once the
+// pipeline package exposes a Stats() API.
+type PipelineStage struct {
+	Index    int    // 1-based for rendering ("Stage 1", etc.)
+	Name     string // "Webhook Receipt"
+	Role     string // one-sentence operator-facing description
+	Packages []string // Go package paths backing the stage
+	Tier     string // cadence-ladder tier this stage operates on
+}
+
+// PipelineFlow is the canonical TSP pipeline flow. Phase 3 / T3B.3 / GRO-885.
+// Order matches the documented data flow; do not reorder without updating
+// the Webhook Pipeline SDD.
+var PipelineFlow = []PipelineStage{
+	{
+		Index: 1, Name: "Webhook Receipt", Tier: "stream",
+		Role:     "HTTP receiver — HMAC verifies inbound POS events, idempotency-keys deduplicate, raw envelope persisted to protocol.evidence_inbox.",
+		Packages: []string{"internal/protocol/webhook", "internal/protocol/hmac"},
+	},
+	{
+		Index: 2, Name: "Valkey Stream", Tier: "stream",
+		Role:     "Buffer — events fan out via XADD to durable stream; downstream workers consume with consumer groups (XREADGROUP) for at-least-once delivery.",
+		Packages: []string{"internal/protocol/publisher"},
+	},
+	{
+		Index: 3, Name: "Sub1 — Seal", Tier: "stream",
+		Role:     "Sealer — appends content-addressable hash + monotonic ordinal to each event, writes to protocol.evidence (append-only). Establishes the cryptographic anchor.",
+		Packages: []string{"internal/protocol/sub1"},
+	},
+	{
+		Index: 4, Name: "Sub2 — Parse", Tier: "change-feed",
+		Role:     "Canonicalizer — parses POS-vendor envelope into the Canary canonical event taxonomy, dispatches to per-domain stores (sales, inventory, customer).",
+		Packages: []string{"internal/protocol/sub2"},
+	},
+	{
+		Index: 5, Name: "Sub3 — Merkle", Tier: "daily-batch",
+		Role:     "Anchor — batches sealed events into Merkle trees, writes root hashes to Bitcoin L2 ordinals. Generates inclusion proofs for downstream evidence queries.",
+		Packages: []string{"internal/protocol/sub3"},
+	},
+}
+
 // parseTrailingInt extracts the trailing integer from lines like
 // "manifest endpoints:   80" or "manifest-only:                 78".
 // Returns 0 on parse failure (the field stays zero-valued — the template
@@ -369,6 +417,7 @@ func New(logger *zap.Logger) (*Handler, error) {
 		"templates/catalog.html",
 		"templates/manifest.html",
 		"templates/observability.html",
+		"templates/pipeline.html",
 	)
 	if err != nil {
 		return nil, err
@@ -465,10 +514,11 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/devops/catalog", h.catalogPage)
 	r.Get("/devops/manifest", h.manifestPage)
 	r.Get("/devops/observability", h.observabilityPage)
+	r.Get("/devops/pipeline", h.pipelinePage)
 
 	for name := range h.index {
 		switch name {
-		case "api-docs", "catalog", "manifest", "observability":
+		case "api-docs", "catalog", "manifest", "observability", "pipeline":
 			continue // mounted above with custom handlers
 		}
 		path := "/devops/" + name
@@ -685,6 +735,41 @@ func (h *Handler) observabilityPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if err := h.tmpl.ExecuteTemplate(w, "observability.html", view); err != nil {
 		h.logger.Error("observability template", zap.Error(err))
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
+}
+
+// pipelinePage renders the /devops/pipeline TSP visualization. Recovery
+// from Canary/canary/blueprints/devops_monitor.py — ports the operator
+// workflow forward (5-stage horizontal flow) without importing anything
+// from the Python prototype. Live runtime stats (table counts, stream
+// depth, throughput) are out of scope here; they wire when the pipeline
+// package exposes a Stats() API.
+//
+// T3B.3 / GRO-885.
+func (h *Handler) pipelinePage(w http.ResponseWriter, r *http.Request) {
+	svc := h.index["pipeline"]
+	// Count the unique Go packages backing the pipeline for the KPI strip.
+	pkgs := map[string]bool{}
+	for _, st := range PipelineFlow {
+		for _, p := range st.Packages {
+			pkgs[p] = true
+		}
+	}
+	view := map[string]any{
+		"Service":      svc,
+		"Categories":   Categories,
+		"Active":       "pipeline",
+		"Tenant":       "all",
+		"Env":          "lab",
+		"Stages":       PipelineFlow,
+		"StageCount":   len(PipelineFlow),
+		"PackageCount": len(pkgs),
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := h.tmpl.ExecuteTemplate(w, "pipeline.html", view); err != nil {
+		h.logger.Error("pipeline template", zap.Error(err))
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
 }
