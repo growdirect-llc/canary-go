@@ -265,6 +265,117 @@ var QAToolCatalog = []ToolCategory{
 	},
 }
 
+// GooseModule is one Python module in Canary/canary/services/goose/
+// surfaced on /devops/wallet. The 9 modules collectively form the
+// L402 wallet + treasury + Strike Lightning credit system.
+//
+// T3B.6 / GRO-889. Live wallet ledger + Strike client + L402 middleware
+// runtime port to Go is captured as follow-on dispatches.
+type GooseModule struct {
+	Name string // "wallet_service.py"
+	Role string // one-sentence operator-facing description
+	Owns []string // key types/operations
+}
+
+// WalletState is one node in the wallet status state machine — pinned to
+// the comment in wallet_service.py: "active → warning → depleted → suspended".
+type WalletState struct {
+	Name        string
+	Description string
+	Transition  string // condition for entering this state
+}
+
+// L402Step is one row in the L402 paywall handshake flow rendered on
+// /devops/wallet. Order matches the documented request/response sequence.
+type L402Step struct {
+	Index int
+	Name  string
+	Role  string
+}
+
+// GooseModules is the canonical 9-module catalog. Order: state-machine
+// owners first, then payment rail, then the L402 stack, then onboarding.
+var GooseModules = []GooseModule{
+	{
+		Name: "wallet_service.py",
+		Role: "Credit/debit operations on merchant sat wallets. Owns the status state machine.",
+		Owns: []string{"WalletService", "credit/debit", "balance check"},
+	},
+	{
+		Name: "treasury.py",
+		Role: "Treasury funding (founder → merchant) + cumulative outflow tracking + emergency reserve floor.",
+		Owns: []string{"TreasuryService", "fund_merchant", "DEFAULT_EMERGENCY_RESERVE_USD"},
+	},
+	{
+		Name: "strike_client.py",
+		Role: "Strike Lightning API client — invoice creation + deposit polling.",
+		Owns: []string{"StrikeClient", "create_invoice", "poll_invoice"},
+	},
+	{
+		Name: "l402_middleware.py",
+		Role: "L402 paywall middleware — issues 402 with Lightning invoice, verifies macaroon on retry.",
+		Owns: []string{"L402Middleware", "challenge", "verify"},
+	},
+	{
+		Name: "macaroon_service.py",
+		Role: "Macaroon mint + verify + revoke. Macaroon = signed authorization token redeemed after invoice payment.",
+		Owns: []string{"MacaroonService", "issue", "verify", "revoke"},
+	},
+	{
+		Name: "gas_meter.py",
+		Role: "Per-request cost (gas) computation — maps endpoint cell × tier × payload size to sat cost.",
+		Owns: []string{"GasMeter", "compute_cost"},
+	},
+	{
+		Name: "gas_metered.py",
+		Role: "Decorator wrapping handlers with gas metering — debits wallet pre-call, refunds on error.",
+		Owns: []string{"@gas_metered"},
+	},
+	{
+		Name: "onboarding.py",
+		Role: "Merchant onboarding — creates wallet, seeds initial credit from treasury.",
+		Owns: []string{"OnboardingService", "create_wallet"},
+	},
+	{
+		Name: "seed.py",
+		Role: "Initial state seeder — bootstraps treasury + sample merchants for dev/test.",
+		Owns: []string{"seed_dev_treasury"},
+	},
+}
+
+// WalletStateMachine is the 4-state lifecycle from wallet_service.py.
+var WalletStateMachine = []WalletState{
+	{
+		Name:        "active",
+		Description: "Healthy balance — requests served normally.",
+		Transition:  "Initial state; remains while balance ≥ warning threshold.",
+	},
+	{
+		Name:        "warning",
+		Description: "Low balance — requests still served, dashboard surfaces a top-up nudge.",
+		Transition:  "Balance drops below merchant-configured warning threshold (default 1,000 sats).",
+	},
+	{
+		Name:        "depleted",
+		Description: "Zero or negative balance — grace window active, requests still served on credit.",
+		Transition:  "Balance ≤ 0; grace window starts (default 7 days).",
+	},
+	{
+		Name:        "suspended",
+		Description: "Grace expired — read-only access until top-up. Cron-driven (separate dispatch).",
+		Transition:  "Balance < 0 for > 7 days; suspended until next credit lands.",
+	},
+}
+
+// L402Flow is the canonical 5-step paywall handshake.
+var L402Flow = []L402Step{
+	{Index: 1, Name: "Request", Role: "Client calls a paywalled endpoint without macaroon."},
+	{Index: 2, Name: "402 + invoice", Role: "Server responds 402 Payment Required with a Lightning invoice + opaque macaroon."},
+	{Index: 3, Name: "Pay (Lightning)", Role: "Client pays the invoice via any LN wallet; payment hash returned."},
+	{Index: 4, Name: "Macaroon issued", Role: "Server verifies payment hash, issues a signed macaroon scoped to the resource."},
+	{Index: 5, Name: "Retry", Role: "Client retries the original request with the macaroon; server admits + debits gas."},
+}
+
 // ETLStage represents one stage of the metrics ETL pipeline. Pinned to
 // the structure documented in Canary/canary/services/etl_runner.py and
 // implemented across metrics_etl.py + period_aggregation.py.
@@ -538,6 +649,13 @@ var Categories = []Group{
 				Cells:    []string{"B × daily-batch"},
 				Status: "Daily-batch metrics ETL — 2 stages (daily + period), 6 fact tables. Wired in T3B.5.",
 			},
+			{
+				Name: "wallet", Port: 9331, Owner: "ALX",
+				Priority: "P0",
+				Scope: "cross-tenant", Category: "cross-tenant infra",
+				Cells:    []string{"B × reference"},
+				Status: "L402 wallet + treasury + Strike Lightning credit system. 9 modules, 4-state lifecycle. Wired in T3B.6.",
+			},
 		},
 	},
 }
@@ -572,6 +690,7 @@ func New(logger *zap.Logger) (*Handler, error) {
 		"templates/pipeline.html",
 		"templates/qa_agent.html",
 		"templates/etl.html",
+		"templates/wallet.html",
 	)
 	if err != nil {
 		return nil, err
@@ -671,10 +790,11 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/devops/pipeline", h.pipelinePage)
 	r.Get("/devops/qa-agent", h.qaAgentPage)
 	r.Get("/devops/etl", h.etlPage)
+	r.Get("/devops/wallet", h.walletPage)
 
 	for name := range h.index {
 		switch name {
-		case "api-docs", "catalog", "manifest", "observability", "pipeline", "qa-agent", "etl":
+		case "api-docs", "catalog", "manifest", "observability", "pipeline", "qa-agent", "etl", "wallet":
 			continue // mounted above with custom handlers
 		}
 		path := "/devops/" + name
@@ -891,6 +1011,38 @@ func (h *Handler) observabilityPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if err := h.tmpl.ExecuteTemplate(w, "observability.html", view); err != nil {
 		h.logger.Error("observability template", zap.Error(err))
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
+}
+
+// walletPage renders the /devops/wallet L402 + treasury + Strike Lightning
+// discovery surface. Recovery target: Canary/canary/services/goose/ (9
+// Python modules totaling 1,311 LOC). Live wallet ledger queries, Strike
+// client port, L402 middleware port, and macaroon service port are
+// captured as follow-on dispatches. This page makes legible the 9-module
+// taxonomy, the 4-state wallet lifecycle, and the 5-step L402 handshake
+// so operators understand the contract before the runtime ships.
+//
+// T3B.6 / GRO-889.
+func (h *Handler) walletPage(w http.ResponseWriter, r *http.Request) {
+	svc := h.index["wallet"]
+	view := map[string]any{
+		"Service":     svc,
+		"Categories":  Categories,
+		"Active":      "wallet",
+		"Tenant":      "all",
+		"Env":         "lab",
+		"Modules":     GooseModules,
+		"States":      WalletStateMachine,
+		"L402Flow":    L402Flow,
+		"ModuleCount": len(GooseModules),
+		"StateCount":  len(WalletStateMachine),
+		"L402Steps":   len(L402Flow),
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := h.tmpl.ExecuteTemplate(w, "wallet.html", view); err != nil {
+		h.logger.Error("wallet template", zap.Error(err))
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
 }

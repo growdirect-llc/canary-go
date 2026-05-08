@@ -121,7 +121,7 @@ func TestKnownServices_returnsAllSkeletons(t *testing.T) {
 		"catalog": true, "manifest": true, "observability": true,
 		"pipeline": true, "qa-agent": true, "api-docs": true,
 		"evidence": true, "anchor": true, "mcp": true,
-		"etl": true,
+		"etl": true, "wallet": true,
 	}
 	if len(got) != len(want) {
 		t.Errorf("KnownServices count: got %d, want %d; got %v", len(got), len(want), got)
@@ -1237,6 +1237,169 @@ func TestETLTableCatalog_invariants(t *testing.T) {
 		}
 		if tbl.Stage != 1 && tbl.Stage != 2 {
 			t.Errorf("table %q has invalid Stage %d (must be 1 or 2)", tbl.Name, tbl.Stage)
+		}
+	}
+}
+
+func TestWallet_pageRendersL402Flow(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/wallet", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+
+	// Six-zone canonical layout
+	for _, zone := range []string{
+		"Capability",
+		"KPIs",
+		"Endpoints (Source files)",
+		"L402 paywall flow",
+		"Wallet state machine",
+		"Goose modules",
+		"Activity — Ledger + pending invoices (planned)",
+		"Linked",
+	} {
+		if !strings.Contains(body, zone) {
+			t.Errorf("wallet page missing zone %q", zone)
+		}
+	}
+
+	// All 5 L402 steps render. html/template escapes "+" to "&#43;"; the
+	// 402+invoice step name contains a +, so assert on the distinctive
+	// "402" + "invoice" pair around the escaped plus.
+	for _, step := range []string{"Request", "Pay (Lightning)", "Macaroon issued", "Retry"} {
+		if !strings.Contains(body, step) {
+			t.Errorf("L402 flow missing step %q", step)
+		}
+	}
+	if !strings.Contains(body, "402 &#43; invoice") {
+		t.Errorf("L402 flow missing escaped 402+invoice step")
+	}
+	for i := 1; i <= 5; i++ {
+		want := "Step " + strconv.Itoa(i)
+		if !strings.Contains(body, want) {
+			t.Errorf("L402 flow missing %q", want)
+		}
+	}
+}
+
+func TestWallet_pageListsAllNineModules(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/wallet", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+
+	// All 9 Goose modules render verbatim from Python source
+	for _, mod := range []string{
+		"wallet_service.py",
+		"treasury.py",
+		"strike_client.py",
+		"l402_middleware.py",
+		"macaroon_service.py",
+		"gas_meter.py",
+		"gas_metered.py",
+		"onboarding.py",
+		"seed.py",
+	} {
+		if !strings.Contains(body, mod) {
+			t.Errorf("module catalog missing %q", mod)
+		}
+	}
+
+	// KPI tile counts
+	if !strings.Contains(body, ">9<") {
+		t.Errorf("KPI tile should show 9 modules")
+	}
+	if !strings.Contains(body, ">4<") {
+		t.Errorf("KPI tile should show 4 wallet states")
+	}
+}
+
+func TestWallet_pageRendersStateMachine(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/wallet", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+
+	// All 4 states render with their data-state attribute (color border hook)
+	for _, state := range []string{"active", "warning", "depleted", "suspended"} {
+		if !strings.Contains(body, `data-state="`+state+`"`) {
+			t.Errorf("state machine missing state attribute %q", state)
+		}
+	}
+}
+
+func TestWallet_setsNoStoreCacheControl(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/wallet", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if got := rr.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control: got %q, want no-store", got)
+	}
+}
+
+func TestWallet_includedInKnownServices(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	found := false
+	for _, n := range h.KnownServices() {
+		if n == "wallet" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("wallet not in KnownServices()")
+	}
+}
+
+func TestGooseModules_invariants(t *testing.T) {
+	if len(GooseModules) != 9 {
+		t.Errorf("GooseModules should have exactly 9 modules, got %d", len(GooseModules))
+	}
+	for _, m := range GooseModules {
+		if m.Name == "" || m.Role == "" {
+			t.Errorf("module has empty Name or Role: %+v", m)
+		}
+		if len(m.Owns) == 0 {
+			t.Errorf("module %q declares no owned types", m.Name)
+		}
+	}
+}
+
+func TestWalletStateMachine_invariants(t *testing.T) {
+	if len(WalletStateMachine) != 4 {
+		t.Errorf("WalletStateMachine should have exactly 4 states, got %d", len(WalletStateMachine))
+	}
+	expectedStates := []string{"active", "warning", "depleted", "suspended"}
+	for i, s := range WalletStateMachine {
+		if s.Name != expectedStates[i] {
+			t.Errorf("WalletStateMachine[%d].Name = %q, want %q", i, s.Name, expectedStates[i])
+		}
+		if s.Description == "" || s.Transition == "" {
+			t.Errorf("state %q has empty Description or Transition", s.Name)
+		}
+	}
+}
+
+func TestL402Flow_invariants(t *testing.T) {
+	if len(L402Flow) != 5 {
+		t.Errorf("L402Flow should have exactly 5 steps, got %d", len(L402Flow))
+	}
+	for i, s := range L402Flow {
+		if s.Index != i+1 {
+			t.Errorf("L402Flow[%d].Index = %d, want %d", i, s.Index, i+1)
+		}
+		if s.Name == "" || s.Role == "" {
+			t.Errorf("L402Flow[%d] has empty required field", i)
 		}
 	}
 }
