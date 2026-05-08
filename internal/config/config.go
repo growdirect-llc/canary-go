@@ -33,6 +33,13 @@ type Config struct {
 	TierChangeFeed             bool
 	TierChangeFeedLagThreshold time.Duration
 	TierChangeFeedCacheTTL     time.Duration
+
+	// Stream tier at edge (T3A.3 / GRO-900). SSE handler for chirp event
+	// consumers + others. Heartbeat keeps proxies from idle-killing the
+	// connection — matches spec §"Per-tier infrastructure" stream row
+	// health semantics ("heartbeat — no msg in N sec").
+	TierStream          bool
+	TierStreamHeartbeat time.Duration
 }
 
 // Load reads required environment variables and panics on missing ones.
@@ -53,6 +60,9 @@ func Load(serviceName string) *Config {
 		TierChangeFeed:             getBool("TIER_CHANGE_FEED", false),
 		TierChangeFeedLagThreshold: getDuration("TIER_CHANGE_FEED_LAG_THRESHOLD", 5*time.Minute),
 		TierChangeFeedCacheTTL:     getDuration("TIER_CHANGE_FEED_CACHE_TTL", 5*time.Minute),
+
+		TierStream:          getBool("TIER_STREAM", false),
+		TierStreamHeartbeat: getDuration("TIER_STREAM_HEARTBEAT", 30*time.Second),
 	}
 	return cfg
 }
