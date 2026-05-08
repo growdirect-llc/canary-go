@@ -148,10 +148,21 @@ h1 {
     <div class="error">{{.Error}}</div>
     {{end}}
 
+    {{if .SquareConfigured}}
     <a href="/auth/square" class="cta" id="connect-square">
       <span>Connect Your Square</span>
       <span aria-hidden="true">→</span>
     </a>
+    {{else}}
+    <div class="error" style="text-align:left;line-height:1.5;">
+      <strong>Square OAuth not configured.</strong><br>
+      Set <code>SQUARE_APPLICATION_ID</code>, <code>SQUARE_APPLICATION_SECRET</code>, and <code>SQUARE_REDIRECT_URI</code> on the gateway container, then restart. Configuration lives at <code>CanaryGo/deploy/docker-compose.yml</code> under <code>canarygo-gateway.environment</code>.
+    </div>
+    <span class="cta-secondary" style="opacity:0.5;cursor:not-allowed;" title="Set SQUARE_APPLICATION_ID / SECRET / REDIRECT_URI on the gateway, then restart">
+      <span>Connect Your Square</span>
+      <span aria-hidden="true">unconfigured</span>
+    </span>
+    {{end}}
 
     <div class="divider">More integrations coming</div>
 
