@@ -265,6 +265,46 @@ var QAToolCatalog = []ToolCategory{
 	},
 }
 
+// TestLabTab is one tab on the /devops/test-lab console. Pinned to the
+// two tabs in templates/ops/test_lab.html: "Scenarios" + "Live Fire".
+//
+// T3B.7 / GRO-890.
+type TestLabTab struct {
+	Name string
+	Role string
+	Tags []string // implementation tags shown as pills
+}
+
+// TestLabStage is one stage of the pipeline progress visualization
+// on the /devops/test-lab console. Pinned to the 5 stages rendered in
+// the Python prototype's `pipeline-stages` div.
+type TestLabStage struct {
+	Index int
+	Name  string
+	Role  string
+}
+
+var TestLabTabs = []TestLabTab{
+	{
+		Name: "Scenarios",
+		Role: "Scripted multi-payment scenarios — fire a labeled batch, watch alerts trigger, verify Owl scoring. The fast path for rule + threshold testing.",
+		Tags: []string{"scripted", "multi-payment", "auto-verify"},
+	},
+	{
+		Name: "Live Fire",
+		Role: "Single-payment trace — pick amount + tender + employee, fire one Square sandbox call, watch the event traverse Webhook → Chirp → Owl.",
+		Tags: []string{"single-payment", "manual", "step-by-step"},
+	},
+}
+
+var TestLabStages = []TestLabStage{
+	{Index: 1, Name: "Square API", Role: "SDK call to Square sandbox creates the payment server-side."},
+	{Index: 2, Name: "Webhook", Role: "Square posts the event to the gateway's webhook receiver (HMAC verified)."},
+	{Index: 3, Name: "Chirp", Role: "Detection rules evaluate the canonicalized event; alerts surface."},
+	{Index: 4, Name: "Complete", Role: "Pipeline confirms persistence to canary_sales + protocol.evidence."},
+	{Index: 5, Name: "Owl Verify", Role: "Optional: Owl re-scores the event for risk-detection coverage."},
+}
+
 // GooseModule is one Python module in Canary/canary/services/goose/
 // surfaced on /devops/wallet. The 9 modules collectively form the
 // L402 wallet + treasury + Strike Lightning credit system.
@@ -658,6 +698,18 @@ var Categories = []Group{
 			},
 		},
 	},
+	{
+		Title: "Test & validation",
+		Services: []Service{
+			{
+				Name: "test-lab", Port: 9332, Owner: "ALX",
+				Priority: "P0",
+				Scope: "cross-tenant", Category: "test & validation",
+				Cells:    []string{"B × stream"},
+				Status: "Sandbox-guarded testing console — scenarios + live-fire tabs over the full TSP pipeline. Wired in T3B.7.",
+			},
+		},
+	},
 }
 
 // Handler renders the sysadmin module shell.
@@ -691,6 +743,7 @@ func New(logger *zap.Logger) (*Handler, error) {
 		"templates/qa_agent.html",
 		"templates/etl.html",
 		"templates/wallet.html",
+		"templates/test_lab.html",
 	)
 	if err != nil {
 		return nil, err
@@ -791,10 +844,11 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/devops/qa-agent", h.qaAgentPage)
 	r.Get("/devops/etl", h.etlPage)
 	r.Get("/devops/wallet", h.walletPage)
+	r.Get("/devops/test-lab", h.testLabPage)
 
 	for name := range h.index {
 		switch name {
-		case "api-docs", "catalog", "manifest", "observability", "pipeline", "qa-agent", "etl", "wallet":
+		case "api-docs", "catalog", "manifest", "observability", "pipeline", "qa-agent", "etl", "wallet", "test-lab":
 			continue // mounted above with custom handlers
 		}
 		path := "/devops/" + name
@@ -1011,6 +1065,35 @@ func (h *Handler) observabilityPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if err := h.tmpl.ExecuteTemplate(w, "observability.html", view); err != nil {
 		h.logger.Error("observability template", zap.Error(err))
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
+}
+
+// testLabPage renders the /devops/test-lab discovery surface — the
+// sandbox-guarded operator console for end-to-end pipeline testing.
+// Recovery target: Canary/canary/blueprints/ops_console.py +
+// templates/ops/test_lab.html (~1,900 LOC). The actual sandbox SDK
+// integration + scenario runtime + live-fire dispatch are Phase 3
+// follow-on tickets (T3B.8 scenarios, T3B.10 live-fire).
+//
+// T3B.7 / GRO-890.
+func (h *Handler) testLabPage(w http.ResponseWriter, r *http.Request) {
+	svc := h.index["test-lab"]
+	view := map[string]any{
+		"Service":    svc,
+		"Categories": Categories,
+		"Active":     "test-lab",
+		"Tenant":     "all",
+		"Env":        "lab",
+		"Tabs":       TestLabTabs,
+		"Stages":     TestLabStages,
+		"TabCount":   len(TestLabTabs),
+		"StageCount": len(TestLabStages),
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := h.tmpl.ExecuteTemplate(w, "test_lab.html", view); err != nil {
+		h.logger.Error("test-lab template", zap.Error(err))
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
 }

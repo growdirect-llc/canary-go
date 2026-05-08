@@ -121,7 +121,7 @@ func TestKnownServices_returnsAllSkeletons(t *testing.T) {
 		"catalog": true, "manifest": true, "observability": true,
 		"pipeline": true, "qa-agent": true, "api-docs": true,
 		"evidence": true, "anchor": true, "mcp": true,
-		"etl": true, "wallet": true,
+		"etl": true, "wallet": true, "test-lab": true,
 	}
 	if len(got) != len(want) {
 		t.Errorf("KnownServices count: got %d, want %d; got %v", len(got), len(want), got)
@@ -1401,5 +1401,153 @@ func TestL402Flow_invariants(t *testing.T) {
 		if s.Name == "" || s.Role == "" {
 			t.Errorf("L402Flow[%d] has empty required field", i)
 		}
+	}
+}
+
+func TestTestLab_pageRendersTwoTabs(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/test-lab", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+
+	// Six-zone canonical layout
+	for _, zone := range []string{
+		"Capability",
+		"KPIs",
+		"Endpoints (Source files)",
+		"Console tabs",
+		"Pipeline progress",
+		"Sandbox guard",
+		"Activity — Run history (planned)",
+		"Linked",
+	} {
+		if !strings.Contains(body, zone) {
+			t.Errorf("test-lab page missing zone %q", zone)
+		}
+	}
+
+	// Both tabs render
+	for _, tab := range []string{"Scenarios", "Live Fire"} {
+		if !strings.Contains(body, tab) {
+			t.Errorf("test-lab page missing tab %q", tab)
+		}
+	}
+}
+
+func TestTestLab_pageRendersFiveStages(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/test-lab", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+
+	for _, stage := range []string{"Square API", "Webhook", "Chirp", "Complete", "Owl Verify"} {
+		if !strings.Contains(body, stage) {
+			t.Errorf("pipeline stages missing %q", stage)
+		}
+	}
+	for i := 1; i <= 5; i++ {
+		want := "Stage " + strconv.Itoa(i)
+		if !strings.Contains(body, want) {
+			t.Errorf("pipeline progress missing %q", want)
+		}
+	}
+
+	// KPI tile counts: 2 tabs, 5 stages
+	if !strings.Contains(body, ">2<") {
+		t.Errorf("KPI tile should show 2 tabs")
+	}
+	if !strings.Contains(body, ">5<") {
+		t.Errorf("KPI tile should show 5 stages")
+	}
+}
+
+func TestTestLab_pageRendersSandboxGuard(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/test-lab", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+
+	for _, want := range []string{
+		"Sandbox guard",
+		`SQUARE_ENVIRONMENT == "sandbox"`,
+		"admin role",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("sandbox guard zone missing %q", want)
+		}
+	}
+}
+
+func TestTestLab_setsNoStoreCacheControl(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/test-lab", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if got := rr.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control: got %q, want no-store", got)
+	}
+}
+
+func TestTestLab_includedInKnownServices(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	found := false
+	for _, n := range h.KnownServices() {
+		if n == "test-lab" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("test-lab not in KnownServices()")
+	}
+}
+
+func TestTestLabTabs_invariants(t *testing.T) {
+	if len(TestLabTabs) != 2 {
+		t.Errorf("TestLabTabs should have exactly 2 tabs, got %d", len(TestLabTabs))
+	}
+	for _, tab := range TestLabTabs {
+		if tab.Name == "" || tab.Role == "" {
+			t.Errorf("tab has empty Name or Role: %+v", tab)
+		}
+		if len(tab.Tags) == 0 {
+			t.Errorf("tab %q declares no tags", tab.Name)
+		}
+	}
+}
+
+func TestTestLabStages_invariants(t *testing.T) {
+	if len(TestLabStages) != 5 {
+		t.Errorf("TestLabStages should have exactly 5 stages, got %d", len(TestLabStages))
+	}
+	for i, s := range TestLabStages {
+		if s.Index != i+1 {
+			t.Errorf("TestLabStages[%d].Index = %d, want %d", i, s.Index, i+1)
+		}
+		if s.Name == "" || s.Role == "" {
+			t.Errorf("TestLabStages[%d] has empty required field", i)
+		}
+	}
+}
+
+func TestCategories_includesTestValidationGroup(t *testing.T) {
+	found := false
+	for _, g := range Categories {
+		if g.Title == "Test & validation" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("Categories should include a 'Test & validation' group after T3B.7")
 	}
 }
