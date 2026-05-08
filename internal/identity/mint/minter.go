@@ -42,11 +42,11 @@ type Pair struct {
 	// Surfaces of the underlying claims so callers (refresh
 	// rotation, audit) can record them without re-parsing the
 	// signed strings.
-	AccessJTI    string
-	RefreshJTI   string
-	FamilyID     string
-	AccessExp    time.Time
-	RefreshExp   time.Time
+	AccessJTI  string
+	RefreshJTI string
+	FamilyID   string
+	AccessExp  time.Time
+	RefreshExp time.Time
 }
 
 // ActiveKeyReader is the keystore surface the minter depends on.
@@ -68,9 +68,9 @@ type Config struct {
 
 // Minter holds minter state.
 type Minter struct {
-	store  ActiveKeyReader
-	cfg    Config
-	now    func() time.Time // injectable for tests
+	store ActiveKeyReader
+	cfg   Config
+	now   func() time.Time // injectable for tests
 }
 
 // New constructs a Minter. now is set to time.Now; tests use

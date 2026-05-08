@@ -134,7 +134,7 @@ func APIKeyMiddleware(opts APIKeyMiddlewareOpts) func(http.Handler) http.Handler
 // brand prefix) used to bucket keys for indexed verify-loop selection.
 // 8 base32 characters = 40 bits of entropy in the prefix space, more
 // than enough to filter to ~1 candidate per request without leaking
-// the secret material. 
+// the secret material.
 const keyPrefixLen = len(KeyPlaintextPrefix) + 8
 
 // extractPrefix returns the indexable prefix of a plaintext API key
@@ -153,13 +153,13 @@ func extractPrefix(plaintext string) string {
 // side-effect — fire-and-forget UPDATE outside the request hot-path.
 //
 // Lookup strategy (post-T-L):
-//   1. Extract the indexable prefix from the plaintext (cy_<8 chars>).
-//   2. Filter candidate rows by `WHERE key_prefix = $1` using the
-//      idx_api_keys_key_prefix index. Normal case: 1 candidate.
-//   3. Run argon2id verify on the candidate(s).
-//   4. If no rows match the prefix (legacy NULL-prefix rows from before
-//      the T-L migration), fall back to the full active scan + verify
-//      loop so legacy keys keep working until they're rotated.
+//  1. Extract the indexable prefix from the plaintext (cy_<8 chars>).
+//  2. Filter candidate rows by `WHERE key_prefix = $1` using the
+//     idx_api_keys_key_prefix index. Normal case: 1 candidate.
+//  3. Run argon2id verify on the candidate(s).
+//  4. If no rows match the prefix (legacy NULL-prefix rows from before
+//     the T-L migration), fall back to the full active scan + verify
+//     loop so legacy keys keep working until they're rotated.
 //
 // argon2id is non-deterministic (salt-per-row), so we cannot index on
 // the hash directly — but the plaintext prefix gives us a deterministic

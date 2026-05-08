@@ -4,16 +4,16 @@
 //
 // Flow:
 //
-//   1. /auth/login: Create(ctx, familyID, subject, refreshJTI)
-//      — establishes a fresh family on the new refresh token.
-//   2. /auth/refresh: ValidateAndRotate(ctx, familyID, presentedJTI,
-//      newJTI) — atomic SELECT FOR UPDATE check that the presented
-//      jti matches family.last_jti, then updates last_jti to newJTI
-//      in the same transaction. If presentedJTI != last_jti the
-//      family is revoked and reuse-detection error returns —
-//      regardless of which side of the race "won."
-//   3. /auth/logout (T-1 follow-on): Revoke(ctx, familyID, reason)
-//      explicitly bans the family.
+//  1. /auth/login: Create(ctx, familyID, subject, refreshJTI)
+//     — establishes a fresh family on the new refresh token.
+//  2. /auth/refresh: ValidateAndRotate(ctx, familyID, presentedJTI,
+//     newJTI) — atomic SELECT FOR UPDATE check that the presented
+//     jti matches family.last_jti, then updates last_jti to newJTI
+//     in the same transaction. If presentedJTI != last_jti the
+//     family is revoked and reuse-detection error returns —
+//     regardless of which side of the race "won."
+//  3. /auth/logout (T-1 follow-on): Revoke(ctx, familyID, reason)
+//     explicitly bans the family.
 //
 // T-1 / GRO-861.
 package refreshfamily
@@ -67,12 +67,12 @@ func (s *Store) Create(ctx context.Context, familyID, subject uuid.UUID, jti str
 // ValidateAndRotate is the hot path of /auth/refresh. Inside a
 // single transaction with SELECT FOR UPDATE:
 //
-//   1. Lock the family row (or return ErrFamilyNotFound).
-//   2. Reject if revoked (ErrFamilyRevoked).
-//   3. If presentedJTI != family.last_jti:
-//        - Set revoked_at = NOW(), revoked_reason = "reuse"
-//        - Return ErrReuseDetected
-//   4. Else update last_jti = newJTI, last_used_at = NOW(), commit.
+//  1. Lock the family row (or return ErrFamilyNotFound).
+//  2. Reject if revoked (ErrFamilyRevoked).
+//  3. If presentedJTI != family.last_jti:
+//     - Set revoked_at = NOW(), revoked_reason = "reuse"
+//     - Return ErrReuseDetected
+//  4. Else update last_jti = newJTI, last_used_at = NOW(), commit.
 //
 // The SELECT FOR UPDATE serializes concurrent refresh attempts on
 // the same family — exactly one wins, all others either succeed in

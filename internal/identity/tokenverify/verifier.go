@@ -19,9 +19,12 @@ import (
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/golang-jwt/jwt/v5"
 
@@ -32,14 +35,14 @@ import (
 // to the matching HTTP status; everything else is opaque so a
 // fingerprinting attacker can't tell expired-vs-bad-signature.
 var (
-	ErrTokenExpired       = errors.New("tokenverify: token expired")
-	ErrTokenSignature     = errors.New("tokenverify: signature does not validate")
-	ErrTokenAudience      = errors.New("tokenverify: audience mismatch")
-	ErrTokenIssuer        = errors.New("tokenverify: issuer mismatch")
-	ErrTokenAlgorithm     = errors.New("tokenverify: algorithm not in whitelist")
-	ErrTokenMissingKid    = errors.New("tokenverify: token header missing kid")
-	ErrTokenUnknownKid    = errors.New("tokenverify: kid not in keystore verify set")
-	ErrTokenMalformed     = errors.New("tokenverify: token malformed")
+	ErrTokenExpired    = errors.New("tokenverify: token expired")
+	ErrTokenSignature  = errors.New("tokenverify: signature does not validate")
+	ErrTokenAudience   = errors.New("tokenverify: audience mismatch")
+	ErrTokenIssuer     = errors.New("tokenverify: issuer mismatch")
+	ErrTokenAlgorithm  = errors.New("tokenverify: algorithm not in whitelist")
+	ErrTokenMissingKid = errors.New("tokenverify: token header missing kid")
+	ErrTokenUnknownKid = errors.New("tokenverify: kid not in keystore verify set")
+	ErrTokenMalformed  = errors.New("tokenverify: token malformed")
 )
 
 // Claims is the canonical claim shape emitted by canary.go's minter
@@ -53,11 +56,11 @@ var (
 // /auth/refresh time).
 type Claims struct {
 	jwt.RegisteredClaims          // exp, iat, iss, aud, sub, jti, nbf
-	OrgID    string   `json:"org_id,omitempty"`    // tenant UUID
-	PersonID string   `json:"person_id,omitempty"` // user UUID
-	UserType string   `json:"user_type,omitempty"` // read_only|regular|power|admin|system
-	Scopes   []string `json:"scopes,omitempty"`
-	FamilyID string   `json:"family_id,omitempty"` // refresh-token family — T-1 / GRO-861
+	OrgID                string   `json:"org_id,omitempty"`    // tenant UUID
+	PersonID             string   `json:"person_id,omitempty"` // user UUID
+	UserType             string   `json:"user_type,omitempty"` // read_only|regular|power|admin|system
+	Scopes               []string `json:"scopes,omitempty"`
+	FamilyID             string   `json:"family_id,omitempty"` // refresh-token family — T-1 / GRO-861
 }
 
 // VerifySetReader is the keystore surface the verifier depends on —
@@ -129,8 +132,16 @@ func (v *Verifier) Verify(ctx context.Context, tokenStr string) (*Claims, error)
 		// Decode the public key. Today only RS256 is supported (the
 		// keystore generator only mints RS256). ES256 + EdDSA land
 		// when those algorithms are adopted operationally.
+		//
+		// Prefer PublicJWK when present — keystore.VerifySet returns
+		// rows with PrivateKeyPEM cleared (verifiers must not see
+		// private material). Fall back to PrivateKeyPEM for the
+		// stub-keystore unit-test path that pre-dates the JWK column.
 		switch sk.Alg {
 		case keystore.AlgRS256:
+			if len(sk.PublicJWK) > 0 {
+				return parseRSAPublicKeyFromJWK(sk.PublicJWK)
+			}
 			return parseRSAPublicKeyFromPEM(sk.PrivateKeyPEM)
 		default:
 			return nil, fmt.Errorf("%w: %s not yet implemented", ErrTokenAlgorithm, sk.Alg)
@@ -159,8 +170,10 @@ func (v *Verifier) Verify(ctx context.Context, tokenStr string) (*Claims, error)
 }
 
 // parseRSAPublicKeyFromPEM extracts the RSA public key from a
-// PKCS1 RSA private key PEM. Keystore stores private PEM; the
-// verifier needs the public side, which is embedded in it.
+// PKCS1 RSA private key PEM. Used by the unit-test path where a
+// stub keystore returns SigningKey rows with PrivateKeyPEM populated.
+// Production keystore.VerifySet clears PrivateKeyPEM (verifiers
+// don't see private material) — the JWK path is taken instead.
 func parseRSAPublicKeyFromPEM(pemStr string) (*rsa.PublicKey, error) {
 	block, _ := pem.Decode([]byte(pemStr))
 	if block == nil {
@@ -171,6 +184,38 @@ func parseRSAPublicKeyFromPEM(pemStr string) (*rsa.PublicKey, error) {
 		return nil, fmt.Errorf("tokenverify: parse PKCS1: %w", err)
 	}
 	return &priv.PublicKey, nil
+}
+
+// parseRSAPublicKeyFromJWK reconstructs an RSA public key from the
+// JWK representation stored in keystore.SigningKey.PublicJWK. RFC
+// 7517 §6.3.1 — n + e are base64url-RAW-encoded big-endian bytes.
+// This is the production verifier path.
+func parseRSAPublicKeyFromJWK(jwkBytes json.RawMessage) (*rsa.PublicKey, error) {
+	var jwk struct {
+		Kty string `json:"kty"`
+		N   string `json:"n"`
+		E   string `json:"e"`
+	}
+	if err := json.Unmarshal(jwkBytes, &jwk); err != nil {
+		return nil, fmt.Errorf("tokenverify: unmarshal jwk: %w", err)
+	}
+	if jwk.Kty != "RSA" {
+		return nil, fmt.Errorf("tokenverify: unsupported kty %q", jwk.Kty)
+	}
+	nBytes, err := base64.RawURLEncoding.DecodeString(jwk.N)
+	if err != nil {
+		return nil, fmt.Errorf("tokenverify: decode n: %w", err)
+	}
+	eBytes, err := base64.RawURLEncoding.DecodeString(jwk.E)
+	if err != nil {
+		return nil, fmt.Errorf("tokenverify: decode e: %w", err)
+	}
+	n := new(big.Int).SetBytes(nBytes)
+	e := new(big.Int).SetBytes(eBytes)
+	if !e.IsInt64() {
+		return nil, fmt.Errorf("tokenverify: rsa exponent overflow")
+	}
+	return &rsa.PublicKey{N: n, E: int(e.Int64())}, nil
 }
 
 // audienceContains is the manual aud-contains check. JWT aud can be

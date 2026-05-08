@@ -70,10 +70,10 @@ type JWTValidator struct {
 
 // NewJWTValidator constructs a validator from environment configuration:
 //
-//   IDENTITY_JWKS_URL                 (required for non-test paths)
-//   IDENTITY_JWT_ISSUER               (required)
-//   IDENTITY_JWT_AUDIENCE             (required)
-//   IDENTITY_JWKS_CACHE_TTL_SECONDS   (optional, default 300)
+//	IDENTITY_JWKS_URL                 (required for non-test paths)
+//	IDENTITY_JWT_ISSUER               (required)
+//	IDENTITY_JWT_AUDIENCE             (required)
+//	IDENTITY_JWKS_CACHE_TTL_SECONDS   (optional, default 300)
 //
 // When IDENTITY_JWKS_URL is empty the validator constructs in
 // "disabled" mode — Validate returns ErrJWKSFetch on every call. This

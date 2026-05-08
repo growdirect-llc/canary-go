@@ -24,8 +24,8 @@ var ErrTenantMismatch = errors.New("identity: body tenant_id does not match auth
 // AuthMethod values for downstream code that needs to distinguish
 // the path that produced the claim.
 const (
-	AuthMethodJWT       = "jwt"
-	AuthMethodAPIKey    = "apikey"
+	AuthMethodJWT        = "jwt"
+	AuthMethodAPIKey     = "apikey"
 	AuthMethodLegacyHMAC = "legacy_hmac"
 )
 

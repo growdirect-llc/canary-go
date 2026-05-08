@@ -48,18 +48,41 @@ type Verifier interface {
 	Verify(ctx context.Context, tokenStr string) (*tokenverify.Claims, error)
 }
 
+// PersonResolver resolves a Person ID (string form) to the canonical
+// Person record stored in canary_identity_gcp.public.persons. When
+// nil (or returns ErrPersonNotFound), the handler falls back to the
+// claim-only projection — this is the path the gateway used before
+// /v1/me moved to the identity binary.
+type PersonResolver interface {
+	ResolveByID(ctx context.Context, id string) (*PersonRecord, error)
+}
+
 // Handler serves /v1/me.
 type Handler struct {
 	verifier Verifier
+	resolver PersonResolver // optional; nil = claim-only stub mode
 	logger   *zap.Logger
 }
 
-// New wires a handler. Logger may be nil.
+// New wires a handler in stub mode (claim-only Person record).
+// Backward-compatible with the gateway-era call sites; identity
+// binary uses NewWithResolver to attach the persons table.
 func New(verifier Verifier, logger *zap.Logger) *Handler {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
 	return &Handler{verifier: verifier, logger: logger}
+}
+
+// NewWithResolver wires a handler that returns the full Person
+// record from a backing store. Used by the identity binary, which
+// owns canary_identity_gcp and can serve the AtlasView contract
+// shape end-to-end. resolver may be nil — that's stub mode.
+func NewWithResolver(verifier Verifier, resolver PersonResolver, logger *zap.Logger) *Handler {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	return &Handler{verifier: verifier, resolver: resolver, logger: logger}
 }
 
 // Mount registers /v1/me on r.
@@ -99,23 +122,49 @@ func (h *Handler) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Person record — minimal projection from claims until the user
-	// table lands. PersonID claim takes precedence over Subject for
-	// the id field (PersonID is the AtlasView-owned UUID; Subject is
-	// the raw JWT sub).
+	// Person id resolution — PersonID claim takes precedence over
+	// Subject (PersonID is the AtlasView-owned UUID; Subject is the
+	// raw JWT sub).
 	id := claims.PersonID
 	if id == "" {
 		id = claims.Subject
 	}
+
+	// When a resolver is wired, fetch the full Person record from
+	// the identity DB. Resolver-not-found maps to 401 — the token
+	// was valid but the Person no longer resolves (deleted/
+	// deactivated between mint and call).
+	if h.resolver != nil {
+		rec, err := h.resolver.ResolveByID(r.Context(), id)
+		if err != nil {
+			if errors.Is(err, ErrPersonNotFound) {
+				writeError(w, http.StatusUnauthorized, "person_not_found", "person no longer active")
+				return
+			}
+			h.logger.Error("me resolve", zap.Error(err))
+			writeError(w, http.StatusInternalServerError, "lookup_failed", "internal error")
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "private, max-age=60") // matches AtlasView's per-jti cache
+		_ = json.NewEncoder(w).Encode(rec)
+		return
+	}
+
+	// Stub fallback — no resolver wired. PersonID + system flag are
+	// all we can produce from the JWT.
 	rec := PersonRecord{
 		ID:     id,
 		System: claims.UserType == "system",
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "private, max-age=60") // matches AtlasView's per-jti cache
 	_ = json.NewEncoder(w).Encode(rec)
 }
+
+// ErrPersonNotFound is the sentinel a PersonResolver returns when
+// the supplied id has no active matching Person row.
+var ErrPersonNotFound = errors.New("me: person not found")
 
 // bearerToken extracts the token from "Authorization: Bearer <token>".
 // Case-insensitive on the scheme per RFC 6750. Returns "", false on

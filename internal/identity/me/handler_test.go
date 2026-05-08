@@ -120,10 +120,10 @@ func TestMe_MissingAuthHeader_401(t *testing.T) {
 // tokens / empty Bearer all produce 401 (no fingerprinting).
 func TestMe_MalformedAuthHeader_401(t *testing.T) {
 	cases := []string{
-		"Basic dXNlcjpwYXNz",   // wrong scheme
-		"raw-token",            // no scheme
-		"Bearer",               // bare scheme, no token
-		"Bearer   ",            // scheme + whitespace, no token
+		"Basic dXNlcjpwYXNz", // wrong scheme
+		"raw-token",          // no scheme
+		"Bearer",             // bare scheme, no token
+		"Bearer   ",          // scheme + whitespace, no token
 	}
 	for _, hdr := range cases {
 		rec := mountAndCall(t, &stubVerifier{}, hdr)

@@ -190,7 +190,7 @@ func (h *adminHandlers) replay(w http.ResponseWriter, r *http.Request) {
 	newEventID := uuid.New()
 	evt := publisher.Event{
 		EventID:    newEventID,
-		EventHash:  "",                              // recomputed downstream by sub1
+		EventHash:  "", // recomputed downstream by sub1
 		SourceCode: row.SourceCode,
 		MerchantID: row.MerchantID,
 		Timestamp:  time.Now().UTC(),

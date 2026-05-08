@@ -24,12 +24,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 	"github.com/ruptiv/canary/internal/auth"
 	"github.com/ruptiv/canary/internal/config"
 	"github.com/ruptiv/canary/internal/db"
 	"github.com/ruptiv/canary/internal/identity"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/redis/go-redis/v9"
 )
 
 func testServer(t *testing.T) http.Handler {
@@ -41,6 +41,15 @@ func testServer(t *testing.T) http.Handler {
 	}
 	t.Cleanup(pool.Close)
 
+	if cfg.IdentityDatabaseURL == "" {
+		t.Fatal("IDENTITY_DATABASE_URL must be set for identity integration tests")
+	}
+	identityPool, err := db.Connect(context.Background(), cfg.IdentityDatabaseURL)
+	if err != nil {
+		t.Fatalf("identity db connect: %v", err)
+	}
+	t.Cleanup(identityPool.Close)
+
 	opts, err := redis.ParseURL(cfg.ValkeyURL)
 	if err != nil {
 		t.Fatalf("parse valkey url: %v", err)
@@ -48,7 +57,7 @@ func testServer(t *testing.T) http.Handler {
 	rdb := redis.NewClient(opts)
 	t.Cleanup(func() { rdb.Close() })
 
-	return NewServer(pool, rdb, cfg)
+	return NewServer(pool, identityPool, rdb, cfg, nil)
 }
 
 func TestHealthEndpoint(t *testing.T) {
@@ -376,4 +385,3 @@ func TestCleanupTestKeys(t *testing.T) {
 	}
 	t.Logf("cleaned %d test API keys", tag.RowsAffected())
 }
-

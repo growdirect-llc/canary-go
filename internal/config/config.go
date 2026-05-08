@@ -7,7 +7,12 @@ import (
 )
 
 type Config struct {
-	DatabaseURL           string
+	DatabaseURL string
+	// IdentityDatabaseURL points at canary_identity_gcp. Optional in
+	// the shared config (most services don't connect to it); the
+	// identity binary asserts non-empty at startup. See
+	// Brain/wiki/cards/platform-identity-database-boundary.md.
+	IdentityDatabaseURL   string
 	ValkeyURL             string
 	InternalServiceSecret string
 	SessionSecret         string
@@ -22,6 +27,7 @@ type Config struct {
 func Load(serviceName string) *Config {
 	cfg := &Config{
 		DatabaseURL:           require("DATABASE_URL"),
+		IdentityDatabaseURL:   getOr("IDENTITY_DATABASE_URL", ""),
 		ValkeyURL:             require("VALKEY_URL"),
 		InternalServiceSecret: require("INTERNAL_SERVICE_SECRET"),
 		SessionSecret:         require("SESSION_SECRET"),

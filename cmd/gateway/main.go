@@ -5,8 +5,6 @@
 // validates HMAC-SHA256 signatures against per-(merchant, source)
 // secrets, computes payload hashes, and publishes canonical events to
 // Valkey Streams for the Triple Subscriber pipeline.
-//
-//
 package main
 
 import (
@@ -14,7 +12,6 @@ import (
 	cryptoRand "crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -26,39 +23,33 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	alertPkg       "github.com/ruptiv/canary/internal/alert"
-	analyticsPkg   "github.com/ruptiv/canary/internal/analytics"
-	assetPkg       "github.com/ruptiv/canary/internal/asset"
-	billingPkg     "github.com/ruptiv/canary/internal/billing"
-	casemgmtPkg  "github.com/ruptiv/canary/internal/casemgmt"
-	chirpPkg     "github.com/ruptiv/canary/internal/chirp"
-	customerPkg  "github.com/ruptiv/canary/internal/customer"
+	alertPkg "github.com/ruptiv/canary/internal/alert"
+	analyticsPkg "github.com/ruptiv/canary/internal/analytics"
+	assetPkg "github.com/ruptiv/canary/internal/asset"
+	billingPkg "github.com/ruptiv/canary/internal/billing"
+	casemgmtPkg "github.com/ruptiv/canary/internal/casemgmt"
+	chirpPkg "github.com/ruptiv/canary/internal/chirp"
+	customerPkg "github.com/ruptiv/canary/internal/customer"
 	"github.com/ruptiv/canary/internal/devops"
-	lpPkg        "github.com/ruptiv/canary/internal/lp"
-	owlPkg       "github.com/ruptiv/canary/internal/owl"
-	poPkg        "github.com/ruptiv/canary/internal/po"
-	supplierPkg  "github.com/ruptiv/canary/internal/supplier"
-	taskPkg      "github.com/ruptiv/canary/internal/task"
-	"github.com/ruptiv/canary/internal/web"
-	webdevops    "github.com/ruptiv/canary/internal/web/devops"
-	workflowPkg  "github.com/ruptiv/canary/internal/workflow"
-	employeePkg  "github.com/ruptiv/canary/internal/employee"
+	employeePkg "github.com/ruptiv/canary/internal/employee"
 	hierarchyPkg "github.com/ruptiv/canary/internal/hierarchy"
-	reportPkg    "github.com/ruptiv/canary/internal/report"
-	returnsPkg   "github.com/ruptiv/canary/internal/returns"
+	lpPkg "github.com/ruptiv/canary/internal/lp"
+	owlPkg "github.com/ruptiv/canary/internal/owl"
+	poPkg "github.com/ruptiv/canary/internal/po"
+	reportPkg "github.com/ruptiv/canary/internal/report"
+	returnsPkg "github.com/ruptiv/canary/internal/returns"
+	supplierPkg "github.com/ruptiv/canary/internal/supplier"
+	taskPkg "github.com/ruptiv/canary/internal/task"
+	"github.com/ruptiv/canary/internal/web"
+	webdevops "github.com/ruptiv/canary/internal/web/devops"
+	workflowPkg "github.com/ruptiv/canary/internal/workflow"
 
 	"github.com/ruptiv/canary/internal/auth/lnurl"
 	"github.com/ruptiv/canary/internal/config"
-	"github.com/ruptiv/canary/internal/protocol/validate"
 	"github.com/ruptiv/canary/internal/db"
 	"github.com/ruptiv/canary/internal/identity"
-	"github.com/ruptiv/canary/internal/identity/auth"
 	"github.com/ruptiv/canary/internal/identity/jwks"
 	"github.com/ruptiv/canary/internal/identity/keystore"
-	"github.com/ruptiv/canary/internal/identity/me"
-	"github.com/ruptiv/canary/internal/identity/mint"
-	"github.com/ruptiv/canary/internal/identity/refreshfamily"
-	"github.com/ruptiv/canary/internal/identity/tokenverify"
 	"github.com/ruptiv/canary/internal/manifest/routewalk"
 	"github.com/ruptiv/canary/internal/mcp"
 	"github.com/ruptiv/canary/internal/protocol/anchor"
@@ -68,6 +59,7 @@ import (
 	"github.com/ruptiv/canary/internal/protocol/publisher"
 	"github.com/ruptiv/canary/internal/protocol/secrets"
 	"github.com/ruptiv/canary/internal/protocol/sub3"
+	"github.com/ruptiv/canary/internal/protocol/validate"
 	"github.com/ruptiv/canary/internal/protocol/webhook"
 	"github.com/ruptiv/canary/internal/squareauth"
 	domainwebhook "github.com/ruptiv/canary/internal/webhook"
@@ -132,44 +124,26 @@ func main() {
 	// keys must be published via the rotation runbook, never
 	// auto-generated.
 	keyStore := keystore.New(pool)
-	bootstrapSigningKeyIfEmpty(ctx, keyStore, logger)
+	keystore.BootstrapDevKeyIfEmpty(ctx, keyStore, logger)
 	jwksHandler := jwks.New(keyStore, logger)
 
-	// Token verifier + WhoAmI RPC (T-3 / GRO-863). Pin issuer to
-	// "canary" and audience to "canary" — internal tokens are
-	// canary-audience by default; AtlasView-audience tokens are
-	// for AtlasView's middleware to verify, not ours.
-	tokenVerifier := tokenverify.New(keyStore, "canary", "canary")
-	meHandler := me.New(tokenVerifier, logger)
-
-	// JWT mint pipeline (T-1 / GRO-861).
-	//   - mint.Minter signs new pairs using the keystore active key.
-	//   - refreshfamily.Store tracks rotation chains with reuse
-	//     detection (OAuth 2.1 / RFC 6819 §5.2.2.3).
-	//   - tokenverify.Verifier pinned to aud="refresh" validates
-	//     incoming refresh tokens (audience separation: a captured
-	//     access token can never substitute as a refresh).
-	//   - auth.RefreshHandler composes the three at /auth/refresh.
-	tokenMinter := mint.New(keyStore, mint.Config{
-		Issuer:   "canary",
-		Audience: []string{"canary", "atlasview"},
-	})
-	refreshFamilyStore := refreshfamily.New(pool)
-	refreshVerifier := tokenverify.New(keyStore, "canary", "refresh")
-	refreshHandler := auth.NewRefreshHandler(refreshVerifier, tokenMinter, refreshFamilyStore, logger)
+	// Auth surfaces (/auth/login, /auth/refresh, /v1/me) live on the
+	// identity binary, not the gateway, per the platform-identity-
+	// database-boundary card. Gateway only publishes the JWKS public
+	// key set; identity owns mint + verify.
 
 	// .jeffe namespace registration — Node identity layer.
 	// ORDINALSBOT_API_KEY env var selects real vs stub inscriber.
 	inscriber := sub3.NewOrdinalsBot(os.Getenv("ORDINALSBOT_API_KEY"), "signet")
 	nsHandler := namespace.New(pool, inscriber, logger)
 
-	// L402 sat-gated Validation API — revenue surface. 
+	// L402 sat-gated Validation API — revenue surface.
 	// VALIDATOR_SECRET: 32-byte hex key for stub L402 HMAC. If absent,
 	// a random key is generated at startup (stub mode, not production-safe).
 	// VALIDATOR_SATOSHI_PRICE: sat price per proof (default 100).
 	validateHandler := buildValidateHandler(pool, logger)
 
-	// LNURL-auth login surface — Lightning wallet QR login. 
+	// LNURL-auth login surface — Lightning wallet QR login.
 	// LNURL_JWT_SECRET: 64-char hex key for HS256 session JWTs. If absent,
 	// a random key is generated (ephemeral, dev only).
 	// LNURL_STUB: set to "true" to skip secp256k1 signature verification
@@ -186,7 +160,7 @@ func main() {
 	dlq := domainwebhook.NewDLQ(pool)
 	admin := newAdminHandlers(dlq, pub)
 
-	// Build MCP tool registry over the 7 Wave D module stores. 
+	// Build MCP tool registry over the 7 Wave D module stores.
 	mcpRegistry := mcp.NewRegistry()
 	mcp.RegisterAlertTools(mcpRegistry, alertPkg.NewStore(pool))
 	mcp.RegisterAnalyticsTools(mcpRegistry, analyticsPkg.NewStore(pool))
@@ -210,13 +184,8 @@ func main() {
 	// auto-discover. Reads from the rotation-aware keystore.
 	jwksHandler.Mount(r)
 
-	// /v1/me — WhoAmI RPC. T-3 / GRO-863. Bearer-auth-gated; reads
-	// claims from a JWT minted by canary's keystore.
-	meHandler.Mount(r)
-
-	// /auth/refresh — token rotation with reuse detection.
-	// T-1 / GRO-861. Public — the refresh token IS the auth.
-	refreshHandler.Mount(r)
+	// /v1/me + /auth/refresh + /auth/login moved to the identity
+	// binary per the platform-identity-database-boundary card.
 
 	// Bilateral verification APIs — read-only, mounted outside the
 	// audit group. Reads don't need state-mutation audit semantics.
@@ -228,7 +197,7 @@ func main() {
 	// gated below behind APIKeyMiddleware (T-C / GRO-849: prevents
 	// spoofed registrations claiming someone else's owner_id).
 	// The POST writes one row but carries its own payload_hash +
-	// inscription_id as the audit trail. 
+	// inscription_id as the audit trail.
 	nsHandler.MountPublic(r)
 
 	// L402 sat-gated verification — POST issues challenge, GET consumes.
@@ -237,7 +206,7 @@ func main() {
 
 	// LNURL-auth login — wallet QR challenge/response + JWT session.
 	// Mounted outside audit group; Lightning wallet calls are read-only
-	// from an audit perspective until the session is established. 
+	// from an audit perspective until the session is established.
 	lnurlHandler.Mount(r)
 
 	// Square OAuth demo. Mounted outside audit group; OAuth
@@ -246,7 +215,7 @@ func main() {
 
 	// Audit middleware records every state-mutating protocol invocation
 	// into app.audit_log. Scoped to webhook routes so /health and
-	// read-only /v1/protocol/evidence/* stay noise-free. 
+	// read-only /v1/protocol/evidence/* stay noise-free.
 	auditMW := audit.Middleware(audit.Config{
 		Inserter:    audit.NewPgxInserter(pool),
 		Logger:      logger,
@@ -275,7 +244,7 @@ func main() {
 	})
 
 	// POST /mcp — MCP JSON-RPC 2.0 endpoint. API-key auth, tenant-scoped.
-	// 26 tools across 7 domain modules. 
+	// 26 tools across 7 domain modules.
 	r.Group(func(r chi.Router) {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
 			Pool:     pool,
@@ -291,7 +260,7 @@ func main() {
 	// Owns the catalog/manifest/observability/pipeline/qa-agent service
 	// pages. Routes don't collide with the dev console's specific paths
 	// (square / api / releases / static); Phase 3 folds those legacy
-	// pages into the new shell. 
+	// pages into the new shell.
 	if sysadmin, err := webdevops.New(logger); err == nil {
 		sysadmin.Mount(r)
 	} else {
@@ -341,7 +310,7 @@ func main() {
 
 	// MANIFEST_ROUTEWALK=1 — emit build/routes-seen.json then continue
 	// boot. Pure observation; consumed by the manifest reconciler to
-	// detect drift against manifest.yaml + openapi.yaml. 
+	// detect drift against manifest.yaml + openapi.yaml.
 	if os.Getenv("MANIFEST_ROUTEWALK") == "1" {
 		out := os.Getenv("MANIFEST_ROUTEWALK_OUT")
 		if err := routewalk.Walk(r, serviceName, out); err != nil {
@@ -479,37 +448,6 @@ func buildResolver(ctx context.Context, pool *pgxpool.Pool, logger *zap.Logger) 
 // gorilla/csrf signs the per-session token cookie with this key — if it
 // changes between restarts, all in-flight tokens become invalid (users
 // must re-fetch a form GET before POSTing). T-E.
-// bootstrapSigningKeyIfEmpty seeds a fresh RS256 key into the
-// keystore if it has no active key. Dev-mode convenience: a fresh
-// `db-reset` leaves app.signing_keys empty, which would make every
-// JWT mint fail. In production (ENV=production) we fatal instead —
-// keys must be published via the rotation runbook, never auto-
-// generated, so a key compromise can't be silently masked by an
-// auto-recovery path.
-//
-// T-2 / GRO-862.
-func bootstrapSigningKeyIfEmpty(ctx context.Context, ks *keystore.Store, logger *zap.Logger) {
-	if _, err := ks.Active(ctx); err == nil {
-		return
-	} else if !errors.Is(err, keystore.ErrNoActiveKey) {
-		logger.Fatal("keystore active probe failed", zap.Error(err))
-	}
-
-	if os.Getenv("ENV") == "production" {
-		logger.Fatal("keystore: no active signing key in production; publish a key via the rotation runbook before boot")
-	}
-
-	logger.Warn("keystore: no active signing key; bootstrapping a dev RS256 key (auto-generated — production fatals here)")
-	sk, err := keystore.GenerateRSA()
-	if err != nil {
-		logger.Fatal("keystore bootstrap GenerateRSA", zap.Error(err))
-	}
-	if err := ks.Insert(ctx, sk); err != nil {
-		logger.Fatal("keystore bootstrap Insert", zap.Error(err))
-	}
-	logger.Info("keystore: dev key inserted", zap.String("kid", sk.Kid))
-}
-
 func buildCSRFKey(logger *zap.Logger) []byte {
 	isProd := os.Getenv("ENV") == "production"
 	key := make([]byte, 32)
@@ -541,7 +479,7 @@ func buildCSRFKey(logger *zap.Logger) []byte {
 // invalid or absent value generates an ephemeral random key with a
 // warning. In production (ENV=production) the absence or invalidity
 // is fatal — the L402 HMAC must be deterministic so peer verification
-// can succeed across restarts. 
+// can succeed across restarts.
 // VALIDATOR_SATOSHI_PRICE: satoshi price per proof verification (default 100).
 func buildValidateHandler(pool *pgxpool.Pool, logger *zap.Logger) *validate.Handler {
 	isProd := os.Getenv("ENV") == "production"
@@ -594,7 +532,6 @@ func buildValidateHandler(pool *pgxpool.Pool, logger *zap.Logger) *validate.Hand
 // LNURL_SCHEME: "http" or "https" (default "https"). Must be "https"
 // in production — http leaks the auth k1 nonce in transit.
 // LNURL_HOST: hostname[:port] for callback URLs (default "localhost:8080").
-//
 func buildLNURLHandler(pool *pgxpool.Pool, logger *zap.Logger) *lnurl.Handler {
 	isProd := os.Getenv("ENV") == "production"
 	secret := make([]byte, 32)
