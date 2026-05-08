@@ -295,8 +295,6 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/auth/connect", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusFound)
 	})
-	r.Get("/connect", h.page("connect", "connect", stubConnect))
-	r.Get("/welcome", h.page("welcome", "welcome", nil))
 
 	// Error pages (also reachable programmatically via Render403/404/500).
 	// Public so a 403/404 redirect doesn't loop on logged-out clients.
@@ -308,6 +306,17 @@ func (h *Handler) Mount(r chi.Router) {
 
 	r.Group(func(r chi.Router) {
 		r.Use(h.requireTenantMiddleware)
+
+		// /connect is the post-OAuth "data sync picker" (week start +
+		// lookback days + Run Health Check). /welcome is the post-OAuth
+		// "Your store is connected" landing. Both ARE post-auth pages —
+		// pre-fix they were mounted in the public group, letting random
+		// visitors see a "Connect Your Store" config UI without ever
+		// logging in. They live in the protected group; squareauth.handleCallback
+		// sets demo_merchant cookie BEFORE redirecting, so the post-OAuth
+		// flow still reaches them with a resolved tenant.
+		r.Get("/connect", h.page("connect", "connect", stubConnect))
+		r.Get("/welcome", h.page("welcome", "welcome", nil))
 
 		r.Get("/dashboard", h.page("dashboard", "dashboard", stubDashboard))
 		r.Get("/chirps", h.chirpListPage)

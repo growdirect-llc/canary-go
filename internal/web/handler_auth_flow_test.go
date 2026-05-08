@@ -92,6 +92,55 @@ func TestLogout_ClearsCookieAndRedirects(t *testing.T) {
 	}
 }
 
+// TestConnect_RedirectsToLoginWhenUnauthenticated guards the post-OAuth
+// "data sync picker" page (/connect — week-start, lookback days, run
+// health check) from being reachable without a session. Pre-fix the
+// route was mounted outside the requireTenantMiddleware group so
+// unauthenticated users could see a "Connect Your Store" config UI
+// without ever logging in — operator complaint that triggered this fix.
+//
+// The OAuth post-completion path still works because squareauth.handleCallback
+// sets the demo_merchant session cookie BEFORE redirecting; by the time
+// the browser follows the redirect to /connect, the cookie exists and
+// requireTenantMiddleware lets the request through.
+func TestConnect_RedirectsToLoginWhenUnauthenticated(t *testing.T) {
+	h := New(Deps{}, nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/connect", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusFound {
+		t.Fatalf("expected 302 got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	if loc := rr.Header().Get("Location"); loc != "/login" {
+		t.Errorf("/connect unauthenticated redirect = %q, want /login", loc)
+	}
+}
+
+// TestWelcome_RedirectsToLoginWhenUnauthenticated — same shape as the
+// /connect test. /welcome is a post-OAuth landing ("Your store is
+// connected. Let's set things up.") and should not be reachable to
+// random visitors.
+func TestWelcome_RedirectsToLoginWhenUnauthenticated(t *testing.T) {
+	h := New(Deps{}, nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/welcome", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusFound {
+		t.Fatalf("expected 302 got %d", rr.Code)
+	}
+	if loc := rr.Header().Get("Location"); loc != "/login" {
+		t.Errorf("/welcome unauthenticated redirect = %q, want /login", loc)
+	}
+}
+
 // TestAuthConnect_RedirectsToLogin verifies the /auth/connect route
 // referenced by templates/auth/join.html (line 128 — the marketing CTA
 // "Connect your store") points at a real handler. Pre-fix it 404'd
