@@ -265,6 +265,54 @@ var QAToolCatalog = []ToolCategory{
 	},
 }
 
+// Scenario is one scripted scenario in the /devops/scenarios catalog.
+// Pinned to Canary/canary/services/scenario_runner.py SCENARIOS dict —
+// keep field shape in lockstep when the catalog evolves.
+//
+// T3B.8 / GRO-891.
+type Scenario struct {
+	Key            string
+	Name           string
+	Desc           string
+	ExpectedRules  []string // empty = no rule expected to fire
+	VerificationQs []string // queries that should return ≥ expect_min after the run
+}
+
+var ScenariosCatalog = []Scenario{
+	{Key: "happy_path_payment", Name: "Happy Path Payment",
+		Desc: "Clean sale — appears on merchant transactions view.",
+		ExpectedRules: []string{},
+		VerificationQs: []string{"last transaction"}},
+	{Key: "refund_detection", Name: "Rapid Refund",
+		Desc: "Sale + rapid refund — triggers C-001 RAPID_REFUND.",
+		ExpectedRules: []string{"C-001"},
+		VerificationQs: []string{"refunds today"}},
+	{Key: "void_pattern", Name: "Void Pattern",
+		Desc: "Sale followed by void — shows as voided in transaction detail.",
+		ExpectedRules: []string{},
+		VerificationQs: []string{"voids today"}},
+	{Key: "cash_drawer_variance", Name: "Cash Drawer Variance",
+		Desc: "Cash drawer closes short — triggers C-102 alert.",
+		ExpectedRules: []string{"C-102"},
+		VerificationQs: []string{"high severity alerts"}},
+	{Key: "employee_risk_score", Name: "Employee Risk Score",
+		Desc: "Multiple refunds by one employee — triggers C-002.",
+		ExpectedRules: []string{"C-002"},
+		VerificationQs: []string{"refunds today"}},
+	{Key: "multi_location", Name: "Multi-Location",
+		Desc: "Transactions across all 3 locations in a short window.",
+		ExpectedRules: []string{},
+		VerificationQs: []string{"how many transactions today"}},
+	{Key: "fox_case_lifecycle", Name: "Fox Case Lifecycle",
+		Desc: "Alert escalated to Fox case with evidence.",
+		ExpectedRules: []string{"C-001"},
+		VerificationQs: []string{"high severity alerts"}},
+	{Key: "pipeline_e2e", Name: "Full Pipeline E2E",
+		Desc: "Transaction + alert + case + evidence chain.",
+		ExpectedRules: []string{"C-007"},
+		VerificationQs: []string{"refunds today", "high severity alerts"}},
+}
+
 // TestLabTab is one tab on the /devops/test-lab console. Pinned to the
 // two tabs in templates/ops/test_lab.html: "Scenarios" + "Live Fire".
 //
@@ -708,6 +756,13 @@ var Categories = []Group{
 				Cells:    []string{"B × stream"},
 				Status: "Sandbox-guarded testing console — scenarios + live-fire tabs over the full TSP pipeline. Wired in T3B.7.",
 			},
+			{
+				Name: "scenarios", Port: 9333, Owner: "ALX",
+				Priority: "P0",
+				Scope: "cross-tenant", Category: "test & validation",
+				Cells:    []string{"B × stream"},
+				Status: "Scripted scenario catalog (8 scenarios) + randomizer mode for stress + discovery testing. Wired in T3B.8.",
+			},
 		},
 	},
 }
@@ -744,6 +799,7 @@ func New(logger *zap.Logger) (*Handler, error) {
 		"templates/etl.html",
 		"templates/wallet.html",
 		"templates/test_lab.html",
+		"templates/scenarios.html",
 	)
 	if err != nil {
 		return nil, err
@@ -845,10 +901,11 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/devops/etl", h.etlPage)
 	r.Get("/devops/wallet", h.walletPage)
 	r.Get("/devops/test-lab", h.testLabPage)
+	r.Get("/devops/scenarios", h.scenariosPage)
 
 	for name := range h.index {
 		switch name {
-		case "api-docs", "catalog", "manifest", "observability", "pipeline", "qa-agent", "etl", "wallet", "test-lab":
+		case "api-docs", "catalog", "manifest", "observability", "pipeline", "qa-agent", "etl", "wallet", "test-lab", "scenarios":
 			continue // mounted above with custom handlers
 		}
 		path := "/devops/" + name
@@ -1065,6 +1122,46 @@ func (h *Handler) observabilityPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if err := h.tmpl.ExecuteTemplate(w, "observability.html", view); err != nil {
 		h.logger.Error("observability template", zap.Error(err))
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
+}
+
+// scenariosPage renders the /devops/scenarios discovery surface —
+// the scripted scenario catalog (8 entries) + randomizer mode that
+// the test-lab fires against the TSP pipeline. Recovery target:
+// Canary/canary/services/scenario_runner.py + scenario_fire.py +
+// scenario_verify.py (~2,432 LOC). Runtime port lives in a follow-on.
+//
+// T3B.8 / GRO-891.
+func (h *Handler) scenariosPage(w http.ResponseWriter, r *http.Request) {
+	svc := h.index["scenarios"]
+	// Compute distinct expected rules + verification query types.
+	rules := map[string]bool{}
+	queries := map[string]bool{}
+	for _, s := range ScenariosCatalog {
+		for _, rk := range s.ExpectedRules {
+			rules[rk] = true
+		}
+		for _, q := range s.VerificationQs {
+			queries[q] = true
+		}
+	}
+	view := map[string]any{
+		"Service":              svc,
+		"Categories":           Categories,
+		"Active":               "scenarios",
+		"Tenant":               "all",
+		"Env":                  "lab",
+		"Scenarios":            ScenariosCatalog,
+		"ScenarioCount":        len(ScenariosCatalog),
+		"RandomizerDefault":    10,
+		"DistinctRulesCovered": len(rules),
+		"VerificationQTypes":   len(queries),
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := h.tmpl.ExecuteTemplate(w, "scenarios.html", view); err != nil {
+		h.logger.Error("scenarios template", zap.Error(err))
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
 }

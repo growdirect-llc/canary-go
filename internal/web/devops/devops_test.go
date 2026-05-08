@@ -122,6 +122,7 @@ func TestKnownServices_returnsAllSkeletons(t *testing.T) {
 		"pipeline": true, "qa-agent": true, "api-docs": true,
 		"evidence": true, "anchor": true, "mcp": true,
 		"etl": true, "wallet": true, "test-lab": true,
+		"scenarios": true,
 	}
 	if len(got) != len(want) {
 		t.Errorf("KnownServices count: got %d, want %d; got %v", len(got), len(want), got)
@@ -1549,5 +1550,141 @@ func TestCategories_includesTestValidationGroup(t *testing.T) {
 	}
 	if !found {
 		t.Error("Categories should include a 'Test & validation' group after T3B.7")
+	}
+}
+
+func TestScenarios_pageRendersAllEightScenarios(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/scenarios", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+
+	for _, zone := range []string{
+		"Capability",
+		"KPIs",
+		"Endpoints (Source files)",
+		"Scripted scenario catalog",
+		"Randomizer mode",
+		"Activity — Run history (planned)",
+		"Linked",
+	} {
+		if !strings.Contains(body, zone) {
+			t.Errorf("scenarios page missing zone %q", zone)
+		}
+	}
+
+	// All 8 scenarios render verbatim (Name + Key)
+	for _, want := range []string{
+		"Happy Path Payment", "happy_path_payment",
+		"Rapid Refund", "refund_detection",
+		"Void Pattern", "void_pattern",
+		"Cash Drawer Variance", "cash_drawer_variance",
+		"Employee Risk Score", "employee_risk_score",
+		"Multi-Location", "multi_location",
+		"Fox Case Lifecycle", "fox_case_lifecycle",
+		"Full Pipeline E2E", "pipeline_e2e",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("scenarios catalog missing %q", want)
+		}
+	}
+}
+
+func TestScenarios_pageRendersExpectedRules(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/scenarios", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+
+	// Distinct Chirp rule codes from the SCENARIOS dict
+	for _, rule := range []string{"C-001", "C-002", "C-007", "C-102"} {
+		if !strings.Contains(body, rule) {
+			t.Errorf("scenarios catalog missing rule pill %q", rule)
+		}
+	}
+
+	// "no rule expected to fire" placeholder for rule-less scenarios
+	if !strings.Contains(body, "no rule expected to fire") {
+		t.Errorf("scenarios catalog missing 'no rule expected' placeholder")
+	}
+}
+
+func TestScenarios_pageRendersRandomizer(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/scenarios", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+
+	for _, want := range []string{
+		"Randomizer mode",
+		"run_randomizer(count = 10)",
+		"purge_scenario_data()",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("randomizer panel missing %q", want)
+		}
+	}
+
+	// KPI counts: 8 scenarios, 10 randomizer default, 4 distinct rules, 3 query types
+	if !strings.Contains(body, ">8<") {
+		t.Errorf("KPI tile should show 8 scenarios")
+	}
+	if !strings.Contains(body, ">10<") {
+		t.Errorf("KPI tile should show 10 randomizer default")
+	}
+	if !strings.Contains(body, ">4<") {
+		t.Errorf("KPI tile should show 4 distinct rules")
+	}
+}
+
+func TestScenarios_setsNoStoreCacheControl(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/scenarios", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if got := rr.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control: got %q, want no-store", got)
+	}
+}
+
+func TestScenarios_includedInKnownServices(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	found := false
+	for _, n := range h.KnownServices() {
+		if n == "scenarios" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("scenarios not in KnownServices()")
+	}
+}
+
+func TestScenariosCatalog_invariants(t *testing.T) {
+	if len(ScenariosCatalog) != 8 {
+		t.Errorf("ScenariosCatalog should have exactly 8 scenarios, got %d", len(ScenariosCatalog))
+	}
+	keys := map[string]bool{}
+	for _, s := range ScenariosCatalog {
+		if s.Key == "" || s.Name == "" || s.Desc == "" {
+			t.Errorf("scenario has empty required field: %+v", s)
+		}
+		if keys[s.Key] {
+			t.Errorf("duplicate scenario key %q", s.Key)
+		}
+		keys[s.Key] = true
+		if len(s.VerificationQs) == 0 {
+			t.Errorf("scenario %q has no verification queries", s.Key)
+		}
 	}
 }
