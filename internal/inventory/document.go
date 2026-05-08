@@ -4,11 +4,11 @@
 // inventory_documents is a single table type-discriminated by document_type
 // (goods_receipt | transfer_out | transfer_in | rtv | stock_count |
 // adjustment_batch). The portal uses these reads to render the Transfers
-// list/detail/variance views (W2b / GRO-816), the Receiving list (W2d),
+// list/detail/variance views (W2b), the Receiving list (W2d),
 // the Returns list (W2d), and the distribution variance report (W2b /
 // W2e).
 //
-// Writes are out of scope for W2b — transfer creation is GRO-824 (W5).
+// Writes are out of scope for W2b — transfer creation is
 
 package inventory
 
@@ -204,6 +204,80 @@ func (s *Store) ListDocumentLines(ctx context.Context, tenantID, documentID uuid
 		out = append(out, l)
 	}
 	return out, rows.Err()
+}
+
+// Document status discriminators for inventory_documents.status. Not
+// exhaustive — these are the values the portal mutates today (W5).
+const (
+	DocumentStatusOpen       = "open"
+	DocumentStatusInProgress = "in_progress"
+	DocumentStatusClosed     = "closed"
+	DocumentStatusCancelled  = "cancelled"
+)
+
+// UpdateDocumentStatus moves a document to a new status. Records performedBy
+// (operator id) and stamps completed_at when transitioning to a terminal
+// status. Returns the updated DocumentDTO. Used by /receiving/{id}/close
+// (W5) and the planned transfers/RTV close flows.
+func (s *Store) UpdateDocumentStatus(
+	ctx context.Context,
+	tenantID, id uuid.UUID,
+	status string,
+	performedBy *uuid.UUID,
+) (*DocumentDTO, error) {
+	const q = `
+		UPDATE inventory.inventory_documents
+		   SET status              = $1,
+		       performed_by_user_id = COALESCE($2, performed_by_user_id),
+		       completed_at        = CASE
+		           WHEN $1 IN ('closed', 'cancelled') THEN COALESCE(completed_at, NOW())
+		           ELSE completed_at
+		       END,
+		       updated_at          = NOW()
+		 WHERE tenant_id = $3 AND id = $4
+		RETURNING id, tenant_id, document_type, document_number,
+		          source_location_id, destination_location_id, vendor_id,
+		          related_order_id, status, expected_at, completed_at,
+		          total_quantity::text, total_cost::text, performed_by_user_id,
+		          attributes, created_at, updated_at`
+	row := s.pool.QueryRow(ctx, q, status, performedBy, tenantID, id)
+	var d DocumentDTO
+	if err := row.Scan(
+		&d.ID, &d.TenantID, &d.DocumentType, &d.DocumentNumber,
+		&d.SourceLocationID, &d.DestinationLocationID, &d.VendorID,
+		&d.RelatedOrderID, &d.Status, &d.ExpectedAt, &d.CompletedAt,
+		&d.TotalQuantity, &d.TotalCost, &d.PerformedByUserID,
+		&d.Attributes, &d.CreatedAt, &d.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrDocumentNotFound
+		}
+		return nil, fmt.Errorf("inventory: update document status: %w", err)
+	}
+	return &d, nil
+}
+
+// MarkLineDiscrepancy sets variance_reason on an inventory_document_line.
+// Tenant-scoped. Returns ErrDocumentNotFound if no row matches. Used by
+// /receiving/{id}/lines/{lineID}/discrepancy (W5).
+func (s *Store) MarkLineDiscrepancy(
+	ctx context.Context,
+	tenantID, lineID uuid.UUID,
+	reason string,
+) error {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE inventory.inventory_document_lines
+		   SET variance_reason = $1,
+		       updated_at      = NOW()
+		 WHERE tenant_id = $2 AND id = $3`,
+		reason, tenantID, lineID)
+	if err != nil {
+		return fmt.Errorf("inventory: mark line discrepancy: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrDocumentNotFound
+	}
+	return nil
 }
 
 // DistributionLane is one row in the distribution variance report —

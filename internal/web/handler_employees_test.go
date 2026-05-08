@@ -1,3 +1,5 @@
+//go:build integration
+
 package web_test
 
 import (
@@ -8,9 +10,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/employee"
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
-	"github.com/growdirect-llc/rapidpos/internal/web"
+	"github.com/ruptiv/canary/internal/employee"
+	"github.com/ruptiv/canary/internal/testutil"
+	"github.com/ruptiv/canary/internal/web"
 )
 
 func TestEmployeeDetail_BadID_Returns404(t *testing.T) {
@@ -28,7 +30,7 @@ func TestEmployeeDetail_BadID_Returns404(t *testing.T) {
 func TestEmployeeDetail_NotFound_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{EmployeeStore: employee.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/employees/"+uuid.New().String(), nil)
@@ -54,7 +56,7 @@ func TestEmployeeDetail_NoStore_RendersStub(t *testing.T) {
 func TestReportLabor_Renders_WithStore(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{EmployeeStore: employee.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/reports/labor", nil)

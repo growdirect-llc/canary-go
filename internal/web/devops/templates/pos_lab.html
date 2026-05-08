@@ -1,0 +1,219 @@
+{{define "pos_lab.html"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pos-lab · Canary Sysadmin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0e1117;
+      --bg-2: #161b22;
+      --bg-3: #1f2630;
+      --border: #2a313c;
+      --text: #c9d1d9;
+      --text-muted: #8b949e;
+      --accent: #FBBF24;
+      --accent-2: #58a6ff;
+      --p0: #f85149;
+      --mode-local: #3fb950;
+      --mode-live: #f85149;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; font-size: 14px; line-height: 1.5; }
+    code, pre, .mono { font-family: 'JetBrains Mono', Menlo, monospace; }
+
+    .sidebar { background: var(--bg-2); border-right: 1px solid var(--border); padding: 20px 16px; overflow-y: auto; }
+    .sidebar-brand { font-weight: 700; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); margin-bottom: 24px; }
+    .sidebar-group-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 16px 0 8px; }
+    .sidebar a { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 13px; }
+    .sidebar a:hover { background: var(--bg-3); }
+    .sidebar a.active { background: var(--bg-3); color: var(--accent); font-weight: 500; }
+    .sidebar-tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--bg-3); color: var(--text-muted); }
+    .sidebar a.active .sidebar-tag { background: var(--accent); color: var(--bg); }
+
+    main { padding: 24px 32px; overflow-x: auto; }
+    .topnav { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .topnav-spacer { flex: 1; }
+    .topnav-selector { background: var(--bg-2); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px; }
+    .topnav-selector label { color: var(--text-muted); margin-right: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    .zone { background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+    .zone-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 12px; }
+
+    .zone-header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+    .zone-header h1 { font-size: 24px; font-weight: 600; }
+    .zone-header .port { font-family: 'JetBrains Mono', Menlo, monospace; color: var(--text-muted); }
+    .zone-header .priority { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; background: var(--p0); color: white; }
+    .zone-header .scope { color: var(--text-muted); font-size: 12px; }
+
+    .capability { display: grid; grid-template-columns: 120px 1fr; gap: 8px 16px; align-items: center; font-size: 13px; }
+    .capability dt { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .capability dd .pill { display: inline-block; background: var(--bg-3); border: 1px solid var(--border); padding: 2px 8px; border-radius: 4px; margin-right: 4px; font-size: 12px; font-family: 'JetBrains Mono', Menlo, monospace; }
+
+    .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .kpi-tile { background: var(--bg-3); border-radius: 6px; padding: 16px; text-align: center; }
+    .kpi-tile .value { font-size: 28px; font-weight: 700; color: var(--accent); }
+    .kpi-tile .value.muted { color: var(--text-muted); }
+    .kpi-tile .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-top: 4px; }
+
+    .source-list { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+    .source-row { display: flex; justify-content: space-between; padding: 8px 12px; background: var(--bg-3); border-radius: 6px; }
+    .source-row a { color: var(--accent-2); text-decoration: none; font-family: 'JetBrains Mono', Menlo, monospace; font-size: 12px; }
+    .source-row .role { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* Mode cards */
+    .mode-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .mode-card { background: var(--bg-3); border: 1px solid var(--border); border-radius: 8px; padding: 16px; border-left: 3px solid var(--text-muted); }
+    .mode-card[data-mode="Local Fire"] { border-left-color: var(--mode-local); }
+    .mode-card[data-mode="Live Fire"]  { border-left-color: var(--mode-live); }
+    .mode-card .mode-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+    .mode-card .mode-name { font-size: 16px; font-weight: 600; }
+    .mode-card .mode-latency { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 11px; color: var(--text-muted); padding: 2px 6px; background: var(--bg-2); border-radius: 3px; }
+    .mode-card .mode-section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+    .mode-card .mode-path { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 11px; color: var(--text); line-height: 1.5; }
+    .mode-card .mode-tests { font-size: 12px; color: var(--text); line-height: 1.45; }
+    @media (max-width: 900px) { .mode-grid { grid-template-columns: 1fr; } }
+
+    /* Parameter spaces */
+    .param-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+    .param-card { background: var(--bg-3); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+    .param-card .param-name { font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+    .param-card .param-count { font-size: 11px; color: var(--text-muted); margin-bottom: 10px; }
+    .param-card .param-pill { display: inline-block; font-family: 'JetBrains Mono', Menlo, monospace; font-size: 11px; padding: 2px 6px; background: var(--bg-2); border-radius: 3px; margin: 2px 4px 2px 0; color: var(--text-muted); }
+
+    .placeholder { padding: 32px; text-align: center; color: var(--text-muted); background: var(--bg-3); border-radius: 6px; }
+
+    .linked-list { display: flex; gap: 12px; flex-wrap: wrap; }
+    .linked-card { flex: 1; min-width: 180px; padding: 12px 16px; background: var(--bg-3); border-radius: 6px; }
+    .linked-card .name { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+    .linked-card .name a { color: var(--accent-2); text-decoration: none; }
+    .linked-card .role { color: var(--text-muted); font-size: 11px; }
+  </style>
+</head>
+<body>
+  {{template "sidebar.html" .}}
+
+  <main>
+    <div class="topnav">
+      <div class="topnav-selector mono"><label>Tenant</label>{{.Tenant}}</div>
+      <div class="topnav-selector mono"><label>Env</label>{{.Env}}</div>
+      <div class="topnav-spacer"></div>
+      <div class="topnav-selector"><label>Status</label><span style="color: var(--text-muted);">discovery surface only · runtime not built</span></div>
+    </div>
+
+    <div class="zone zone-header">
+      <h1>pos-lab</h1>
+      <span class="port mono">:{{.Service.Port}}</span>
+      <span class="priority">{{.Service.Priority}}</span>
+      <span class="scope">{{.Service.Category}} · {{.Service.Scope}}</span>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Capability</div>
+      <dl class="capability">
+        <dt>Owner</dt><dd>{{.Service.Owner}}</dd>
+        <dt>Cells</dt><dd>{{range .Service.Cells}}<span class="pill">{{.}}</span>{{end}}</dd>
+        <dt>Purpose</dt><dd>Single-transaction firing range — fire one transaction with chosen parameters and verify rule fire / pipeline path.</dd>
+        <dt>Recovery</dt><dd>From <code class="mono">Canary/canary/services/health_check/chirp_lab.py</code> (1,045 LOC). Go-port name is <code class="mono">pos-lab</code> — same contract, broader scope (any POS adapter, not just Square Chirp).</dd>
+      </dl>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">KPIs</div>
+      <div class="kpi-strip">
+        <div class="kpi-tile"><div class="value">{{.ModeCount}}</div><div class="label">Fire modes</div></div>
+        <div class="kpi-tile"><div class="value">{{.TxnTypeCount}}</div><div class="label">Transaction types</div></div>
+        <div class="kpi-tile"><div class="value">{{.EntryMethodCount}}</div><div class="label">Entry methods</div></div>
+        <div class="kpi-tile"><div class="value">{{.CardBrandCount}}</div><div class="label">Card brands</div></div>
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Endpoints (Source files)</div>
+      <div class="source-list">
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/Canary/canary/services/health_check/chirp_lab.py">Canary/canary/services/health_check/chirp_lab.py</a>
+          <span class="role">Firing range (1,045 LOC)</span>
+        </div>
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/tree/main/Canary/canary/services/chirp">Canary/canary/services/chirp/</a>
+          <span class="role">ChirpRuleEngine (Local Fire dependency)</span>
+        </div>
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/docs/sdds/go-handoff/pos-adapter-substrate.md">docs/sdds/go-handoff/pos-adapter-substrate.md</a>
+          <span class="role">POS Adapter Substrate SDD</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Fire modes</div>
+      <div class="mode-grid">
+        {{range .Modes}}
+        <div class="mode-card" data-mode="{{.Name}}">
+          <div class="mode-header">
+            <div class="mode-name">{{.Name}}</div>
+            <div class="mode-latency">{{.Latency}}</div>
+          </div>
+          <div class="mode-tests">{{.Tests}}</div>
+          <div class="mode-section-label">Path</div>
+          <div class="mode-path">{{.Path}}</div>
+        </div>
+        {{end}}
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Parameter space</div>
+      <div class="param-grid">
+        <div class="param-card">
+          <div class="param-name">Transaction types</div>
+          <div class="param-count">{{.TxnTypeCount}} types</div>
+          <div>{{range .TransactionTypes}}<span class="param-pill">{{.}}</span>{{end}}</div>
+        </div>
+        <div class="param-card">
+          <div class="param-name">Entry methods</div>
+          <div class="param-count">{{.EntryMethodCount}} methods</div>
+          <div>{{range .EntryMethods}}<span class="param-pill">{{.}}</span>{{end}}</div>
+        </div>
+        <div class="param-card">
+          <div class="param-name">Card brands</div>
+          <div class="param-count">{{.CardBrandCount}} brands</div>
+          <div>{{range .CardBrands}}<span class="param-pill">{{.}}</span>{{end}}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Activity — Fire history (planned)</div>
+      <div class="placeholder">
+        Per-fire history (mode · txn type · params · rule fires · alerts · latency) wires when the runtime ports to Go. Local Fire requires the ChirpRuleEngine port; Live Fire requires Square SDK + webhook.
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Linked</div>
+      <div class="linked-list">
+        <div class="linked-card">
+          <div class="name"><a href="/devops/test-lab">test-lab</a></div>
+          <div class="role">Console — pos-lab is one of the tabs / fire modes</div>
+        </div>
+        <div class="linked-card">
+          <div class="name"><a href="/devops/scenarios">scenarios</a></div>
+          <div class="role">Scripted catalog — fans out into many pos-lab fires</div>
+        </div>
+        <div class="linked-card">
+          <div class="name"><a href="/devops/live-fire">live-fire</a></div>
+          <div class="role">Live Fire mode dispatcher — Square sandbox round-trip</div>
+        </div>
+        <div class="linked-card">
+          <div class="name"><a href="/devops/pipeline">pipeline</a></div>
+          <div class="role">Live Fire path traverses the full TSP pipeline</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>{{end}}

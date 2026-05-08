@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/sub3"
+	"github.com/ruptiv/canary/internal/protocol/sub3"
 )
 
 // ─── stubInserter ─────────────────────────────────────────────────────────────

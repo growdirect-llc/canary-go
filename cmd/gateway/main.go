@@ -4,9 +4,7 @@
 // Application 63/991,596). Receives webhook POSTs from source networks,
 // validates HMAC-SHA256 signatures against per-(merchant, source)
 // secrets, computes payload hashes, and publishes canonical events to
-// Valkey Streams for the Triple Subscriber pipeline (GRO-747).
-//
-// Built in GRO-746.
+// Valkey Streams for the Triple Subscriber pipeline.
 package main
 
 import (
@@ -20,39 +18,51 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/gorilla/csrf"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	alertPkg     "github.com/growdirect-llc/rapidpos/internal/alert"
-	analyticsPkg "github.com/growdirect-llc/rapidpos/internal/analytics"
-	assetPkg     "github.com/growdirect-llc/rapidpos/internal/asset"
-	casemgmtPkg  "github.com/growdirect-llc/rapidpos/internal/casemgmt"
-	chirpPkg     "github.com/growdirect-llc/rapidpos/internal/chirp"
-	customerPkg  "github.com/growdirect-llc/rapidpos/internal/customer"
-	"github.com/growdirect-llc/rapidpos/internal/devops"
-	lpPkg        "github.com/growdirect-llc/rapidpos/internal/lp"
-	"github.com/growdirect-llc/rapidpos/internal/web"
-	employeePkg  "github.com/growdirect-llc/rapidpos/internal/employee"
-	reportPkg    "github.com/growdirect-llc/rapidpos/internal/report"
-	returnsPkg   "github.com/growdirect-llc/rapidpos/internal/returns"
+	alertPkg "github.com/ruptiv/canary/internal/alert"
+	analyticsPkg "github.com/ruptiv/canary/internal/analytics"
+	assetPkg "github.com/ruptiv/canary/internal/asset"
+	billingPkg "github.com/ruptiv/canary/internal/billing"
+	casemgmtPkg "github.com/ruptiv/canary/internal/casemgmt"
+	chirpPkg "github.com/ruptiv/canary/internal/chirp"
+	customerPkg "github.com/ruptiv/canary/internal/customer"
+	"github.com/ruptiv/canary/internal/devops"
+	employeePkg "github.com/ruptiv/canary/internal/employee"
+	hierarchyPkg "github.com/ruptiv/canary/internal/hierarchy"
+	lpPkg "github.com/ruptiv/canary/internal/lp"
+	owlPkg "github.com/ruptiv/canary/internal/owl"
+	poPkg "github.com/ruptiv/canary/internal/po"
+	reportPkg "github.com/ruptiv/canary/internal/report"
+	returnsPkg "github.com/ruptiv/canary/internal/returns"
+	supplierPkg "github.com/ruptiv/canary/internal/supplier"
+	taskPkg "github.com/ruptiv/canary/internal/task"
+	"github.com/ruptiv/canary/internal/web"
+	webdevops "github.com/ruptiv/canary/internal/web/devops"
+	workflowPkg "github.com/ruptiv/canary/internal/workflow"
 
-	"github.com/growdirect-llc/rapidpos/internal/auth/lnurl"
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
-	"github.com/growdirect-llc/rapidpos/internal/db"
-	"github.com/growdirect-llc/rapidpos/internal/identity"
-	"github.com/growdirect-llc/rapidpos/internal/mcp"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/anchor"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/audit"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/evidence"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/namespace"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/secrets"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/sub3"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/webhook"
-	"github.com/growdirect-llc/rapidpos/internal/squareauth"
-	domainwebhook "github.com/growdirect-llc/rapidpos/internal/webhook"
+	"github.com/ruptiv/canary/internal/auth/lnurl"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/identity"
+	"github.com/ruptiv/canary/internal/identity/jwks"
+	"github.com/ruptiv/canary/internal/identity/keystore"
+	"github.com/ruptiv/canary/internal/manifest/routewalk"
+	"github.com/ruptiv/canary/internal/mcp"
+	"github.com/ruptiv/canary/internal/protocol/anchor"
+	"github.com/ruptiv/canary/internal/protocol/audit"
+	"github.com/ruptiv/canary/internal/protocol/evidence"
+	"github.com/ruptiv/canary/internal/protocol/namespace"
+	"github.com/ruptiv/canary/internal/protocol/publisher"
+	"github.com/ruptiv/canary/internal/protocol/secrets"
+	"github.com/ruptiv/canary/internal/protocol/sub3"
+	"github.com/ruptiv/canary/internal/protocol/validate"
+	"github.com/ruptiv/canary/internal/protocol/webhook"
+	"github.com/ruptiv/canary/internal/squareauth"
+	domainwebhook "github.com/ruptiv/canary/internal/webhook"
 )
 
 const (
@@ -60,7 +70,7 @@ const (
 
 	// streamName is the Valkey Stream that the Triple Subscriber pipeline
 	// reads from. Single stream, three independent consumer groups (one
-	// per subscriber) — see GRO-747.
+	// per subscriber) —
 	streamName = "protocol:events"
 
 	// noncePrefix namespaces nonce keys in Valkey so multiple gateway
@@ -108,37 +118,49 @@ func main() {
 	evidenceHandler := evidence.New(pool, logger)
 	anchorHandler := anchor.New(pool, logger)
 
+	// JWT signing keystore + JWKS publication (T-2 / GRO-862).
+	// Reads from app.signing_keys; bootstraps a dev key on cold
+	// start when the table is empty. Production fatals on empty —
+	// keys must be published via the rotation runbook, never
+	// auto-generated.
+	keyStore := keystore.New(pool)
+	keystore.BootstrapDevKeyIfEmpty(ctx, keyStore, logger)
+	jwksHandler := jwks.New(keyStore, logger)
+
+	// Auth surfaces (/auth/login, /auth/refresh, /v1/me) live on the
+	// identity binary, not the gateway, per the platform-identity-
+	// database-boundary card. Gateway only publishes the JWKS public
+	// key set; identity owns mint + verify.
+
 	// .jeffe namespace registration — Node identity layer.
 	// ORDINALSBOT_API_KEY env var selects real vs stub inscriber.
-	// GRO-751.
 	inscriber := sub3.NewOrdinalsBot(os.Getenv("ORDINALSBOT_API_KEY"), "signet")
 	nsHandler := namespace.New(pool, inscriber, logger)
 
-	// L402 sat-gated Validation API — revenue surface. GRO-752.
+	// L402 sat-gated Validation API — revenue surface.
 	// VALIDATOR_SECRET: 32-byte hex key for stub L402 HMAC. If absent,
 	// a random key is generated at startup (stub mode, not production-safe).
 	// VALIDATOR_SATOSHI_PRICE: sat price per proof (default 100).
 	validateHandler := buildValidateHandler(pool, logger)
 
-	// LNURL-auth login surface — Lightning wallet QR login. GRO-753.
+	// LNURL-auth login surface — Lightning wallet QR login.
 	// LNURL_JWT_SECRET: 64-char hex key for HS256 session JWTs. If absent,
 	// a random key is generated (ephemeral, dev only).
 	// LNURL_STUB: set to "true" to skip secp256k1 signature verification
 	// (CI/signet mode).
 	lnurlHandler := buildLNURLHandler(pool, logger)
 
-	// Square OAuth demo flow (GRO-802). Anthropic-facing demo:
+	// Square OAuth demo flow. Anthropic-facing demo:
 	// connect Square sandbox, see merchant data live. Routes /, /auth/square,
 	// /auth/square/callback, /dashboard, /auth/square/disconnect.
 	// Requires SQUARE_APPLICATION_ID, SQUARE_APPLICATION_SECRET, SQUARE_REDIRECT_URI.
 	squareSvc := squareauth.New(pool, logger)
 
 	// /v1/webhooks/* — admin endpoints under API-key auth.
-	// GRO-764 Phase A.3 (folds part of GRO-642).
 	dlq := domainwebhook.NewDLQ(pool)
 	admin := newAdminHandlers(dlq, pub)
 
-	// Build MCP tool registry over the 7 Wave D module stores. GRO-767.
+	// Build MCP tool registry over the 7 Wave D module stores.
 	mcpRegistry := mcp.NewRegistry()
 	mcp.RegisterAlertTools(mcpRegistry, alertPkg.NewStore(pool))
 	mcp.RegisterAnalyticsTools(mcpRegistry, analyticsPkg.NewStore(pool))
@@ -156,35 +178,44 @@ func main() {
 	r.Get("/health", healthHandler(cfg))
 	r.Get("/.well-known/mcp.json", discoveryHandler(cfg))
 
+	// JWKS — public key set for JWT verification. T-2 / GRO-862.
+	// Mounted at the IANA-registered /.well-known/jwks.json path
+	// (RFC 5785 + RFC 7517) so AtlasView and other consumers can
+	// auto-discover. Reads from the rotation-aware keystore.
+	jwksHandler.Mount(r)
+
+	// /v1/me + /auth/refresh + /auth/login moved to the identity
+	// binary per the platform-identity-database-boundary card.
+
 	// Bilateral verification APIs — read-only, mounted outside the
 	// audit group. Reads don't need state-mutation audit semantics.
-	// GRO-748 (evidence) · GRO-750 (anchor / Merkle proof).
+	//
 	evidenceHandler.Mount(r)
 	anchorHandler.Mount(r)
 
-	// .jeffe namespace — POST (register) + GET (lookup).
-	// Mounted outside the audit group; the POST writes one row but
-	// carries its own payload_hash + inscription_id as the audit
-	// trail. GRO-751.
-	nsHandler.Mount(r)
+	// .jeffe namespace — GET (lookup) public, POST (register)
+	// gated below behind APIKeyMiddleware (T-C / GRO-849: prevents
+	// spoofed registrations claiming someone else's owner_id).
+	// The POST writes one row but carries its own payload_hash +
+	// inscription_id as the audit trail.
+	nsHandler.MountPublic(r)
 
 	// L402 sat-gated verification — POST issues challenge, GET consumes.
 	// Mounted outside audit group; the payment record IS the audit trail.
-	// GRO-752.
 	validateHandler.Mount(r)
 
 	// LNURL-auth login — wallet QR challenge/response + JWT session.
 	// Mounted outside audit group; Lightning wallet calls are read-only
-	// from an audit perspective until the session is established. GRO-753.
+	// from an audit perspective until the session is established.
 	lnurlHandler.Mount(r)
 
-	// Square OAuth demo (GRO-802). Mounted outside audit group; OAuth
+	// Square OAuth demo. Mounted outside audit group; OAuth
 	// state is the auth mechanism, no API-key gating.
 	squareSvc.Mount(r)
 
 	// Audit middleware records every state-mutating protocol invocation
 	// into app.audit_log. Scoped to webhook routes so /health and
-	// read-only /v1/protocol/evidence/* stay noise-free. GRO-694.
+	// read-only /v1/protocol/evidence/* stay noise-free.
 	auditMW := audit.Middleware(audit.Config{
 		Inserter:    audit.NewPgxInserter(pool),
 		Logger:      logger,
@@ -204,10 +235,16 @@ func main() {
 		}))
 		r.Use(auditMW)
 		admin.Mount(r)
+
+		// T-C: POST /v1/protocol/namespace requires
+		// API-key auth + tenant-match on owner_id. Mounted here so
+		// it inherits the same APIKeyMiddleware + audit pair as the
+		// admin endpoints.
+		nsHandler.MountProtected(r)
 	})
 
 	// POST /mcp — MCP JSON-RPC 2.0 endpoint. API-key auth, tenant-scoped.
-	// 26 tools across 7 domain modules. GRO-767.
+	// 26 tools across 7 domain modules.
 	r.Group(func(r chi.Router) {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
 			Pool:     pool,
@@ -219,16 +256,73 @@ func main() {
 	// /devops — pipeline monitor + API explorer. Dev-only (DEV_CONSOLE=1).
 	devops.New(pool, rdb, logger, squareSvc).Mount(r)
 
+	// /devops/<service> — sysadmin module shell.
+	// Owns the catalog/manifest/observability/pipeline/qa-agent service
+	// pages. Routes don't collide with the dev console's specific paths
+	// (square / api / releases / static); Phase 3 folds those legacy
+	// pages into the new shell.
+	if sysadmin, err := webdevops.New(logger); err == nil {
+		sysadmin.Mount(r)
+	} else {
+		logger.Warn("sysadmin module disabled", zap.Error(err))
+	}
+
 	// / — Canary application UI.
 	webDeps := web.Deps{
-		AlertStore:     alertPkg.NewStore(pool),
-		CaseStore:      casemgmtPkg.NewStore(pool),
-		ChirpStore:     chirpPkg.NewPgxStore(pool),
-		CustomerStore:  customerPkg.NewStore(pool),
-		SubstrateStore: lpPkg.NewSubstrateStore(pool),
-		AllowListStore: lpPkg.NewAllowListStore(pool),
+		AlertStore:       alertPkg.NewStore(pool),
+		CaseStore:        casemgmtPkg.NewStore(pool),
+		ChirpStore:       chirpPkg.NewPgxStore(pool),
+		CustomerStore:    customerPkg.NewStore(pool),
+		SubstrateStore:   lpPkg.NewSubstrateStore(pool),
+		AllowListStore:   lpPkg.NewAllowListStore(pool),
+		OwlDashboard:     owlPkg.NewDashboardStore(pool),
+		TaskStore:        taskPkg.NewStore(pool),
+		BillingStore:     billingPkg.NewStore(pool),
+		WorkflowStore:    workflowPkg.NewStore(pool),
+		AssetStore:       assetPkg.NewStore(pool),
+		AuditReader:      audit.NewPgxInserter(pool),
+		HierarchyStore:   hierarchyPkg.NewStore(pool),
+		SupplierStore:    supplierPkg.NewStore(pool),
+		POStore:          poPkg.NewStore(pool),
+		MerchantResolver: squareSvc.MerchantFromRequest,
 	}
-	web.New(webDeps, logger).Mount(r)
+	// T-E: wrap the merchant UI in CSRF + body-size caps.
+	// CSRF runs the gorilla synchronizer-token pattern (signed,
+	// HttpOnly cookie + per-form hidden field). Body cap fails fast
+	// at 64 KiB on POST/PUT/PATCH. Both apply to the entire web tree
+	// — public routes (/, /connect, /welcome, /errors/*) get a CSRF
+	// token planted on first GET so subsequent forms have one.
+	csrfKey := buildCSRFKey(logger)
+	csrfMW := csrf.Protect(
+		csrfKey,
+		csrf.Secure(os.Getenv("ENV") == "production"),
+		csrf.SameSite(csrf.SameSiteLaxMode),
+		csrf.HttpOnly(true),
+		csrf.Path("/"),
+		csrf.FieldName("csrf_token"),
+		csrf.CookieName("__Host-csrf"),
+	)
+	r.Group(func(r chi.Router) {
+		r.Use(web.MaxBytesMiddleware(64 * 1024))
+		r.Use(csrfMW)
+		web.New(webDeps, logger).Mount(r)
+	})
+
+	// MANIFEST_ROUTEWALK=1 — emit build/routes-seen.json then continue
+	// boot. Pure observation; consumed by the manifest reconciler to
+	// detect drift against manifest.yaml + openapi.yaml.
+	if os.Getenv("MANIFEST_ROUTEWALK") == "1" {
+		out := os.Getenv("MANIFEST_ROUTEWALK_OUT")
+		if err := routewalk.Walk(r, serviceName, out); err != nil {
+			logger.Warn("routewalk failed", zap.Error(err))
+		} else {
+			path := out
+			if path == "" {
+				path = routewalk.DefaultOutPath
+			}
+			logger.Info("routewalk emitted", zap.String("output", path))
+		}
+	}
 
 	addr := ":" + cfg.Port
 	logger.Info("starting",
@@ -247,12 +341,11 @@ func main() {
 //
 // PUBLIC_URL env var sets the base URL (e.g. https://demo.growdirect.io).
 // If unset, the handler derives it from the incoming request Host header.
-// GRO-802 Day 5.
 func discoveryHandler(cfg *config.Config) http.HandlerFunc {
 	const (
 		mcpVersion  = "2025-03-26"
 		toolsCount  = 28
-		openAPIRepo = "https://raw.githubusercontent.com/growdirect-llc/canary-go/main/services/canary-protocol/openapi/openapi.yaml"
+		openAPIRepo = "https://raw.githubusercontent.com/ruptiv/canary/main/services/canary-protocol/openapi/openapi.yaml"
 	)
 	modules := []string{"alert", "analytics", "asset", "customer", "employee", "returns", "report"}
 
@@ -350,23 +443,64 @@ func buildResolver(ctx context.Context, pool *pgxpool.Pool, logger *zap.Logger) 
 	return smResolver
 }
 
+// buildCSRFKey loads the CSRF auth key from CSRF_SECRET (32-byte hex).
+// Production requires it; dev generates an ephemeral key + warns.
+// gorilla/csrf signs the per-session token cookie with this key — if it
+// changes between restarts, all in-flight tokens become invalid (users
+// must re-fetch a form GET before POSTing). T-E.
+func buildCSRFKey(logger *zap.Logger) []byte {
+	isProd := os.Getenv("ENV") == "production"
+	key := make([]byte, 32)
+	keyHex := os.Getenv("CSRF_SECRET")
+	if keyHex != "" {
+		decoded, err := hex.DecodeString(keyHex)
+		if err != nil || len(decoded) != 32 {
+			if isProd {
+				logger.Fatal("CSRF_SECRET invalid in production; must be 64-char hex (32 bytes)",
+					zap.Error(err))
+			}
+			logger.Warn("CSRF_SECRET invalid; generating random key (dev fallback)")
+		} else {
+			copy(key, decoded)
+			return key
+		}
+	}
+	if isProd {
+		logger.Fatal("CSRF_SECRET required in production (ENV=production); set to a 64-char hex string")
+	}
+	_, _ = cryptoRand.Read(key)
+	logger.Warn("CSRF_SECRET not set; using ephemeral random key (dev only)")
+	return key
+}
+
 // buildValidateHandler constructs the L402 validation handler from env vars.
 //
-// VALIDATOR_SECRET: 32-byte hex key. If absent or invalid, a random key
-// is generated and a warning is logged (stub/dev mode only).
+// VALIDATOR_SECRET: 32-byte hex key. In dev (ENV != "production") an
+// invalid or absent value generates an ephemeral random key with a
+// warning. In production (ENV=production) the absence or invalidity
+// is fatal — the L402 HMAC must be deterministic so peer verification
+// can succeed across restarts.
 // VALIDATOR_SATOSHI_PRICE: satoshi price per proof verification (default 100).
 func buildValidateHandler(pool *pgxpool.Pool, logger *zap.Logger) *validate.Handler {
+	isProd := os.Getenv("ENV") == "production"
 	secret := make([]byte, 32)
 	secretHex := os.Getenv("VALIDATOR_SECRET")
 	if secretHex != "" {
 		decoded, err := hex.DecodeString(secretHex)
 		if err != nil || len(decoded) != 32 {
+			if isProd {
+				logger.Fatal("VALIDATOR_SECRET invalid in production; must be 64-char hex (32 bytes)",
+					zap.Error(err))
+			}
 			logger.Warn("VALIDATOR_SECRET invalid; generating random key (stub mode)",
 				zap.String("hint", "set VALIDATOR_SECRET to a 64-char hex string for production"))
 		} else {
 			copy(secret, decoded)
 		}
 	} else {
+		if isProd {
+			logger.Fatal("VALIDATOR_SECRET required in production (ENV=production); set to a 64-char hex string")
+		}
 		_, _ = cryptoRand.Read(secret)
 		logger.Warn("VALIDATOR_SECRET not set; using ephemeral random key (stub mode only)")
 	}
@@ -389,32 +523,51 @@ func buildValidateHandler(pool *pgxpool.Pool, logger *zap.Logger) *validate.Hand
 
 // buildLNURLHandler constructs the LNURL-auth handler from env vars.
 //
-// LNURL_JWT_SECRET: 64-char hex key for HS256 session JWTs. If absent or
-// invalid, a random 32-byte key is generated (ephemeral, dev only).
+// LNURL_JWT_SECRET: 64-char hex key for HS256 session JWTs. Required
+// in production (ENV=production). In dev, an invalid/absent value
+// generates an ephemeral random 32-byte key with a warning.
 // LNURL_STUB: "true" skips secp256k1 signature verification (CI/signet).
-// LNURL_SCHEME: "http" or "https" (default "https").
+// FATAL in production — signature verification cannot be disabled
+// against real wallet traffic.
+// LNURL_SCHEME: "http" or "https" (default "https"). Must be "https"
+// in production — http leaks the auth k1 nonce in transit.
 // LNURL_HOST: hostname[:port] for callback URLs (default "localhost:8080").
 func buildLNURLHandler(pool *pgxpool.Pool, logger *zap.Logger) *lnurl.Handler {
+	isProd := os.Getenv("ENV") == "production"
 	secret := make([]byte, 32)
 	secretHex := os.Getenv("LNURL_JWT_SECRET")
 	if secretHex != "" {
 		decoded, err := hex.DecodeString(secretHex)
 		if err != nil || len(decoded) != 32 {
+			if isProd {
+				logger.Fatal("LNURL_JWT_SECRET invalid in production; must be 64-char hex (32 bytes)",
+					zap.Error(err))
+			}
 			logger.Warn("LNURL_JWT_SECRET invalid; generating ephemeral random key",
 				zap.String("hint", "set LNURL_JWT_SECRET to a 64-char hex string for production"))
 		} else {
 			copy(secret, decoded)
 		}
 	} else {
+		if isProd {
+			logger.Fatal("LNURL_JWT_SECRET required in production (ENV=production); set to a 64-char hex string")
+		}
 		_, _ = cryptoRand.Read(secret)
 		logger.Warn("LNURL_JWT_SECRET not set; using ephemeral random key (dev only)")
 	}
 
 	stub := os.Getenv("LNURL_STUB") == "true"
+	if isProd && stub {
+		logger.Fatal("LNURL_STUB=true is not permitted in production; signature verification cannot be disabled against real wallet traffic")
+	}
 
 	scheme := os.Getenv("LNURL_SCHEME")
 	if scheme == "" {
 		scheme = "https"
+	}
+	if isProd && scheme != "https" {
+		logger.Fatal("LNURL_SCHEME must be \"https\" in production",
+			zap.String("got", scheme))
 	}
 	host := os.Getenv("LNURL_HOST")
 	if host == "" {

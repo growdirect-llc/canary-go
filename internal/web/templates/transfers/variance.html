@@ -71,7 +71,7 @@
 <!-- Resolution form -->
 <div class="ops-card">
   <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Record Resolution</div>
-  <form action="#" method="POST" style="display:flex;flex-direction:column;gap:16px;max-width:480px;">
+  <form action="#" method="POST" style="display:flex;flex-direction:column;gap:16px;max-width:480px;">{{ .CSRFField }}
     <div>
       <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:6px;">Resolution Type</label>
       <select name="resolution_type" style="width:100%;padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;">

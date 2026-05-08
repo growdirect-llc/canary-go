@@ -13,7 +13,7 @@
 // FOR UPDATE SKIP LOCKED on the line ensures two concurrent inventory
 // pods never double-process the same line (Valkey pod autoscaling).
 //
-// GRO-798: Loop 4 SOH event consumer.
+// Loop 4 SOH event consumer.
 package inventory
 
 import (

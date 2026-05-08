@@ -1,3 +1,5 @@
+//go:build integration
+
 package web_test
 
 import (
@@ -8,15 +10,15 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/inventory"
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
-	"github.com/growdirect-llc/rapidpos/internal/web"
+	"github.com/ruptiv/canary/internal/inventory"
+	"github.com/ruptiv/canary/internal/testutil"
+	"github.com/ruptiv/canary/internal/web"
 )
 
 func TestReceivingList_Renders(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{InventoryStore: inventory.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -55,7 +57,7 @@ func TestReceivingDetail_BadID_Returns404(t *testing.T) {
 func TestReceivingDetail_NotFound_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{InventoryStore: inventory.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/receiving/"+uuid.New().String(), nil)
@@ -81,7 +83,7 @@ func TestReceivingClose_BadID_Returns404(t *testing.T) {
 func TestReturnsList_Renders(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{InventoryStore: inventory.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/returns", nil)
@@ -119,7 +121,7 @@ func TestReturnsDetail_BadID_Returns404(t *testing.T) {
 func TestReturnsDetail_NotFound_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{InventoryStore: inventory.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/returns/"+uuid.New().String(), nil)

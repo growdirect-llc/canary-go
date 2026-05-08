@@ -11,7 +11,7 @@
 //
 // Consumer group: "replenishment-trigger". One consumer per process.
 //
-// GRO-799: Loop 4 Min/Max engine wired to SOH events.
+// Loop 4 Min/Max engine wired to SOH events.
 package replenishment
 
 import (
@@ -28,7 +28,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/task"
+	"github.com/ruptiv/canary/internal/task"
 )
 
 const (

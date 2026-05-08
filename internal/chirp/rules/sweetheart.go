@@ -6,7 +6,7 @@
 // configurable percentage of the transaction subtotal. Classic
 // LP pattern: cashier giving sweetheart prices to friends/family.
 //
-// Spec: GRO-764 Phase C.1 (folds part of GRO-651) +
+// Spec: GRO-764 Phase C.1 +
 // docs/sdds/go-handoff/chirp.md "sweetheart" pattern.
 
 package rules
@@ -15,7 +15,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/growdirect-llc/rapidpos/internal/chirp"
+	"github.com/ruptiv/canary/internal/chirp"
 )
 
 // SweetheartDealParams binds the rule_definition.parameters block.

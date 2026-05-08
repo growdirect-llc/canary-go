@@ -1,0 +1,184 @@
+{{define "catalog.html"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>catalog · Canary Sysadmin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0e1117;
+      --bg-2: #161b22;
+      --bg-3: #1f2630;
+      --border: #2a313c;
+      --text: #c9d1d9;
+      --text-muted: #8b949e;
+      --accent: #FBBF24;
+      --accent-2: #58a6ff;
+      --p0: #f85149;
+      --p1: #d29922;
+      --p2: #6e7681;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; font-size: 14px; line-height: 1.5; }
+    code, pre, .mono { font-family: 'JetBrains Mono', Menlo, monospace; }
+
+    .sidebar { background: var(--bg-2); border-right: 1px solid var(--border); padding: 20px 16px; overflow-y: auto; }
+    .sidebar-brand { font-weight: 700; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); margin-bottom: 24px; }
+    .sidebar-group-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 16px 0 8px; }
+    .sidebar a { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 13px; }
+    .sidebar a:hover { background: var(--bg-3); }
+    .sidebar a.active { background: var(--bg-3); color: var(--accent); font-weight: 500; }
+    .sidebar-tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--bg-3); color: var(--text-muted); }
+    .sidebar a.active .sidebar-tag { background: var(--accent); color: var(--bg); }
+
+    main { padding: 24px 32px; overflow-x: auto; }
+    .topnav { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .topnav-spacer { flex: 1; }
+    .topnav-selector { background: var(--bg-2); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px; }
+    .topnav-selector label { color: var(--text-muted); margin-right: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    .page-title { display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px; }
+    .page-title h1 { font-size: 24px; font-weight: 600; }
+    .page-title .priority { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; background: var(--p0); color: white; }
+    .page-subtitle { color: var(--text-muted); font-size: 13px; margin-bottom: 24px; }
+
+    /* Grid */
+    .grid-section { background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin-bottom: 24px; }
+    .grid-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 16px; }
+    .grid-table { width: 100%; border-collapse: separate; border-spacing: 4px; }
+    .grid-table th, .grid-table td { padding: 12px; text-align: center; }
+    .grid-table .axis-cell { background: var(--bg-3); border-radius: 6px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); padding: 12px 16px; min-width: 140px; }
+    .grid-table .axis-cell .axis-name { font-size: 14px; color: var(--text); text-transform: none; letter-spacing: 0; font-weight: 500; }
+    .grid-table .axis-cell .axis-direction { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 11px; color: var(--text-muted); }
+    .grid-table .tier-header { background: var(--bg-3); border-radius: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); padding: 12px 8px; }
+    .grid-cell { background: var(--bg-3); border-radius: 6px; min-height: 80px; padding: 14px 8px; }
+    .grid-cell .count { font-size: 22px; font-weight: 700; }
+    .grid-cell .count.zero { color: #303843; }
+    .grid-cell .label { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+    .grid-cell.heat-1 { background: #1c2a30; color: #58a6ff; }
+    .grid-cell.heat-2 { background: #1f3441; color: #79c0ff; }
+    .grid-cell.heat-3 { background: #213e54; color: #a5d6ff; }
+    .grid-cell.heat-4 { background: #1d4664; color: #c8e1ff; }
+    .grid-cell.heat-5 { background: #1e547e; color: white; }
+
+    /* Service list */
+    .services-section { background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 24px; }
+    .svc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .svc-table th { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+    .svc-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    .svc-table tr:last-child td { border-bottom: 0; }
+    .svc-table tr:hover { background: var(--bg-3); }
+    .svc-table a { color: var(--accent-2); text-decoration: none; }
+    .svc-table a:hover { text-decoration: underline; }
+    .svc-table .priority { font-size: 10px; padding: 1px 8px; border-radius: 3px; font-weight: 600; }
+    .svc-table .priority.P0 { background: var(--p0); color: white; }
+    .svc-table .priority.P1 { background: var(--p1); color: var(--bg); }
+    .svc-table .priority.P2 { background: var(--p2); color: white; }
+    .svc-table .pill { display: inline-block; background: var(--bg-3); border: 1px solid var(--border); padding: 1px 8px; border-radius: 3px; margin-right: 4px; font-size: 11px; font-family: 'JetBrains Mono', Menlo, monospace; }
+    .svc-table .port { font-family: 'JetBrains Mono', Menlo, monospace; color: var(--text-muted); }
+
+    .totals { display: flex; gap: 24px; padding: 16px; background: var(--bg-3); border-radius: 6px; margin-bottom: 16px; }
+    .totals .stat { flex: 1; }
+    .totals .stat-value { font-size: 28px; font-weight: 700; color: var(--accent); }
+    .totals .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-top: 4px; }
+
+    .placeholder { padding: 48px; text-align: center; color: var(--text-muted); background: var(--bg-2); border: 1px dashed var(--border); border-radius: 8px; }
+    .placeholder-tag { display: inline-block; background: var(--p0); color: white; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  {{template "sidebar.html" .}}
+
+  <main>
+    <div class="topnav">
+      <div class="topnav-selector mono"><label>Tenant</label>{{.Tenant}}</div>
+      <div class="topnav-selector mono"><label>Env</label>{{.Env}}</div>
+      <div class="topnav-spacer"></div>
+    </div>
+
+    <div class="page-title">
+      <h1>catalog</h1>
+      <span class="priority">P0</span>
+    </div>
+    <div class="page-subtitle">Cadence-ladder grid heat-map and service inventory. Source of truth: <code class="mono">services/canary-protocol/manifest/manifest.yaml</code> via <code class="mono">make manifest</code>.</div>
+
+    {{if .Loaded}}
+
+    <!-- Totals strip -->
+    <div class="totals">
+      <div class="stat"><div class="stat-value">{{.Catalog.Totals.ServiceCount}}</div><div class="stat-label">Services declared</div></div>
+      <div class="stat"><div class="stat-value">{{.Catalog.Totals.EndpointCount}}</div><div class="stat-label">Endpoints declared</div></div>
+      <div class="stat"><div class="stat-value">15</div><div class="stat-label">Cells in grid (3×5)</div></div>
+    </div>
+
+    <!-- 3×5 Grid -->
+    <div class="grid-section">
+      <div class="grid-title">Cadence Ladder — Axis × Tier</div>
+      <table class="grid-table">
+        <thead>
+          <tr>
+            <th></th>
+            {{range .Catalog.Tiers}}<th class="tier-header">{{.}}</th>{{end}}
+          </tr>
+        </thead>
+        <tbody>
+          {{range $axis := .Catalog.Axes}}
+          <tr>
+            <td class="axis-cell">
+              <div>{{$axis.Key}}</div>
+              <div class="axis-name">{{$axis.Name}}</div>
+              <div class="axis-direction">{{$axis.Direction}}</div>
+            </td>
+            {{range $cell := index $.GridRows $axis.Key}}
+            <td class="grid-cell{{if eq $cell.EndpointCount 0}}{{else if le $cell.EndpointCount 2}} heat-1{{else if le $cell.EndpointCount 5}} heat-2{{else if le $cell.EndpointCount 10}} heat-3{{else if le $cell.EndpointCount 20}} heat-4{{else}} heat-5{{end}}">
+              <div class="count{{if eq $cell.EndpointCount 0}} zero{{end}}">{{$cell.EndpointCount}}</div>
+              <div class="label">{{len $cell.Services}} svc</div>
+            </td>
+            {{end}}
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Service list -->
+    <div class="services-section">
+      <div class="grid-title">Services</div>
+      <table class="svc-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Port</th>
+            <th>Pri</th>
+            <th>Category</th>
+            <th>Cells</th>
+            <th>Endpoints</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Catalog.Services}}
+          <tr>
+            <td><a href="/devops/{{.Name}}">{{.Name}}</a></td>
+            <td class="port">{{if .Port}}:{{.Port}}{{else}}—{{end}}</td>
+            <td><span class="priority {{.Priority}}">{{.Priority}}</span></td>
+            <td>{{.Category}}</td>
+            <td>{{range .Cells}}<span class="pill">{{.}}</span>{{end}}</td>
+            <td>{{.EndpointCount}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+
+    {{else}}
+    <div class="placeholder">
+      <div class="placeholder-tag">CATALOG NOT LOADED</div>
+      <p>devops-catalog.json could not be located at boot. Expected at <code class="mono">services/canary-protocol/manifest/devops-catalog.json</code> relative to gateway cwd, or one level up.</p>
+      <p style="margin-top: 12px; font-size: 12px;">Run <code class="mono">make manifest</code> from the repo root to (re)generate the catalog, then restart the gateway.</p>
+    </div>
+    {{end}}
+  </main>
+</body>
+</html>{{end}}

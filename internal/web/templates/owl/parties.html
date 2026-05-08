@@ -1,0 +1,63 @@
+{{template "base.html" .}}
+
+{{define "title"}}Owl Parties — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Owl &middot; Parties</h1>
+  <p class="page-subtitle">RFM rollup over party.decisioning_facts &middot; ordered by 12-month value</p>
+</div>
+
+<div style="display:flex;gap:12px;margin-bottom:24px;align-items:center;">
+  <form method="GET" action="/owl/parties" style="display:flex;gap:8px;align-items:center;">
+    <label style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Show</label>
+    <select name="limit"
+      style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"
+      onchange="this.form.submit()">
+      {{$current := .Limit}}
+      {{range $opt := .LimitOptions}}
+      <option value="{{$opt}}"{{if eq $opt $current}} selected{{end}}>{{$opt}}</option>
+      {{end}}
+    </select>
+    <noscript><button type="submit" class="ops-btn ops-btn-primary" style="font-size:12px;padding:6px 14px;">Apply</button></noscript>
+  </form>
+  <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">{{.PartyCount}} parties</span>
+</div>
+
+<div class="ops-card">
+  {{if .Parties}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Party ID</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Confidence</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Value (12mo)</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Frequency</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Avg Tx</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Recency (d)</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Fraud Risk</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Churn Risk</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Parties}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;font-family:'Space Grotesk',monospace;font-size:11px;color:var(--text-muted);">{{.PartyShort}}</td>
+        <td style="padding:10px 12px;color:var(--text-secondary);">{{.Confidence}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-primary);font-weight:600;">{{.PartyValue}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.PartyFrequency}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.PartyMonetary}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.PartyRecency}}</td>
+        <td style="padding:10px 12px;color:var(--text-secondary);">{{.PartyFraudRisk}}</td>
+        <td style="padding:10px 0;color:var(--text-secondary);">{{.PartyChurnRisk}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No parties tracked yet. The party.decisioning_facts materialized view rolls up consumers as they appear in transactions.</p>
+  {{end}}
+</div>
+{{end}}
+{{end}}

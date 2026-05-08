@@ -61,7 +61,7 @@ type Engine struct {
 	store     Store
 	registry  *Registry
 	logger    *zap.Logger
-	allowList AllowListLookup // optional — when set, used for suppression (W3 / GRO-822)
+	allowList AllowListLookup // optional — when set, used for suppression (W3)
 	now       func() time.Time
 }
 
@@ -93,7 +93,7 @@ func (e *Engine) SetAllowListStore(a AllowListLookup) {
 //
 // SDD-vague: chirp.md describes evaluation as "fan-out to all enabled
 // rules" without specifying what "enabled" means relative to
-// evaluation_frequency. Loop 2 wave 2 fires only on_event rules from
+// evaluation_frequency. fires only on_event rules from
 // this entry point; hourly/daily/weekly are deferred to a scheduler
 // that lands in a later wave.
 func (e *Engine) EvaluateTransaction(ctx context.Context, transactionID uuid.UUID) ([]Detection, error) {
@@ -134,7 +134,7 @@ func (e *Engine) EvaluateTransaction(ctx context.Context, transactionID uuid.UUI
 		}
 		for _, m := range matches {
 			det := e.buildDetection(rule, ec, m)
-			// W3 / GRO-822: check allow-list suppression. Match → status='dismissed'
+			// W3: check allow-list suppression. Match → status='dismissed'
 			// + suppression reason in attributes; mismatch → fire normally.
 			if sup, err := CheckSuppression(ctx, e.allowList, rule, m); err != nil {
 				e.logger.Warn("allow-list lookup failed",

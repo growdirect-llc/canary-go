@@ -9,13 +9,20 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/mcp"
-	"github.com/growdirect-llc/rapidpos/internal/web"
+	"github.com/ruptiv/canary/internal/mcp"
+	"github.com/ruptiv/canary/internal/web"
 )
 
+// stubResolver is the external-test equivalent of withTestAuth — supplies a
+// fixed merchant UUID so the T-B requireTenant gate lets the request through.
+func stubResolver(_ *http.Request) (uuid.UUID, bool) {
+	return uuid.MustParse("00000000-0000-0000-0000-000000000001"), true
+}
+
 func TestMCPTools_NoRegistry_RendersStub(t *testing.T) {
-	h := web.New(web.Deps{}, nil)
+	h := web.New(web.Deps{MerchantResolver: stubResolver}, nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/mcp/tools", nil)
@@ -42,7 +49,7 @@ func TestMCPTools_WithRegistry_RendersTools(t *testing.T) {
 		InputSchema: json.RawMessage(`{"type":"object"}`),
 	}, func(_ context.Context, _ json.RawMessage) (any, error) { return nil, nil })
 
-	h := web.New(web.Deps{MCPRegistry: reg}, nil)
+	h := web.New(web.Deps{MCPRegistry: reg, MerchantResolver: stubResolver}, nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 	req := httptest.NewRequest(http.MethodGet, "/mcp/tools", nil)

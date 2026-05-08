@@ -2,7 +2,7 @@
 //
 // HTTP layer for asset (inventory) endpoints.
 //
-// Spec: GRO-766 Phase C.
+//
 
 package asset
 
@@ -17,7 +17,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 // Handler binds asset endpoints onto a chi router.

@@ -1,4 +1,4 @@
-// Package rules holds the seven Loop 2 wave 2 baseline detection-rule
+// Package rules holds the seven baseline detection-rule
 // evaluators. Each evaluator is a pure function over an EvalContext —
 // no DB access, no clock reads outside the EvalContext.
 package rules
@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/growdirect-llc/rapidpos/internal/chirp"
+	"github.com/ruptiv/canary/internal/chirp"
 )
 
 // VoidThresholdParams binds the rule_definition.parameters block for

@@ -7,7 +7,7 @@
 // via OrdinalsBot (or a stub in dev), and records the proof paths in
 // protocol.anchors + protocol.evidence_anchors.
 //
-// Built in GRO-750.
+//
 package main
 
 import (
@@ -24,9 +24,9 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/db"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/sub3"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/protocol/sub3"
 )
 
 const serviceName = "canary-sub3-merkle-ordinal"

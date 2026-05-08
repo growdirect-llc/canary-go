@@ -4,7 +4,7 @@
 // operator-facing alerts with lifecycle transitions (ack / resolve /
 // suppress) and rule-category stats.
 //
-// Spec: GRO-766 Phase A.1.
+//
 package main
 
 import (
@@ -16,10 +16,10 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/alert"
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/db"
-	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/ruptiv/canary/internal/alert"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 const serviceName = "canary-alert"

@@ -1,10 +1,10 @@
 // cmd/gateway/admin.go
 //
 // Admin-scoped endpoints under /v1/webhooks/*. Authenticated via
-// X-Canary-API-Key against app.api_keys (Wave A C.4 / GRO-688). The
+// X-Canary-API-Key against app.api_keys. The
 // dlq:replay scope is required for replay calls; dlq:read for list.
 //
-// Spec: GRO-764 Phase A.3.
+//
 
 package main
 
@@ -20,19 +20,29 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/identity"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
-	"github.com/growdirect-llc/rapidpos/internal/webhook"
+	"github.com/ruptiv/canary/internal/identity"
+	"github.com/ruptiv/canary/internal/protocol/publisher"
+	"github.com/ruptiv/canary/internal/webhook"
 )
+
+// dlqStore is the slice of *webhook.DLQ the admin endpoints actually
+// touch. Held as an interface so handler tests can stub it without
+// pulling in a real Postgres pool.
+type dlqStore interface {
+	Get(ctx context.Context, id uuid.UUID) (*webhook.DLQRow, error)
+	List(ctx context.Context, f webhook.ListFilters) ([]webhook.DLQRow, error)
+	MarkReplayed(ctx context.Context, id uuid.UUID) error
+	MarkRetryFailed(ctx context.Context, id uuid.UUID, lastErr string) (*webhook.DLQRow, error)
+}
 
 // adminHandlers binds the DLQ + replay endpoints to the gateway's
 // pgxpool + publisher.
 type adminHandlers struct {
-	dlq       *webhook.DLQ
+	dlq       dlqStore
 	publisher publisher.Publisher
 }
 
-func newAdminHandlers(dlq *webhook.DLQ, pub publisher.Publisher) *adminHandlers {
+func newAdminHandlers(dlq dlqStore, pub publisher.Publisher) *adminHandlers {
 	return &adminHandlers{dlq: dlq, publisher: pub}
 }
 
@@ -58,7 +68,14 @@ func (h *adminHandlers) list(w http.ResponseWriter, r *http.Request) {
 		SourceCode: q.Get("source_code"),
 		Status:     q.Get("status"),
 	}
-	if v := q.Get("merchant_id"); v != "" {
+	// T-H: tenant-scoped keys see only their own DLQ rows.
+	// Platform-scope keys (claims.TenantID == uuid.Nil) keep the
+	// merchant_id query param as a free filter — they're cross-tenant
+	// by design.
+	claims, _ := identity.ClaimsFromContext(r.Context())
+	if claims.TenantID != uuid.Nil {
+		f.MerchantID = &claims.TenantID
+	} else if v := q.Get("merchant_id"); v != "" {
 		id, err := uuid.Parse(v)
 		if err != nil {
 			writeAdminErr(w, http.StatusBadRequest, "malformed_merchant_id", err.Error())
@@ -110,6 +127,14 @@ func (h *adminHandlers) get(w http.ResponseWriter, r *http.Request) {
 		writeAdminErr(w, http.StatusInternalServerError, "get_failed", err.Error())
 		return
 	}
+	// T-H: tenant-scoped key fetching another tenant's row
+	// gets 404 (not 403) — same response shape as a true miss to
+	// avoid leaking row existence across tenants.
+	claims, _ := identity.ClaimsFromContext(r.Context())
+	if claims.TenantID != uuid.Nil && row.MerchantID != claims.TenantID {
+		writeAdminErr(w, http.StatusNotFound, "not_found", "")
+		return
+	}
 	writeAdminJSON(w, http.StatusOK, row)
 }
 
@@ -147,6 +172,14 @@ func (h *adminHandlers) replay(w http.ResponseWriter, r *http.Request) {
 		writeAdminErr(w, http.StatusInternalServerError, "get_failed", err.Error())
 		return
 	}
+	// T-H: tenant-scoped key replaying another tenant's
+	// row — return 404 to avoid existence leak. Replay would also
+	// re-publish under row.MerchantID, which is the foreign tenant.
+	claims, _ := identity.ClaimsFromContext(r.Context())
+	if claims.TenantID != uuid.Nil && row.MerchantID != claims.TenantID {
+		writeAdminErr(w, http.StatusNotFound, "not_found", "")
+		return
+	}
 	if row.Status != "pending" {
 		writeAdminErr(w, http.StatusConflict, "terminal_status",
 			fmt.Sprintf("row status is %s; cannot replay", row.Status))
@@ -157,7 +190,7 @@ func (h *adminHandlers) replay(w http.ResponseWriter, r *http.Request) {
 	newEventID := uuid.New()
 	evt := publisher.Event{
 		EventID:    newEventID,
-		EventHash:  "",                              // recomputed downstream by sub1
+		EventHash:  "", // recomputed downstream by sub1
 		SourceCode: row.SourceCode,
 		MerchantID: row.MerchantID,
 		Timestamp:  time.Now().UTC(),

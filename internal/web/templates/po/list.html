@@ -1,0 +1,66 @@
+{{template "base.html" .}}
+{{define "title"}}Purchase Orders — Canary{{end}}
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Purchase Orders</h1>
+  <p class="page-subtitle">Draft → Submitted → Received → Closed</p>
+</div>
+
+{{if .Flash}}
+<div style="margin-bottom:16px;padding:10px 14px;background:rgba(234,179,8,0.08);border:1px solid var(--signal-yellow);border-radius:6px;font-size:12px;color:var(--signal-yellow);">Action: {{.Flash}}</div>
+{{end}}
+
+<div class="ops-card" style="margin-bottom:24px;">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">New PO</div>
+  <form method="POST" action="/po" style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;align-items:center;">{{ .CSRFField }}
+    <input type="text" name="supplier_id" placeholder="supplier UUID" required style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;font-family:'Space Grotesk',monospace;"/>
+    <input type="text" name="po_number" placeholder="PO-001" required style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"/>
+    <input type="text" name="total_cost" placeholder="0.00" style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"/>
+    <button type="submit" class="ops-btn ops-btn-primary" style="font-size:12px;padding:6px 14px;">Create Draft</button>
+  </form>
+</div>
+
+<div style="display:flex;gap:12px;margin-bottom:24px;align-items:center;">
+  <form method="GET" action="/po" style="display:flex;gap:8px;align-items:center;">
+    <label style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Status</label>
+    <select name="status" onchange="this.form.submit()" style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;">
+      <option value=""{{if eq .Status ""}} selected{{end}}>all</option>
+      {{$cur := .Status}}{{range $opt := .StatusOptions}}<option value="{{$opt}}"{{if eq $opt $cur}} selected{{end}}>{{$opt}}</option>{{end}}
+    </select>
+  </form>
+  <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">{{.Count}} POs</span>
+</div>
+
+<div class="ops-card">
+  {{if .POs}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">PO</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Status</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Expected</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Total</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Created</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .POs}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;color:var(--text-primary);"><a href="/po/{{.ID}}" style="color:var(--text-primary);text-decoration:none;">{{.PONumber}}</a></td>
+        <td style="padding:10px 12px;">
+          <span class="badge" style="{{if eq .Status "draft"}}background:rgba(107,114,128,0.15);color:var(--text-muted);{{else if eq .Status "submitted"}}background:rgba(59,130,246,0.15);color:var(--accent-blue);{{else if eq .Status "received"}}background:rgba(234,179,8,0.12);color:var(--signal-yellow);{{else if eq .Status "closed"}}background:rgba(16,185,129,0.10);color:var(--health-green);{{else}}background:rgba(239,68,68,0.12);color:var(--critical-red);{{end}}">{{.Status}}</span>
+        </td>
+        <td style="padding:10px 12px;color:var(--text-secondary);">{{.ExpectedAt}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.TotalCost}}</td>
+        <td style="padding:10px 0;color:var(--text-muted);font-size:11px;">{{.CreatedAt}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No purchase orders yet.</p>
+  {{end}}
+</div>
+{{end}}
+{{end}}

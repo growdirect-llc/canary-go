@@ -1,7 +1,7 @@
 // cmd/transaction/main.go
 //
 // Module T binary — owns the canonical write path for t.transactions
-// and child tables. Spec: GRO-764 Phase B.1.
+// and child tables.
 package main
 
 import (
@@ -13,10 +13,10 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/db"
-	"github.com/growdirect-llc/rapidpos/internal/identity"
-	"github.com/growdirect-llc/rapidpos/internal/transaction"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/identity"
+	"github.com/ruptiv/canary/internal/transaction"
 )
 
 const serviceName = "canary-transaction"
@@ -40,7 +40,7 @@ func main() {
 	r.Use(middleware.RealIP, middleware.Recoverer)
 	r.Get("/health", health(cfg))
 
-	// Transaction endpoints under API-key auth (Wave A C.4 / GRO-688).
+	// Transaction endpoints under API-key auth.
 	r.Group(func(r chi.Router) {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
 			Pool:     pool,

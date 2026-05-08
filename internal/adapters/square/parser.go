@@ -7,15 +7,15 @@
 // payload is a JSON envelope shaped:
 //
 //	{
-//	  "merchant_id": "MLXXXXXXXXX",
-//	  "type": "payment.created",
-//	  "event_id": "...",
-//	  "created_at": "2026-05-02T18:00:00Z",
-//	  "data": {
-//	    "type": "payment",
-//	    "id": "...",
-//	    "object": { "payment": { ... } }
-//	  }
+//	 "merchant_id": "MLXXXXXXXXX",
+//	 "type": "payment.created",
+//	 "event_id": "...",
+//	 "created_at": "2026-05-02T18:00:00Z",
+//	 "data": {
+//	 "type": "payment",
+//	 "id": "...",
+//	 "object": { "payment": { ... } }
+//	 }
 //	}
 //
 // SDD-vague: pos-adapter-substrate.md does not enumerate every Square
@@ -30,10 +30,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/growdirect-llc/rapidpos/internal/adapters"
-	"github.com/growdirect-llc/rapidpos/internal/db/types"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/sub2"
+	"github.com/ruptiv/canary/internal/adapters"
+	"github.com/ruptiv/canary/internal/db/types"
+	"github.com/ruptiv/canary/internal/protocol/publisher"
+	"github.com/ruptiv/canary/internal/protocol/sub2"
 )
 
 // SourceCode is the canonical identifier for this adapter. Must match
@@ -54,14 +54,14 @@ func (*Adapter) SourceCode() string { return SourceCode }
 //
 // Behavior matrix:
 //
-//   - "payment.created" / "payment.updated" → t.transactions header +
-//     a single t.transaction_tenders row. Line items are not present
-//     in the payment webhook (Square pushes them via order webhooks);
-//     we leave LineItems empty for Loop 2.
-//   - "refund.created" → t.transactions header with transaction_type=refund
-//     and a tender row for the refund amount.
-//   - Anything else → (nil, nil) discard.
-//   - Malformed JSON or missing required fields → (nil, ErrInvalidPayload).
+// - "payment.created" / "payment.updated" → t.transactions header +
+// a single t.transaction_tenders row. Line items are not present
+// in the payment webhook (Square pushes them via order webhooks);
+// we leave LineItems empty for
+// - "refund.created" → t.transactions header with transaction_type=refund
+// and a tender row for the refund amount.
+// - Anything else → (nil, nil) discard.
+// - Malformed JSON or missing required fields → (nil, ErrInvalidPayload).
 func (*Adapter) Parse(env adapters.Envelope) (*sub2.CanonicalEvent, error) {
 	var sq squareEnvelope
 	if err := json.Unmarshal(env.Payload, &sq); err != nil {
@@ -128,7 +128,7 @@ type squareRefund struct {
 }
 
 type squareMoney struct {
-	Amount   int64  `json:"amount"`   // Square denominates in minor units (cents)
+	Amount int64 `json:"amount"` // Square denominates in minor units (cents)
 	Currency string `json:"currency"` // ISO 4217
 }
 
@@ -234,7 +234,7 @@ func parsePayment(env publisher.Event, sq squareEnvelope, txnType string) (*sub2
 		SourceLocationCode: locationID,
 		SourceCashierCode:  employeeCode,
 		ParsedAt:           time.Now().UTC(),
-		Attributes:         env.Payload, // round-trip the raw payload
+		Attributes: env.Payload, // round-trip the raw payload
 	}
 
 	canonical.Transaction = types.Transaction{
@@ -262,7 +262,7 @@ func parsePayment(env publisher.Event, sq squareEnvelope, txnType string) (*sub2
 		canonical.Transaction.VoidReason = &voidReason
 	}
 
-	// Tender row for the payment. Loop 3 Wave 1 (GRO-762 §B.2): emit
+	// Tender row for the payment.: emit
 	// the tender with TenderTypeID = uuid.Nil; Sub2 store resolves the
 	// (tenant, source_code) default tender_type_id from f.tender_types
 	// before insert (see internal/protocol/sub2/store.go

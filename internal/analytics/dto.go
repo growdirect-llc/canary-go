@@ -3,7 +3,7 @@
 // Wire types for analytics endpoints. All monetary values are numeric
 // stored as float64 (PostgreSQL numeric → Go). Counts are int64.
 //
-// Spec: GRO-766 Phase B.
+//
 
 package analytics
 

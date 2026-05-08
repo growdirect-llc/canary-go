@@ -1,7 +1,7 @@
 // Package validate implements the L402 sat-gated Validation API for the
 // Canary Protocol (patent Application 63/991,596). A caller submits an
 // event_hash, pays satoshis via an L402 challenge, and receives a
-// Merkle proof confirming on-chain Bitcoin anchoring. GRO-752.
+// Merkle proof confirming on-chain Bitcoin anchoring. 
 package validate
 
 import (
@@ -242,7 +242,7 @@ type AnchorSummary struct {
 }
 
 // ListAnchors returns the most recent batch anchors. Used by the protocol
-// portal overview (W7 / GRO-826). Default limit 50, max 200. Cross-tenant
+// portal overview (W7). Default limit 50, max 200. Cross-tenant
 // — anchors batch evidence across the platform.
 func (s *PgxStore) ListAnchors(ctx context.Context, limit int) ([]AnchorSummary, error) {
 	if limit <= 0 || limit > 200 {

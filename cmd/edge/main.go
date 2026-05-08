@@ -5,7 +5,6 @@
 // every 60 seconds and publishes sale document events to the Canary
 // protocol pipeline via Valkey Streams (protocol:events).
 //
-// GRO-801: Loop 4 implementation.
 package main
 
 import (
@@ -17,10 +16,10 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/db"
-	"github.com/growdirect-llc/rapidpos/internal/poller"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/poller"
+	"github.com/ruptiv/canary/internal/protocol/publisher"
 )
 
 const serviceName = "canary-edge"

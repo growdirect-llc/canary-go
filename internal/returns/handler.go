@@ -9,7 +9,7 @@
 //   POST /v1/returns/{id}/flag    — create fraud-flag detection
 //   GET  /v1/returns/{id}/lines   — line items only (convenience)
 //
-// Spec: GRO-766 Phase E.
+//
 
 package returns
 
@@ -23,7 +23,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 // Handler binds returns endpoints onto a chi router.

@@ -1,0 +1,47 @@
+{{template "base.html" .}}
+{{define "title"}}Three-Way Match — Canary{{end}}
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:16px;">
+  <a href="/po/{{.PO.ID}}" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← PO {{.PO.PONumber}}</a>
+</div>
+<div class="page-header">
+  <h1>Three-Way Match &middot; PO {{.PO.PONumber}}</h1>
+  <p class="page-subtitle">PO line ↔ receipt line ↔ supplier-invoice line</p>
+</div>
+
+{{if .BlockedReason}}
+<div style="margin-bottom:16px;padding:10px 14px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;font-size:12px;color:var(--text-muted);">Pending: {{.BlockedReason}}</div>
+{{end}}
+
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">PO Lines (variance flags pending)</div>
+  {{if .Lines}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Line</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Description</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Ordered</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Received</th>
+        <th style="padding:6px 0;text-align:right;font-weight:500;">Variance</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Lines}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;font-family:'Space Grotesk',monospace;font-size:11px;color:var(--text-muted);">{{.LineNumber}}</td>
+        <td style="padding:10px 12px;color:var(--text-primary);">{{.Description}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.OrderedQty}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.ReceivedQty}}</td>
+        <td style="padding:10px 0;text-align:right;color:var(--text-muted);">{{.Variance}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No lines on this PO yet.</p>
+  {{end}}
+</div>
+{{end}}
+{{end}}

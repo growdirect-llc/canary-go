@@ -1,5 +1,5 @@
-// Code generated from deploy/schema/02_m_items.sql for Loop 2 (GRO-761).
-// Wave 1 hand-written types — sqlc retrofit is Loop 3.
+// Code generated from deploy/schema/02_m_items.sql for
+// Wave 1 hand-written types — sqlc retrofit is
 // Edit the SQL files in deploy/schema/, regenerate this file by hand.
 package types
 
@@ -20,9 +20,9 @@ type Item struct {
 	ItemType          string          `db:"item_type"`
 	CategoryID        *uuid.UUID      `db:"category_id"`
 	UnitOfMeasure     string          `db:"unit_of_measure"`
-	UOMQuantity       string          `db:"uom_quantity"`    // numeric — decimal.Decimal dep needed; using string for Loop 2
-	DefaultPrice      *string         `db:"default_price"`   // numeric — decimal.Decimal dep needed; using string for Loop 2
-	DefaultCost       *string         `db:"default_cost"`    // numeric — decimal.Decimal dep needed; using string for Loop 2
+	UOMQuantity string `db:"uom_quantity"` // numeric — decimal.Decimal dep needed; using string for
+	DefaultPrice *string `db:"default_price"` // numeric — decimal.Decimal dep needed; using string for
+	DefaultCost *string `db:"default_cost"` // numeric — decimal.Decimal dep needed; using string for
 	DefaultCurrency   string          `db:"default_currency"`
 	TaxClass          *string         `db:"tax_class"`
 	FoodStampEligible bool            `db:"food_stamp_eligible"`
@@ -42,7 +42,7 @@ type ProductCategory struct {
 	Code       string          `db:"code"`
 	Name       string          `db:"name"`
 	Level      int32           `db:"level"`
-	Path       *string         `db:"path"` // ltree — string with TODO: ltree-aware type for Loop 3
+	Path *string `db:"path"` // ltree — string with TODO: ltree-aware type for
 	Attributes json.RawMessage `db:"attributes"`
 	Status     string          `db:"status"`
 	CreatedAt  time.Time       `db:"created_at"`
@@ -76,7 +76,7 @@ type ItemVendor struct {
 	VendorID          uuid.UUID       `db:"vendor_id"`
 	VendorSKU         *string         `db:"vendor_sku"`
 	VendorDescription *string         `db:"vendor_description"`
-	UnitCost          *string         `db:"unit_cost"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	UnitCost *string `db:"unit_cost"` // numeric — decimal.Decimal dep needed; using string for
 	CasePackQty       *int32          `db:"case_pack_qty"`
 	MinOrderQty       *int32          `db:"min_order_qty"`
 	LeadTimeDays      *int32          `db:"lead_time_days"`
@@ -95,7 +95,7 @@ type ItemBarcode struct {
 	ItemID      uuid.UUID       `db:"item_id"`
 	Barcode     string          `db:"barcode"`
 	BarcodeType string          `db:"barcode_type"`
-	UOMQuantity string          `db:"uom_quantity"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	UOMQuantity string `db:"uom_quantity"` // numeric — decimal.Decimal dep needed; using string for
 	IsPrimary   bool            `db:"is_primary"`
 	Attributes  json.RawMessage `db:"attributes"`
 	Status      string          `db:"status"`
@@ -109,7 +109,7 @@ type ItemPack struct {
 	TenantID        uuid.UUID       `db:"tenant_id"`
 	PackItemID      uuid.UUID       `db:"pack_item_id"`
 	ComponentItemID uuid.UUID       `db:"component_item_id"`
-	Quantity        string          `db:"quantity"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	Quantity string `db:"quantity"` // numeric — decimal.Decimal dep needed; using string for
 	PackType        string          `db:"pack_type"`
 	Attributes      json.RawMessage `db:"attributes"`
 	CreatedAt       time.Time       `db:"created_at"`

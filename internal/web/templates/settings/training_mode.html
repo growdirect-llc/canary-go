@@ -27,7 +27,7 @@
         {{if .Enabled}}ON{{else}}OFF{{end}}
       </span>
     </div>
-    <form action="/settings/training-mode" method="POST" style="margin-top:16px;">
+    <form action="/settings/training-mode" method="POST" style="margin-top:16px;">{{ .CSRFField }}
       <input type="hidden" name="enabled" value="{{if .Enabled}}false{{else}}true{{end}}">
       <button type="submit" class="ops-btn">{{if .Enabled}}Disable Training Mode{{else}}Enable Training Mode{{end}}</button>
     </form>

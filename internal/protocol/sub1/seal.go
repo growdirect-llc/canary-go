@@ -27,7 +27,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
+	"github.com/ruptiv/canary/internal/protocol/publisher"
 )
 
 // ErrDuplicateEvent is returned by WriteEvidence when the event_hash

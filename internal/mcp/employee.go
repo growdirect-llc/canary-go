@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
-	"github.com/growdirect-llc/rapidpos/internal/employee"
-	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/ruptiv/canary/internal/employee"
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 // RegisterEmployeeTools registers 3 employee tools with the registry.

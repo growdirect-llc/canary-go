@@ -7,7 +7,7 @@
 //   GET  /v1/reports          — list jobs for the tenant
 //   GET  /v1/reports/{job_id} — poll job status / get download URL
 //
-// Spec: GRO-766 Phase E.
+//
 
 package report
 
@@ -20,7 +20,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 // Handler binds report endpoints onto a chi router.

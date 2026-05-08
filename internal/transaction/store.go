@@ -9,7 +9,7 @@
 // pass the wire-shape CreateRequest, the store maps to canonical
 // columns and writes.
 //
-// Spec: GRO-764 Phase B.1.
+//
 
 package transaction
 
@@ -194,7 +194,7 @@ func insertChildren(ctx context.Context, tx pgx.Tx, txID, tenantID uuid.UUID, re
 	// Discounts: scope = 'transaction' default; discount_type maps
 	// to the wire DiscountCode for now. Promotion-driven discounts
 	// (with source_promotion_id / promotion_rule_id) land when the
-	// pricing module owns the resolution path (Wave C).
+	// pricing module owns the resolution path.
 	for i, d := range req.Discounts {
 		const q = `
 			INSERT INTO transaction.transaction_discounts (
@@ -392,7 +392,7 @@ func (s *Store) Return(ctx context.Context, tenantID, parentID uuid.UUID, req Re
 		parent.LocationID, req.CashierEmployeeID, parent.CustomerID, parent.BusinessDate,
 		now, parent.Currency, parent.Channel,
 		len(req.LineItems), subtotal, taxTotal, grand,
-		parent.PartyID, // Inherits party_id from parent — Wave A SDD §C
+		parent.PartyID, // Inherits party_id from parent
 	)
 	child, err := scanTransaction(row)
 	if err != nil {

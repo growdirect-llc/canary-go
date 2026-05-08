@@ -1,7 +1,7 @@
 // internal/casemgmt/store.go
 //
 // pgxpool-backed access to detection.cases / detection.case_actions / detection.case_evidence.
-// Spec: GRO-765 Phase B.1.
+//
 
 package casemgmt
 

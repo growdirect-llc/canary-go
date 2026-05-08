@@ -1,5 +1,5 @@
-// Code generated from deploy/schema/06_o_orders.sql for Loop 2 (GRO-761).
-// Wave 1 hand-written types — sqlc retrofit is Loop 3.
+// Code generated from deploy/schema/06_o_orders.sql for
+// Wave 1 hand-written types — sqlc retrofit is
 // Edit the SQL files in deploy/schema/, regenerate this file by hand.
 package types
 
@@ -24,8 +24,8 @@ type PurchaseOrder struct {
 	ExpectedDeliveryAt    *time.Time      `db:"expected_delivery_at"`
 	AcknowledgedAt        *time.Time      `db:"acknowledged_at"`
 	CancelledAt           *time.Time      `db:"cancelled_at"`
-	TotalQuantity         *string         `db:"total_quantity"` // numeric — decimal.Decimal dep needed; using string for Loop 2
-	TotalCost             *string         `db:"total_cost"`     // numeric — decimal.Decimal dep needed; using string for Loop 2
+	TotalQuantity *string `db:"total_quantity"` // numeric — decimal.Decimal dep needed; using string for
+	TotalCost *string `db:"total_cost"` // numeric — decimal.Decimal dep needed; using string for
 	Currency              string          `db:"currency"`
 	PaymentTerms          *string         `db:"payment_terms"`
 	ShippingTerms         *string         `db:"shipping_terms"`
@@ -44,11 +44,11 @@ type PurchaseOrderLine struct {
 	LineNumber         int32           `db:"line_number"`
 	ItemID             uuid.UUID       `db:"item_id"`
 	VendorSKU          *string         `db:"vendor_sku"`
-	OrderedQuantity    string          `db:"ordered_quantity"`   // numeric — decimal.Decimal dep needed; using string for Loop 2
-	ReceivedQuantity   string          `db:"received_quantity"`  // numeric — decimal.Decimal dep needed; using string for Loop 2
-	CancelledQuantity  string          `db:"cancelled_quantity"` // numeric — decimal.Decimal dep needed; using string for Loop 2
-	UnitCost           string          `db:"unit_cost"`          // numeric — decimal.Decimal dep needed; using string for Loop 2
-	TotalCost          string          `db:"total_cost"`         // numeric — decimal.Decimal dep needed; using string for Loop 2 (GENERATED)
+	OrderedQuantity string `db:"ordered_quantity"` // numeric — decimal.Decimal dep needed; using string for
+	ReceivedQuantity string `db:"received_quantity"` // numeric — decimal.Decimal dep needed; using string for
+	CancelledQuantity string `db:"cancelled_quantity"` // numeric — decimal.Decimal dep needed; using string for
+	UnitCost string `db:"unit_cost"` // numeric — decimal.Decimal dep needed; using string for
+	TotalCost string `db:"total_cost"` // numeric — decimal.Decimal dep needed; using string for Loop 2 (GENERATED)
 	ExpectedDeliveryAt *time.Time      `db:"expected_delivery_at"`
 	Status             string          `db:"status"`
 	Attributes         json.RawMessage `db:"attributes"`
@@ -71,11 +71,11 @@ type SalesOrder struct {
 	PromisedAt            *time.Time      `db:"promised_at"`
 	FulfilledAt           *time.Time      `db:"fulfilled_at"`
 	CancelledAt           *time.Time      `db:"cancelled_at"`
-	Subtotal              *string         `db:"subtotal"`        // numeric — decimal.Decimal dep needed; using string for Loop 2
-	TaxTotal              *string         `db:"tax_total"`       // numeric — decimal.Decimal dep needed; using string for Loop 2
-	ShippingTotal         *string         `db:"shipping_total"`  // numeric — decimal.Decimal dep needed; using string for Loop 2
-	DiscountTotal         *string         `db:"discount_total"`  // numeric — decimal.Decimal dep needed; using string for Loop 2
-	GrandTotal            *string         `db:"grand_total"`     // numeric — decimal.Decimal dep needed; using string for Loop 2
+	Subtotal *string `db:"subtotal"` // numeric — decimal.Decimal dep needed; using string for
+	TaxTotal *string `db:"tax_total"` // numeric — decimal.Decimal dep needed; using string for
+	ShippingTotal *string `db:"shipping_total"` // numeric — decimal.Decimal dep needed; using string for
+	DiscountTotal *string `db:"discount_total"` // numeric — decimal.Decimal dep needed; using string for
+	GrandTotal *string `db:"grand_total"` // numeric — decimal.Decimal dep needed; using string for
 	Currency              string          `db:"currency"`
 	PaymentStatus         string          `db:"payment_status"`
 	Attributes            json.RawMessage `db:"attributes"`
@@ -91,14 +91,14 @@ type SalesOrderLine struct {
 	SalesOrderID      uuid.UUID       `db:"sales_order_id"`
 	LineNumber        int32           `db:"line_number"`
 	ItemID            uuid.UUID       `db:"item_id"`
-	OrderedQuantity   string          `db:"ordered_quantity"`   // numeric — decimal.Decimal dep needed; using string for Loop 2
-	FulfilledQuantity string          `db:"fulfilled_quantity"` // numeric — decimal.Decimal dep needed; using string for Loop 2
-	CancelledQuantity string          `db:"cancelled_quantity"` // numeric — decimal.Decimal dep needed; using string for Loop 2
-	RefundedQuantity  string          `db:"refunded_quantity"`  // numeric — decimal.Decimal dep needed; using string for Loop 2
-	UnitPrice         string          `db:"unit_price"`         // numeric — decimal.Decimal dep needed; using string for Loop 2
-	UnitDiscount      string          `db:"unit_discount"`      // numeric — decimal.Decimal dep needed; using string for Loop 2
-	UnitTax           string          `db:"unit_tax"`           // numeric — decimal.Decimal dep needed; using string for Loop 2
-	LineTotal         string          `db:"line_total"`         // numeric — decimal.Decimal dep needed; using string for Loop 2 (GENERATED)
+	OrderedQuantity string `db:"ordered_quantity"` // numeric — decimal.Decimal dep needed; using string for
+	FulfilledQuantity string `db:"fulfilled_quantity"` // numeric — decimal.Decimal dep needed; using string for
+	CancelledQuantity string `db:"cancelled_quantity"` // numeric — decimal.Decimal dep needed; using string for
+	RefundedQuantity string `db:"refunded_quantity"` // numeric — decimal.Decimal dep needed; using string for
+	UnitPrice string `db:"unit_price"` // numeric — decimal.Decimal dep needed; using string for
+	UnitDiscount string `db:"unit_discount"` // numeric — decimal.Decimal dep needed; using string for
+	UnitTax string `db:"unit_tax"` // numeric — decimal.Decimal dep needed; using string for
+	LineTotal string `db:"line_total"` // numeric — decimal.Decimal dep needed; using string for Loop 2 (GENERATED)
 	Status            string          `db:"status"`
 	Attributes        json.RawMessage `db:"attributes"`
 	CreatedAt         time.Time       `db:"created_at"`
@@ -133,10 +133,10 @@ type FulfillmentLine struct {
 	FulfillmentID       uuid.UUID       `db:"fulfillment_id"`
 	SalesOrderLineID    uuid.UUID       `db:"sales_order_line_id"`
 	ItemID              uuid.UUID       `db:"item_id"`
-	Quantity            string          `db:"quantity"`         // numeric — decimal.Decimal dep needed; using string for Loop 2
-	PickedQuantity      string          `db:"picked_quantity"`  // numeric — decimal.Decimal dep needed; using string for Loop 2
-	PackedQuantity      string          `db:"packed_quantity"`  // numeric — decimal.Decimal dep needed; using string for Loop 2
-	ShippedQuantity     string          `db:"shipped_quantity"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	Quantity string `db:"quantity"` // numeric — decimal.Decimal dep needed; using string for
+	PickedQuantity string `db:"picked_quantity"` // numeric — decimal.Decimal dep needed; using string for
+	PackedQuantity string `db:"packed_quantity"` // numeric — decimal.Decimal dep needed; using string for
+	ShippedQuantity string `db:"shipped_quantity"` // numeric — decimal.Decimal dep needed; using string for
 	LotID               *uuid.UUID      `db:"lot_id"`
 	InventoryMovementID *uuid.UUID      `db:"inventory_movement_id"`
 	Attributes          json.RawMessage `db:"attributes"`
@@ -151,7 +151,7 @@ type Allocation struct {
 	SalesOrderLineID     uuid.UUID       `db:"sales_order_line_id"`
 	InventoryPositionID  uuid.UUID       `db:"inventory_position_id"`
 	AllocationType       string          `db:"allocation_type"`
-	Quantity             string          `db:"quantity"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	Quantity string `db:"quantity"` // numeric — decimal.Decimal dep needed; using string for
 	AllocatedAt          time.Time       `db:"allocated_at"`
 	ExpiresAt            *time.Time      `db:"expires_at"`
 	ConsumedByMovementID *uuid.UUID      `db:"consumed_by_movement_id"`
@@ -174,9 +174,9 @@ type ShippingDocument struct {
 	TrackingNumber       *string         `db:"tracking_number"`
 	ExpectedArrivalAt    *time.Time      `db:"expected_arrival_at"`
 	ShippedAt            *time.Time      `db:"shipped_at"`
-	TotalQuantity        *string         `db:"total_quantity"` // numeric — decimal.Decimal dep needed; using string for Loop 2
-	TotalWeight          *string         `db:"total_weight"`   // numeric — decimal.Decimal dep needed; using string for Loop 2
-	TotalVolume          *string         `db:"total_volume"`   // numeric — decimal.Decimal dep needed; using string for Loop 2
+	TotalQuantity *string `db:"total_quantity"` // numeric — decimal.Decimal dep needed; using string for
+	TotalWeight *string `db:"total_weight"` // numeric — decimal.Decimal dep needed; using string for
+	TotalVolume *string `db:"total_volume"` // numeric — decimal.Decimal dep needed; using string for
 	Attributes           json.RawMessage `db:"attributes"`
 	Status               string          `db:"status"`
 	CreatedAt            time.Time       `db:"created_at"`

@@ -5,7 +5,7 @@
 // evidence in q.case_evidence and actions in q.case_actions. All q.case_*
 // descendant tables are append-only per canonical schema.
 //
-// Built in GRO-761 Loop 2 Wave 2.
+//
 package main
 
 import (
@@ -17,9 +17,9 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/db"
-	"github.com/growdirect-llc/rapidpos/internal/fox"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/fox"
 )
 
 const serviceName = "canary-fox"

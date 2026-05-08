@@ -24,7 +24,7 @@
 //	GET /web/static/*         → embedded CSS + images
 //
 // Auth: placeholder — all routes are open until the identity middleware
-// is wired (GRO-769). The User field in PageData will be populated by
+// is wired. The User field in PageData will be populated by
 // the auth middleware once it lands.
 package web
 
@@ -44,18 +44,20 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/gorilla/csrf"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/alert"
-	"github.com/growdirect-llc/rapidpos/internal/casemgmt"
-	"github.com/growdirect-llc/rapidpos/internal/chirp"
-	"github.com/growdirect-llc/rapidpos/internal/customer"
-	"github.com/growdirect-llc/rapidpos/internal/employee"
-	"github.com/growdirect-llc/rapidpos/internal/inventory"
-	"github.com/growdirect-llc/rapidpos/internal/item"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
-	"github.com/growdirect-llc/rapidpos/internal/transaction"
-	"github.com/growdirect-llc/rapidpos/internal/workflow"
+	"github.com/ruptiv/canary/internal/alert"
+	"github.com/ruptiv/canary/internal/casemgmt"
+	"github.com/ruptiv/canary/internal/chirp"
+	"github.com/ruptiv/canary/internal/customer"
+	"github.com/ruptiv/canary/internal/employee"
+	"github.com/ruptiv/canary/internal/inventory"
+	"github.com/ruptiv/canary/internal/item"
+	"github.com/ruptiv/canary/internal/protocol/validate"
+	"github.com/ruptiv/canary/internal/tenant"
+	"github.com/ruptiv/canary/internal/transaction"
+	"github.com/ruptiv/canary/internal/workflow"
 )
 
 //go:embed static templates
@@ -75,6 +77,17 @@ type PageData struct {
 	User  UserData
 	Theme string // CSS theme file stem, e.g. "canary-dark"
 	Data  any    // page-specific data
+
+	// CSRF — populated by render() from gorilla/csrf when the
+	// middleware is wired (production path). Tests that build a
+	// Handler without the gateway wrapper see empty values, which
+	// is fine: they don't go through the CSRF gate.
+	//
+	// Forms embed {{ .CSRFField }} as a hidden input.
+	// HTMX/Alpine reads {{ .CSRFToken }} from a base.html meta tag.
+	// T-E.
+	CSRFField template.HTML
+	CSRFToken string
 }
 
 // UserData is the authenticated user context injected into every page.
@@ -140,6 +153,7 @@ func New(deps Deps, logger *zap.Logger) *Handler {
 	h.mustParse("report_distribution", "templates/reports/distribution.html")
 	h.mustParse("report_inventory", "templates/reports/inventory.html")
 	h.mustParse("items_list", "templates/items/list.html")
+	h.mustParse("items_new", "templates/items/new.html")
 	h.mustParse("items_detail", "templates/items/detail.html")
 	h.mustParse("report_category", "templates/reports/category.html")
 	h.mustParse("settings_devices", "templates/settings/devices.html")
@@ -172,7 +186,60 @@ func New(deps Deps, logger *zap.Logger) *Handler {
 	h.mustParse("workflows_list", "templates/workflows/list.html")
 	h.mustParse("mcp_tools", "templates/mcp/tools.html")
 	h.mustParse("protocol_overview", "templates/protocol/overview.html")
+	h.mustParse("owl_dashboards", "templates/owl/dashboards.html")
+	h.mustParse("owl_parties", "templates/owl/parties.html")
+	h.mustParse("owl_lp_performance", "templates/owl/lp_performance.html")
+	h.mustParse("tasks", "templates/tasks.html")
+	h.mustParse("assets_list", "templates/assets/list.html")
+	h.mustParse("assets_detail", "templates/assets/detail.html")
+	h.mustParse("billing_overview", "templates/billing/overview.html")
+	h.mustParse("billing_invoices", "templates/billing/invoices.html")
+	h.mustParse("billing_payment_method", "templates/billing/payment_method.html")
+	h.mustParse("admin_audit", "templates/admin/audit.html")
+	h.mustParse("admin_iso27001", "templates/admin/iso27001.html")
+	h.mustParse("admin_users", "templates/admin/users.html")
+	h.mustParse("admin_config", "templates/admin/config.html")
+	h.mustParse("admin_hierarchy", "templates/admin/hierarchy.html")
+	h.mustParse("admin_network_integrity", "templates/admin/network_integrity.html")
+	h.mustParse("dashboards_cross_store", "templates/dashboards/cross_store.html")
+	h.mustParse("suppliers_list", "templates/suppliers/list.html")
+	h.mustParse("suppliers_detail", "templates/suppliers/detail.html")
+	h.mustParse("suppliers_scorecard", "templates/suppliers/scorecard.html")
+	h.mustParse("po_list", "templates/po/list.html")
+	h.mustParse("po_detail", "templates/po/detail.html")
+	h.mustParse("po_match", "templates/po/match.html")
+	h.mustParseShared("onboarding_connect", "templates/onboarding/connect.html", "templates/onboarding/progress.html")
+	h.mustParseShared("onboarding_import", "templates/onboarding/import.html", "templates/onboarding/progress.html")
+	h.mustParseShared("onboarding_rules", "templates/onboarding/rules.html", "templates/onboarding/progress.html")
+	h.mustParseShared("onboarding_welcome", "templates/onboarding/welcome.html", "templates/onboarding/progress.html")
+	h.mustParseMobile("m_tasks", "templates/mobile/tasks.html")
+	h.mustParseMobile("m_receiving", "templates/mobile/receiving.html")
+	h.mustParseMobile("m_cycle_count", "templates/mobile/cycle_count.html")
+	h.mustParseMobile("m_alert_detail", "templates/mobile/alert_detail.html")
+	h.mustParseMobile("m_alerts", "templates/mobile/alert_detail.html")
+	h.mustParse("ecom_orders", "templates/ecom/orders.html")
+	h.mustParse("ecom_sync", "templates/ecom/sync.html")
 	return h
+}
+
+// mustParseMobile builds a mobile-shell template set: mobile_base + page.
+// No sidebar / no desktop chrome.
+func (h *Handler) mustParseMobile(name, pageFile string) {
+	h.templates[name] = template.Must(template.ParseFS(embedFS,
+		"templates/mobile/base.html",
+		pageFile,
+	))
+}
+
+// mustParseShared is like mustParse but pulls in an extra partial alongside
+// the page template (used by the onboarding wizard for the progress bar).
+func (h *Handler) mustParseShared(name, pageFile, sharedPartial string) {
+	h.templates[name] = template.Must(template.ParseFS(embedFS,
+		"templates/base.html",
+		"templates/partials/sidebar.html",
+		sharedPartial,
+		pageFile,
+	))
 }
 
 // mustParse builds a per-page template set: base + sidebar + page file.
@@ -186,8 +253,31 @@ func (h *Handler) mustParse(name, pageFile string) {
 }
 
 // Mount registers all web UI routes on r.
+//
+// Route surface is split in two by T-B:
+//
+//   - Public routes (registered directly on r): static assets, the
+//     home redirect, /join, /connect, /welcome, error pages. These
+//     must work without a session.
+//   - Protected routes (registered inside r.Group with
+//     requireTenantMiddleware): every tenant-scoped page —
+//     /dashboard, /transactions, /alerts, /reports, /admin, etc.
+//     A request without a resolved tenant 302s to /connect.
+//
+// Both halves run through tenantSessionMiddleware first so the
+// resolver fires once per request and tenantIDFromCtx returns the
+// authenticated UUID downstream.
 func (h *Handler) Mount(r chi.Router) {
 	staticFS, _ := fs.Sub(embedFS, "static")
+
+	// Resolve tenant from session cookie on every request (T-B / GRO-849).
+	// This is a passthrough when MerchantResolver is nil (test wiring) or
+	// when the request has no valid session cookie — public routes still
+	// reach their handlers. The protected Group below adds the
+	// redirect-on-nil gate.
+	r.Use(tenantSessionMiddleware(h.deps.MerchantResolver))
+
+	// ─── Public routes ─────────────────────────────────────────────────
 
 	r.Handle("/web/static/*", http.StripPrefix("/web/static/",
 		http.FileServer(http.FS(staticFS))))
@@ -196,150 +286,218 @@ func (h *Handler) Mount(r chi.Router) {
 		http.Redirect(w, r, "/dashboard", http.StatusFound)
 	})
 
-	// Public auth pages (standalone HTML, no base template)
 	r.Get("/join", h.joinPage)
-
-	// App pages — auth guard will wrap these once identity middleware lands
-	r.Get("/dashboard", h.page("dashboard", "dashboard", stubDashboard))
-	r.Get("/chirps", h.chirpListPage)
-	r.Get("/transactions", h.page("transactions", "transactions", stubTransactions))
-	r.Get("/transactions/{id}", h.transactionDetailPage)
-	r.Get("/transactions/{id}/proof", h.transactionProofPage)
-	r.Get("/alerts", h.alertListPage)
-	r.Get("/cases", h.page("cases", "cases", stubCases))
-	r.Get("/employees", h.page("employees", "employees", stubEmployees))
-	r.Get("/reports", h.page("reports", "reports", stubReports))
-	r.Get("/settings", h.page("settings", "settings", stubSettings))
-	r.Get("/owl", h.owlPage)
-	r.Get("/rules", h.rulesListPage)
+	r.Get("/login", h.loginPage)
+	r.Get("/auth/logout", h.logoutHandler)
 	r.Get("/connect", h.page("connect", "connect", stubConnect))
 	r.Get("/welcome", h.page("welcome", "welcome", nil))
 
-	// Hawk case management
-	r.Get("/cases/hawk", h.hawkListPage)
-	r.Get("/cases/hawk/new", h.page("cases", "hawk_new", stubHawkNew))
-	r.Get("/cases/hawk/analytics", h.page("cases", "hawk_analytics", stubHawkAnalytics))
-	r.Get("/cases/hawk/patterns", h.page("cases", "hawk_patterns", stubHawkPatterns))
-	r.Get("/cases/hawk/{id}", h.hawkDetailPage)
-	r.Get("/cases/hawk/{id}/evidence", h.hawkEvidencePage)
-	r.Post("/cases/hawk", h.hawkCreateCase)
-
-	// Detail pages
-	r.Get("/alerts/{id}", h.alertDetailPage)
-	r.Get("/rules/{id}", h.ruleDetailPage)
-	r.Get("/chirps/{id}", h.chirpDetailPage)
-
-	// Customer investigator
-	r.Get("/customers", h.customersListPage)
-	r.Get("/customers/{id}", h.customerDetailPage)
-	r.Get("/customers/{id}/risk", h.customerRiskPage)
-	r.Get("/customers/{id}/context", h.customerContextPage)
-
-	// Settings — LP allow-list + N.4 thresholds + training mode + alert routing.
-	// 10 screens, each backed by detection.allow_list with a pattern type+kind
-	// discriminator. CRUD wired via h.mountLPSettings (handler_lp_settings.go).
-	// W1 dispatch: GRO-814.
-	h.mountLPSettings(r)
-	r.Get("/settings/devices", h.page("settings", "settings_devices", func(_ *http.Request) any {
-		return map[string]any{"Online": 0, "Offline": 0, "Degraded": 0, "Devices": nil}
-	}))
-	r.Get("/settings/devices/new", h.page("settings", "settings_devices_new", func(_ *http.Request) any {
-		return map[string]any{}
-	}))
-	r.Get("/settings/store", h.page("settings", "settings_store_config", func(_ *http.Request) any {
-		return map[string]any{"StoreID": "—", "POSSource": "—", "LastSync": "—", "ActiveRuleCount": 0, "AllowListCount": 0, "TrainingMode": false}
-	}))
-
-	// Transfers + inventory reports — wired W2b / GRO-816.
-	r.Get("/transfers", h.transferListPage)
-	r.Get("/transfers/{id}", h.transferDetailPage)
-	r.Get("/transfers/{id}/variance", h.transferVariancePage)
-
-	r.Get("/reports/distribution", h.reportDistributionPage)
-	r.Get("/reports/inventory", h.reportInventoryPage)
-	r.Get("/reports/category", h.reportCategoryPage)
-	r.Get("/reports/category", h.page("reports", "report_category", func(_ *http.Request) any {
-		return map[string]any{"TotalCategories": 0, "TopCategory": "—", "AvgMargin": "—", "SKUsTracked": 0, "Categories": nil}
-	}))
-
-	// Items + category report — wired W2c / GRO-817.
-	r.Get("/items", h.itemListPage)
-	r.Get("/items/{id}", h.itemDetailPage)
-
-	// Finance + payments — wired W2e / GRO-819.
-	r.Get("/reports/finance", h.reportFinancePage)
-	r.Get("/reports/payments", h.page("reports", "report_payments", func(_ *http.Request) any {
-		// Tender mix requires a tender_mix aggregation method on transaction.Store
-		// (per-transaction GetByID is too expensive). Filed as a follow-on.
-		return map[string]any{"TotalTransactions": 0, "CashPct": "—", "CardPct": "—", "OtherPct": "—", "Tenders": nil, "SecurePayEnabled": false, "LastGatewaySync": "—"}
-	}))
-	r.Get("/reports/tax", h.page("reports", "report_tax", func(_ *http.Request) any {
-		return map[string]any{"TotalTax": "—", "AuthorityCount": 0, "NexusStates": 0, "FilingPeriod": "—", "Authorities": nil}
-	}))
-	r.Get("/reports/otb", h.page("reports", "report_otb", func(_ *http.Request) any {
-		return map[string]any{"OTBRemaining": "—", "Committed": "—", "Received": "—", "Variance": "—", "Periods": nil}
-	}))
-	r.Get("/orders/suggested", h.page("reports", "report_suggested_orders", func(_ *http.Request) any {
-		return map[string]any{"Orders": nil, "PendingCount": 0}
-	}))
-	r.Get("/reports/range", h.page("reports", "report_range", func(_ *http.Request) any {
-		return map[string]any{"ActiveRanges": 0, "AvgSellThrough": "—", "AvgTurn": "—", "AvgGMROI": "—", "Ranges": nil}
-	}))
-	// Promotions calendar — wired W2f / GRO-820. Pricing reports remain stub
-	// until market-price + price-history + markdown source data lands.
-	r.Get("/promotions", h.promotionsCalendarPage)
-	r.Get("/reports/pricing", h.page("reports", "report_pricing", func(_ *http.Request) any {
-		return map[string]any{"ItemsTracked": 0, "AboveMarket": 0, "AtMarket": 0, "BelowMarket": 0, "Items": nil}
-	}))
-	r.Get("/reports/price-history", h.page("reports", "report_price_history", func(_ *http.Request) any {
-		return map[string]any{"Changes": nil, "TotalCount": 0}
-	}))
-	r.Get("/reports/markdowns", h.page("reports", "report_markdowns", func(_ *http.Request) any {
-		return map[string]any{"ActiveMarkdowns": 0, "AvgDepth": "—", "UnitsMoved": 0, "RevenueRecovery": "—", "Items": nil}
-	}))
-	r.Get("/employees/{id}", h.employeeDetailPage)
-	r.Get("/reports/labor", h.reportLaborPage)
-
-	// Receiving + RTV workflow — wired W2d / GRO-818.
-	r.Get("/receiving", h.receivingListPage)
-	r.Get("/receiving/{id}", h.receivingDetailPage)
-	r.Get("/receiving/{id}/close", h.receivingClosePage)
-	r.Get("/returns", h.returnsListPage)
-	r.Get("/returns/{id}", h.returnsDetailPage)
-
-	// Cross-domain exceptions
-	r.Get("/exceptions", h.page("exceptions", "exceptions_list", func(_ *http.Request) any {
-		return map[string]any{"Exceptions": nil, "OpenCount": 0, "TotalCount": 0, "DomainFilter": ""}
-	}))
-	r.Get("/exceptions/{id}", h.exceptionDetailPage)
-
-	// Cross-domain case management (registered after /cases/hawk/* to avoid conflicts)
-	r.Get("/cases/new", h.casesNewPage)
-	r.Get("/cases/{id}/evidence", h.casesEvidencePage)
-	r.Get("/cases/{id}/correlation", h.casesCorrelationPage)
-	r.Get("/cases/{id}/remediate", h.casesRemediatePage)
-
-	// Cases analytics — wired W2e / GRO-819.
-	r.Get("/reports/cases", h.reportCasesPage)
-
-	// Workflow engine surfaces — wired W4 / GRO-823 (unified list page;
-	// per-workflow detail views are a follow-on dispatch).
-	r.Get("/workflows", h.workflowsListPage)
-
-	// MCP tool catalog — wired W12 / GRO-831. Reads the in-process
-	// registry; usage log + playground are follow-on dispatches.
-	r.Get("/mcp/tools", h.mcpToolsPage)
-
-	// Protocol portal — wired W7 / GRO-826. Unified overview of Bitcoin L2
-	// anchors, .jeffe namespace registrations, and L402 verification tokens.
-	// Per-surface drilldowns (anchor proof viewer, charge dispute, evidence
-	// chain per case) are follow-on dispatches.
-	r.Get("/protocol", h.protocolOverviewPage)
-
-	// Error pages (also reachable programmatically via Render403/404/500)
+	// Error pages (also reachable programmatically via Render403/404/500).
+	// Public so a 403/404 redirect doesn't loop on logged-out clients.
 	r.Get("/errors/403", h.errPage(403))
 	r.Get("/errors/404", h.errPage(404))
 	r.Get("/errors/500", h.errPage(500))
+
+	// ─── Protected routes (require resolved tenant) ───────────────────
+
+	r.Group(func(r chi.Router) {
+		r.Use(h.requireTenantMiddleware)
+
+		r.Get("/dashboard", h.page("dashboard", "dashboard", stubDashboard))
+		r.Get("/chirps", h.chirpListPage)
+		r.Get("/transactions", h.page("transactions", "transactions", stubTransactions))
+		r.Get("/transactions/{id}", h.transactionDetailPage)
+		r.Get("/transactions/{id}/proof", h.transactionProofPage)
+		r.Get("/alerts", h.alertListPage)
+		r.Get("/cases", h.page("cases", "cases", stubCases))
+		r.Get("/employees", h.page("employees", "employees", stubEmployees))
+		r.Get("/reports", h.page("reports", "reports", stubReports))
+		r.Get("/settings", h.page("settings", "settings", stubSettings))
+		r.Get("/owl", h.owlPage)
+		r.Get("/owl/dashboards", h.owlDashboardsPage)
+		r.Get("/owl/parties", h.owlPartiesPage)
+		r.Get("/owl/lp-performance", h.owlLPPerformancePage)
+		r.Get("/rules", h.rulesListPage)
+
+		// Hawk case management
+		r.Get("/cases/hawk", h.hawkListPage)
+		r.Get("/cases/hawk/new", h.page("cases", "hawk_new", stubHawkNew))
+		r.Get("/cases/hawk/analytics", h.page("cases", "hawk_analytics", stubHawkAnalytics))
+		r.Get("/cases/hawk/patterns", h.page("cases", "hawk_patterns", stubHawkPatterns))
+		r.Get("/cases/hawk/{id}", h.hawkDetailPage)
+		r.Get("/cases/hawk/{id}/evidence", h.hawkEvidencePage)
+		r.Post("/cases/hawk", h.hawkCreateCase)
+
+		// Detail pages
+		r.Get("/alerts/{id}", h.alertDetailPage)
+		r.Get("/rules/{id}", h.ruleDetailPage)
+		r.Get("/chirps/{id}", h.chirpDetailPage)
+
+		// Customer investigator
+		r.Get("/customers", h.customersListPage)
+		r.Get("/customers/{id}", h.customerDetailPage)
+		r.Get("/customers/{id}/risk", h.customerRiskPage)
+		r.Get("/customers/{id}/context", h.customerContextPage)
+
+		// Settings — LP allow-list + N.4 thresholds + training mode + alert routing.
+		// 10 screens, each backed by detection.allow_list with a pattern type+kind
+		// discriminator. CRUD wired via h.mountLPSettings (handler_lp_settings.go).
+		// W1 dispatch: 
+		h.mountLPSettings(r)
+		r.Get("/settings/devices", h.page("settings", "settings_devices", func(_ *http.Request) any {
+			return map[string]any{"Online": 0, "Offline": 0, "Degraded": 0, "Devices": nil}
+		}))
+		r.Get("/settings/devices/new", h.page("settings", "settings_devices_new", func(_ *http.Request) any {
+			return map[string]any{}
+		}))
+		r.Get("/settings/store", h.page("settings", "settings_store_config", func(_ *http.Request) any {
+			return map[string]any{"StoreID": "—", "POSSource": "—", "LastSync": "—", "ActiveRuleCount": 0, "AllowListCount": 0, "TrainingMode": false}
+		}))
+
+		// Transfers + inventory reports — wired W2b.
+		r.Get("/transfers", h.transferListPage)
+		r.Get("/transfers/{id}", h.transferDetailPage)
+		r.Get("/transfers/{id}/variance", h.transferVariancePage)
+
+		r.Get("/reports/distribution", h.reportDistributionPage)
+		r.Get("/reports/inventory", h.reportInventoryPage)
+		r.Get("/reports/category", h.reportCategoryPage)
+
+		// Items + category report — wired W2c.
+		// Item-setup Flow C C1 (manual entry, minimal form) — GRO-886.
+		// Edit form (basic CRUD update path) — GRO-886 follow-on.
+		r.Get("/items", h.itemListPage)
+		r.Get("/items/new", h.itemNewPage)
+		r.Post("/items/new", h.itemCreateAction)
+		r.Get("/items/{id}", h.itemDetailPage)
+		r.Get("/items/{id}/edit", h.itemEditPage)
+		r.Post("/items/{id}/edit", h.itemUpdateAction)
+
+		// Finance + payments — wired W2e.
+		r.Get("/reports/finance", h.reportFinancePage)
+		r.Get("/reports/payments", h.page("reports", "report_payments", func(_ *http.Request) any {
+			// Tender mix requires a tender_mix aggregation method on transaction.Store
+			// (per-transaction GetByID is too expensive). Filed as a follow-on.
+			return map[string]any{"TotalTransactions": 0, "CashPct": "—", "CardPct": "—", "OtherPct": "—", "Tenders": nil, "SecurePayEnabled": false, "LastGatewaySync": "—"}
+		}))
+		r.Get("/reports/tax", h.reportTaxPage)
+		r.Get("/reports/otb", h.reportOTBPage)
+		r.Get("/orders/suggested", h.suggestedOrdersPage)
+		r.Get("/reports/range", h.page("reports", "report_range", func(_ *http.Request) any {
+			return map[string]any{"ActiveRanges": 0, "AvgSellThrough": "—", "AvgTurn": "—", "AvgGMROI": "—", "Ranges": nil}
+		}))
+		// Promotions calendar — wired W2f. Pricing reports remain stub
+		// until market-price + price-history + markdown source data lands.
+		r.Get("/promotions", h.promotionsCalendarPage)
+		r.Get("/reports/pricing", h.page("reports", "report_pricing", func(_ *http.Request) any {
+			return map[string]any{"ItemsTracked": 0, "AboveMarket": 0, "AtMarket": 0, "BelowMarket": 0, "Items": nil}
+		}))
+		r.Get("/reports/price-history", h.page("reports", "report_price_history", func(_ *http.Request) any {
+			return map[string]any{"Changes": nil, "TotalCount": 0}
+		}))
+		r.Get("/reports/markdowns", h.page("reports", "report_markdowns", func(_ *http.Request) any {
+			return map[string]any{"ActiveMarkdowns": 0, "AvgDepth": "—", "UnitsMoved": 0, "RevenueRecovery": "—", "Items": nil}
+		}))
+		r.Get("/employees/{id}", h.employeeDetailPage)
+		r.Get("/reports/labor", h.reportLaborPage)
+
+		// Receiving + RTV workflow — wired W2d, POST handlers W5.
+		r.Get("/receiving", h.receivingListPage)
+		r.Get("/receiving/{id}", h.receivingDetailPage)
+		r.Get("/receiving/{id}/close", h.receivingClosePage)
+		r.Post("/receiving/{id}/close", h.receivingCloseAction)
+		r.Post("/receiving/{id}/lines/{lineID}/discrepancy", h.receivingLineDiscrepancyAction)
+		r.Get("/returns", h.returnsListPage)
+		r.Get("/returns/{id}", h.returnsDetailPage)
+
+		// Operator workflow surfaces — directed-task queue + OTB action buttons.
+		// W5.
+		r.Get("/tasks", h.tasksListPage)
+		r.Post("/tasks/{id}/claim", h.taskClaimAction)
+		r.Post("/tasks/{id}/complete", h.taskCompleteAction)
+		r.Post("/tasks/{id}/exception", h.taskExceptionAction)
+		r.Post("/reports/otb/{budgetID}/lock", h.otbLockAction)
+		r.Post("/orders/suggested/{id}/approve", h.suggestedOrderActionApprove)
+		r.Post("/orders/suggested/{id}/reject", h.suggestedOrderActionReject)
+		r.Post("/orders/suggested/{id}/send", h.suggestedOrderActionSend)
+
+		// Asset registry + billing portal — wired W8 (read-only).
+		r.Get("/assets", h.assetsListPage)
+		r.Get("/assets/{id}", h.assetDetailPage)
+		r.Get("/billing/overview", h.billingOverviewPage)
+		r.Get("/billing/invoices", h.billingInvoicesPage)
+		r.Get("/billing/payment-method", h.billingPaymentMethodPage)
+
+		// Compliance + admin — wired W9.
+		r.Get("/admin/audit", h.adminAuditPage)
+		r.Get("/admin/iso27001", h.adminISO27001Page)
+		r.Get("/admin/users", h.adminUsersPage)
+		r.Get("/admin/config", h.adminConfigPage)
+
+		// Multi-store intelligence — wired W10.
+		r.Get("/admin/hierarchy", h.adminHierarchyPage)
+		r.Post("/admin/hierarchy", h.adminHierarchyCreate)
+		r.Get("/admin/network-integrity", h.adminNetworkIntegrityPage)
+		r.Get("/dashboards/cross-store", h.dashboardsCrossStorePage)
+
+		// Procurement — supplier + PO portal. W11.
+		r.Get("/suppliers", h.suppliersListPage)
+		r.Post("/suppliers", h.suppliersCreate)
+		r.Get("/suppliers/{id}", h.supplierDetailPage)
+		r.Get("/suppliers/{id}/scorecard", h.supplierScorecardPage)
+		r.Get("/po", h.poListPage)
+		r.Post("/po", h.poCreate)
+		r.Get("/po/{id}", h.poDetailPage)
+		r.Get("/po/{id}/match", h.poMatchPage)
+		r.Post("/po/{id}/status", h.poStatusAction)
+
+		// Onboarding wizard — W13.
+		r.Get("/onboarding", h.onboardingIndexPage)
+		r.Get("/onboarding/connect", h.onboardingConnectPage)
+		r.Get("/onboarding/import", h.onboardingImportPage)
+		r.Get("/onboarding/rules", h.onboardingRulesPage)
+		r.Post("/onboarding/rules/enable", h.onboardingRulesEnableAction)
+		r.Get("/onboarding/welcome", h.onboardingWelcomePage)
+
+		// Mobile / Android POS UX — W14.
+		r.Get("/m/tasks", h.mobileTasksPage)
+		r.Get("/m/receiving", h.mobileReceivingPage)
+		r.Get("/m/cycle-count", h.mobileCycleCountPage)
+		r.Get("/m/alerts/{id}", h.mobileAlertDetailPage)
+
+		// Ecom channel surface — W15.
+		r.Get("/ecom/orders", h.ecomOrdersPage)
+		r.Get("/ecom/sync", h.ecomSyncPage)
+
+		// Cross-domain exceptions
+		r.Get("/exceptions", h.page("exceptions", "exceptions_list", func(_ *http.Request) any {
+			return map[string]any{"Exceptions": nil, "OpenCount": 0, "TotalCount": 0, "DomainFilter": ""}
+		}))
+		r.Get("/exceptions/{id}", h.exceptionDetailPage)
+
+		// Cross-domain case management (registered after /cases/hawk/* to avoid conflicts)
+		r.Get("/cases/new", h.casesNewPage)
+		r.Get("/cases/{id}/evidence", h.casesEvidencePage)
+		r.Get("/cases/{id}/correlation", h.casesCorrelationPage)
+		r.Get("/cases/{id}/remediate", h.casesRemediatePage)
+
+		// Cases analytics — wired W2e.
+		r.Get("/reports/cases", h.reportCasesPage)
+
+		// Workflow engine surfaces — wired W4 (unified list page;
+		// per-workflow detail views are a follow-on dispatch).
+		r.Get("/workflows", h.workflowsListPage)
+
+		// MCP tool catalog — wired W12. Reads the in-process
+		// registry; usage log + playground are follow-on dispatches.
+		r.Get("/mcp/tools", h.mcpToolsPage)
+
+		// Protocol portal — wired W7. Unified overview of Bitcoin L2
+		// anchors, .jeffe namespace registrations, and L402 verification tokens.
+		// Per-surface drilldowns (anchor proof viewer, charge dispute, evidence
+		// chain per case) are follow-on dispatches.
+		r.Get("/protocol", h.protocolOverviewPage)
+	})
 
 	h.logger.Info("web UI mounted", zap.String("path", "/"))
 }
@@ -365,10 +523,12 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, tmplName, activ
 		return
 	}
 	pd := PageData{
-		Page:  activePage,
-		Theme: "canary-dark", // TODO: resolve from tenant config
-		User:  stubUser(),
-		Data:  data,
+		Page:      activePage,
+		Theme:     "canary-dark", // TODO: resolve from tenant config
+		User:      stubUser(),
+		Data:      data,
+		CSRFField: csrf.TemplateField(r),
+		CSRFToken: csrf.Token(r),
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
@@ -390,11 +550,236 @@ func (h *Handler) joinPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// loginPage serves the standalone public landing page for first-time
+// users. Standalone template — does NOT extend base.html, so the
+// merchant sidebar (full nav to /alerts, /chirps, /dashboard, etc.) is
+// not rendered for unauthenticated users.
+//
+// Hosts the primary OAuth call-to-action (Connect Your Square) plus a
+// placeholder for the NCR Counterpoint flow. After OAuth completes the
+// user lands on /connect (the data-sync picker) with a resolved
+// merchant.
+//
+// Bug context: pre-fix the gateway had no public login surface —
+// unauthenticated requests for protected routes redirected to /connect,
+// dumping users into the post-OAuth configuration page with no way to
+// actually log in. The `?error=` query string surfaces failures from
+// the Square OAuth callback.
+func (h *Handler) loginPage(w http.ResponseWriter, r *http.Request) {
+	tmpl, err := template.ParseFS(embedFS, "templates/auth/login.html")
+	if err != nil {
+		http.Error(w, "template error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = tmpl.Execute(w, map[string]any{
+		"Error": r.URL.Query().Get("error"),
+	})
+}
+
+// logoutHandler clears the demo_merchant session cookie and redirects
+// to /login. The sidebar in templates/partials/sidebar.html links here
+// (`<a href="/auth/logout">`) — pre-fix this 404'd because no GET
+// handler was mounted (squareauth only exposes POST /auth/square/disconnect).
+//
+// We mirror the cookie-clearing pattern from
+// squareauth.handleDisconnect: empty value + MaxAge=-1 + matching
+// Path/HttpOnly/Secure flags so the cookie is cleared cleanly.
+func (h *Handler) logoutHandler(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "demo_merchant",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+	http.Redirect(w, r, "/login", http.StatusFound)
+}
+
 func (h *Handler) owlPage(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "owl", "owl", map[string]any{
 		"Query":   r.URL.Query().Get("q"),
 		"Results": nil,
 	})
+}
+
+// owlDashboardsPage renders the multi-panel intelligence overview —
+// LP rate by rule, top parties by value, KPI tiles. Tenant-scoped read
+// over party.decisioning_facts and detection.detections / detection.cases
+// via internal/owl.DashboardStore. Wired W6.
+func (h *Handler) owlDashboardsPage(w http.ResponseWriter, r *http.Request) {
+	from, to, label := owlPortalPeriod(r.URL.Query().Get("period"), time.Now())
+	view := map[string]any{
+		"Period":          label,
+		"PeriodOptions":   []string{"day", "week", "month", "quarter"},
+		"WindowFrom":      from.Format("2006-01-02 15:04"),
+		"WindowTo":        to.Format("2006-01-02 15:04"),
+		"TotalDetections": 0,
+		"TotalCases":      0,
+		"EscalationRate":  "0%",
+		"PartyCount":      0,
+		"LPRows":          nil,
+		"TopParties":      nil,
+	}
+
+	if h.deps.OwlDashboard != nil {
+		ctx := r.Context()
+		tenantID := tenantIDFromCtx(ctx)
+
+		lp, err := h.deps.OwlDashboard.LPRateRollup(ctx, tenantID, from, to)
+		if err != nil {
+			h.logger.Error("owlDashboardsPage: lp-rate", zap.Error(err))
+		} else {
+			rows := make([]map[string]any, 0, len(lp))
+			var totalDet, totalCase int
+			for _, m := range lp {
+				rows = append(rows, map[string]any{
+					"RuleType":      m.RuleType,
+					"Detections":    m.DetectionCount,
+					"Cases":         m.CaseCount,
+					"EscalationPct": formatOwlPct(m.EscalationRate),
+				})
+				totalDet += m.DetectionCount
+				totalCase += m.CaseCount
+			}
+			view["LPRows"] = rows
+			view["TotalDetections"] = totalDet
+			view["TotalCases"] = totalCase
+			if totalDet > 0 {
+				view["EscalationRate"] = formatOwlPct(float64(totalCase) / float64(totalDet))
+			}
+		}
+
+		parties, err := h.deps.OwlDashboard.ListPartyRFM(ctx, tenantID, 10)
+		if err != nil {
+			h.logger.Error("owlDashboardsPage: parties", zap.Error(err))
+		} else {
+			rows := make([]map[string]any, 0, len(parties))
+			for _, p := range parties {
+				rows = append(rows, map[string]any{
+					"PartyShort":     p.PartyID.String()[:8],
+					"PartyValue":     p.PartyValue,
+					"PartyFrequency": p.PartyFrequency,
+					"PartyRecency":   p.PartyRecency,
+					"Confidence":     p.Confidence,
+				})
+			}
+			view["TopParties"] = rows
+			view["PartyCount"] = len(parties)
+		}
+	}
+
+	h.render(w, r, "owl_dashboards", "owl_intel", view)
+}
+
+// formatOwlPct renders a 0..1 ratio as a percentage with one decimal.
+func formatOwlPct(r float64) string {
+	return strconv.FormatFloat(r*100, 'f', 1, 64) + "%"
+}
+
+// owlPartiesPage renders the tenant's RFM party list, ordered by
+// party_value DESC. Reads party.decisioning_facts via DashboardStore.
+// Wired W6.
+func (h *Handler) owlPartiesPage(w http.ResponseWriter, r *http.Request) {
+	limit := parseOwlLimit(r.URL.Query().Get("limit"), 50)
+	view := map[string]any{
+		"Limit":        limit,
+		"LimitOptions": []int{25, 50, 100, 250, 500},
+		"PartyCount":   0,
+		"Parties":      nil,
+	}
+
+	if h.deps.OwlDashboard != nil {
+		ctx := r.Context()
+		tenantID := tenantIDFromCtx(ctx)
+		parties, err := h.deps.OwlDashboard.ListPartyRFM(ctx, tenantID, limit)
+		if err != nil {
+			h.logger.Error("owlPartiesPage: list", zap.Error(err))
+		} else {
+			rows := make([]map[string]any, 0, len(parties))
+			for _, p := range parties {
+				rows = append(rows, map[string]any{
+					"PartyShort":     p.PartyID.String()[:8],
+					"Confidence":     p.Confidence,
+					"PartyValue":     p.PartyValue,
+					"PartyFrequency": p.PartyFrequency,
+					"PartyMonetary":  p.PartyMonetary,
+					"PartyRecency":   p.PartyRecency,
+					"PartyFraudRisk": p.PartyFraudRisk,
+					"PartyChurnRisk": p.PartyChurnRisk,
+				})
+			}
+			view["Parties"] = rows
+			view["PartyCount"] = len(parties)
+		}
+	}
+
+	h.render(w, r, "owl_parties", "owl_intel", view)
+}
+
+// parseOwlLimit clamps the limit query param to [1, 500] with a fallback.
+func parseOwlLimit(raw string, def int) int {
+	if raw == "" {
+		return def
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return def
+	}
+	if n > 500 {
+		return 500
+	}
+	return n
+}
+
+// owlLPPerformancePage renders LP-rate detail per rule type. Same
+// underlying query as the dashboards page (LPRateRollup) but full-table
+// view with drill-down to the alert list filtered by rule_type.
+// Wired W6.
+func (h *Handler) owlLPPerformancePage(w http.ResponseWriter, r *http.Request) {
+	from, to, label := owlPortalPeriod(r.URL.Query().Get("period"), time.Now())
+	view := map[string]any{
+		"Period":            label,
+		"PeriodOptions":     []string{"day", "week", "month", "quarter"},
+		"WindowFrom":        from.Format("2006-01-02 15:04"),
+		"WindowTo":          to.Format("2006-01-02 15:04"),
+		"TotalDetections":   0,
+		"TotalCases":        0,
+		"OverallEscalation": "0%",
+		"Rows":              nil,
+	}
+
+	if h.deps.OwlDashboard != nil {
+		ctx := r.Context()
+		tenantID := tenantIDFromCtx(ctx)
+		lp, err := h.deps.OwlDashboard.LPRateRollup(ctx, tenantID, from, to)
+		if err != nil {
+			h.logger.Error("owlLPPerformancePage: rollup", zap.Error(err))
+		} else {
+			rows := make([]map[string]any, 0, len(lp))
+			var totalDet, totalCase int
+			for _, m := range lp {
+				rows = append(rows, map[string]any{
+					"RuleType":      m.RuleType,
+					"Detections":    m.DetectionCount,
+					"Cases":         m.CaseCount,
+					"EscalationPct": formatOwlPct(m.EscalationRate),
+				})
+				totalDet += m.DetectionCount
+				totalCase += m.CaseCount
+			}
+			view["Rows"] = rows
+			view["TotalDetections"] = totalDet
+			view["TotalCases"] = totalCase
+			if totalDet > 0 {
+				view["OverallEscalation"] = formatOwlPct(float64(totalCase) / float64(totalDet))
+			}
+		}
+	}
+
+	h.render(w, r, "owl_lp_performance", "owl_intel", view)
 }
 
 func (h *Handler) hawkDetailPage(w http.ResponseWriter, r *http.Request) {
@@ -716,7 +1101,7 @@ func (h *Handler) chirpDetailPage(w http.ResponseWriter, r *http.Request) {
 
 // transactionDetailPage renders one canonical transaction with hydrated
 // line items, tenders, and discounts. Falls back to the stub view when the
-// TransactionStore is unavailable (pre-wire dev path). Wired W2a / GRO-815.
+// TransactionStore is unavailable (pre-wire dev path). Wired W2a.
 func (h *Handler) transactionDetailPage(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -818,7 +1203,7 @@ func (h *Handler) transactionDetailPage(w http.ResponseWriter, r *http.Request) 
 // up the anchor record keyed by the transaction's derived event_hash.
 // Returns "pending" when the protocol pipeline hasn't anchored this txn yet —
 // the common state today since the demo path doesn't yet feed retail txns
-// into Sub1/Sub3. Wired W2a / GRO-815.
+// into Sub1/Sub3. Wired W2a.
 func (h *Handler) transactionProofPage(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -937,7 +1322,7 @@ func intToString(n int64) string {
 }
 
 // transferListPage renders all transfer documents (transfer_out + transfer_in)
-// for the tenant. Wired W2b / GRO-816.
+// for the tenant. Wired W2b.
 func (h *Handler) transferListPage(w http.ResponseWriter, r *http.Request) {
 	if h.deps.InventoryStore == nil {
 		h.render(w, r, "transfers_list", "transfers", map[string]any{
@@ -974,7 +1359,7 @@ func (h *Handler) transferListPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // transferDetailPage renders one transfer document with its line items.
-// Wired W2b / GRO-816.
+// Wired W2b.
 func (h *Handler) transferDetailPage(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -1045,7 +1430,7 @@ func (h *Handler) transferDetailPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // transferVariancePage renders shipped vs received variance for one transfer.
-// Wired W2b / GRO-816.
+// Wired W2b.
 func (h *Handler) transferVariancePage(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -1218,7 +1603,7 @@ func formatMoney(f float64) string {
 }
 
 // reportDistributionPage renders the distribution variance report — variance
-// aggregated by transfer lane (source→destination). Wired W2b / GRO-816.
+// aggregated by transfer lane (source→destination). Wired W2b.
 func (h *Handler) reportDistributionPage(w http.ResponseWriter, r *http.Request) {
 	if h.deps.InventoryStore == nil {
 		h.render(w, r, "report_distribution", "reports", map[string]any{
@@ -1301,7 +1686,7 @@ func (h *Handler) reportDistributionPage(w http.ResponseWriter, r *http.Request)
 }
 
 // reportInventoryPage renders the snapshot-vs-perpetual inventory balance.
-// Wired W2b / GRO-816.
+// Wired W2b.
 func (h *Handler) reportInventoryPage(w http.ResponseWriter, r *http.Request) {
 	if h.deps.InventoryStore == nil {
 		h.render(w, r, "report_inventory", "reports", map[string]any{
@@ -1366,7 +1751,7 @@ func (h *Handler) reportInventoryPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // itemListPage renders the catalog search results.
-// Wired W2c / GRO-817.
+// Wired W2c.
 func (h *Handler) itemListPage(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
 	if h.deps.ItemStore == nil {
@@ -1422,7 +1807,7 @@ func (h *Handler) itemListPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // itemDetailPage renders one catalog item with attributes, supplier, and
-// margin. Wired W2c / GRO-817.
+// margin. Wired W2c.
 func (h *Handler) itemDetailPage(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -1487,7 +1872,7 @@ func (h *Handler) itemDetailPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // promotionsCalendarPage lists active promotions for the tenant.
-// Wired W2f / GRO-820. Uses uuid.Nil location which only matches promotions
+// Wired W2f. Uses uuid.Nil location which only matches promotions
 // with NULL active_locations (i.e. tenant-wide promotions).
 func (h *Handler) promotionsCalendarPage(w http.ResponseWriter, r *http.Request) {
 	if h.deps.PricingStore == nil {
@@ -1533,7 +1918,7 @@ func (h *Handler) promotionsCalendarPage(w http.ResponseWriter, r *http.Request)
 }
 
 // reportFinancePage aggregates gross/net/discount/tax totals from the recent
-// transaction set. Wired W2e / GRO-819. Uses an in-memory aggregate over the
+// transaction set. Wired W2e. Uses an in-memory aggregate over the
 // transaction.Store.List result (capped at 200 txns) until a dedicated
 // totals-by-period aggregation method lands.
 func (h *Handler) reportFinancePage(w http.ResponseWriter, r *http.Request) {
@@ -1583,7 +1968,7 @@ func parseDecimal(s string) float64 {
 
 // protocolOverviewPage renders a unified read-out of the cryptographic
 // substrate — recent Bitcoin L2 anchors, .jeffe namespace registrations,
-// and L402 verification tokens. Wired W7 / GRO-826.
+// and L402 verification tokens. Wired W7.
 //
 // Cross-tenant view: anchors and tokens are platform-wide substrate, not
 // tenant-scoped. Operators with portal access see all recent activity.
@@ -1681,6 +2066,33 @@ func shortHex(s string, n int) string {
 	return s[:n] + "…"
 }
 
+// owlPortalPeriod translates the portal's day/week/month/quarter selector
+// into a UTC [from, to) window. Default and unknown values fold to "week".
+//
+// UTC-only on purpose: timezone-aware period parsing belongs to the JSON
+// API surface in internal/owl/period.go where it's part of the public
+// merchant-keyed contract. The portal is an operator surface; UTC keeps
+// the URL stable across user devices.
+func owlPortalPeriod(kind string, now time.Time) (from, to time.Time, label string) {
+	to = now.UTC()
+	switch strings.ToLower(strings.TrimSpace(kind)) {
+	case "day":
+		from = time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, time.UTC)
+		return from, to, "day"
+	case "month":
+		from = time.Date(to.Year(), to.Month(), 1, 0, 0, 0, 0, time.UTC)
+		return from, to, "month"
+	case "quarter":
+		qStartMonth := ((int(to.Month())-1)/3)*3 + 1
+		from = time.Date(to.Year(), time.Month(qStartMonth), 1, 0, 0, 0, 0, time.UTC)
+		return from, to, "quarter"
+	default: // "week" or anything unrecognized
+		offset := (int(to.Weekday()) + 6) % 7 // Monday = 0
+		from = time.Date(to.Year(), to.Month(), to.Day()-offset, 0, 0, 0, 0, time.UTC)
+		return from, to, "week"
+	}
+}
+
 // mcpToolsPage renders the catalog of registered MCP tools by reading
 // the in-process Registry. Tools are grouped by module via a name-prefix
 // convention (e.g. "canary.alert.list" → module "alert"). Wired W12 /
@@ -1719,7 +2131,7 @@ func mcpModuleFromName(name string) string {
 
 // workflowsListPage renders all registered workflow definitions plus
 // recent executions across the three engines (3-way match, L402 charge
-// cycle, investigation lifecycle). Wired W4 / GRO-823. Per-engine
+// cycle, investigation lifecycle). Wired W4. Per-engine
 // drilldown + manual advance/cancel are a follow-on dispatch.
 func (h *Handler) workflowsListPage(w http.ResponseWriter, r *http.Request) {
 	if h.deps.WorkflowStore == nil {
@@ -1794,7 +2206,7 @@ func (h *Handler) workflowsListPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // reportCasesPage aggregates case counts by domain + severity from the
-// casemgmt store. Wired W2e / GRO-819.
+// casemgmt store. Wired W2e.
 func (h *Handler) reportCasesPage(w http.ResponseWriter, r *http.Request) {
 	if h.deps.CaseStore == nil {
 		h.render(w, r, "report_cases", "reports", map[string]any{
@@ -1873,7 +2285,7 @@ func (h *Handler) reportCasesPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // reportCategoryPage renders margin + volume by category.
-// Wired W2c / GRO-817.
+// Wired W2c; SQL-aggregated in T-N.
 func (h *Handler) reportCategoryPage(w http.ResponseWriter, r *http.Request) {
 	if h.deps.ItemStore == nil {
 		h.render(w, r, "report_category", "reports", map[string]any{
@@ -1884,79 +2296,47 @@ func (h *Handler) reportCategoryPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	tenantID := tenantIDFromCtx(ctx)
 
-	cats, err := h.deps.ItemStore.ListCategories(ctx, tenantID)
+	aggs, err := h.deps.ItemStore.AggregateByCategory(ctx, tenantID)
 	if err != nil {
-		h.logger.Error("reportCategoryPage: list categories", zap.Error(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		h.render(w, r, "err500", "reports", nil)
-		return
-	}
-	items, err := h.deps.ItemStore.List(ctx, item.ListFilters{TenantID: tenantID, Limit: 500})
-	if err != nil {
-		h.logger.Error("reportCategoryPage: list items", zap.Error(err))
+		h.logger.Error("reportCategoryPage: aggregate by category", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		h.render(w, r, "err500", "reports", nil)
 		return
 	}
 
-	// Bucket items by category and compute per-bucket aggregate margin.
-	type bucket struct {
-		count     int
-		marginSum float64
-	}
-	buckets := map[uuid.UUID]*bucket{}
-	for _, it := range items {
-		if it.CategoryID == nil {
-			continue
-		}
-		b, ok := buckets[*it.CategoryID]
-		if !ok {
-			b = &bucket{}
-			buckets[*it.CategoryID] = b
-		}
-		b.count++
-		if margin := marginPct(it.DefaultPrice, it.DefaultCost); margin >= 0 {
-			b.marginSum += margin
-		}
-	}
-
-	rows := make([]map[string]any, 0, len(cats))
-	totalMargin := 0.0
+	rows := make([]map[string]any, 0, len(aggs))
+	totalMarginSum := 0.0
+	priceMarginCategories := 0
 	totalSKUs := 0
 	topName := "—"
 	topCount := 0
-	for _, c := range cats {
-		b := buckets[c.ID]
-		count := 0
+	for _, a := range aggs {
 		avgMargin := "—"
-		if b != nil {
-			count = b.count
-			if count > 0 {
-				avg := b.marginSum / float64(count)
-				avgMargin = strconv.FormatFloat(avg, 'f', 1, 64) + "%"
-				totalMargin += avg
-			}
+		if a.HasMargin {
+			avgMargin = strconv.FormatFloat(a.AvgMarginPct, 'f', 1, 64) + "%"
+			totalMarginSum += a.AvgMarginPct
+			priceMarginCategories++
 		}
-		if count > topCount {
-			topCount = count
-			topName = c.Name
+		if a.SKUCount > topCount {
+			topCount = a.SKUCount
+			topName = a.Name
 		}
-		totalSKUs += count
+		totalSKUs += a.SKUCount
 		rows = append(rows, map[string]any{
-			"Name":       c.Name,
-			"SKUCount":   count,
+			"Name":       a.Name,
+			"SKUCount":   a.SKUCount,
 			"TotalSales": "—", // wires when sales aggregation per category lands
 			"AvgMargin":  avgMargin,
 			"Turn":       "—",
 		})
 	}
 	avgMarginAll := "—"
-	if len(rows) > 0 {
-		avgMarginAll = strconv.FormatFloat(totalMargin/float64(len(rows)), 'f', 1, 64) + "%"
+	if priceMarginCategories > 0 {
+		avgMarginAll = strconv.FormatFloat(totalMarginSum/float64(priceMarginCategories), 'f', 1, 64) + "%"
 	}
 
 	h.render(w, r, "report_category", "reports", map[string]any{
-		"TotalCategories": len(cats),
+		"TotalCategories": len(aggs),
 		"TopCategory":     topName,
 		"AvgMargin":       avgMarginAll,
 		"SKUsTracked":     totalSKUs,
@@ -2010,7 +2390,7 @@ func marginPct(price, cost *string) float64 {
 }
 
 // employeeDetailPage renders one employee with productivity metrics from
-// internal/employee.Store. Wired W2g / GRO-821.
+// internal/employee.Store. Wired W2g.
 func (h *Handler) employeeDetailPage(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -2065,7 +2445,7 @@ func (h *Handler) employeeDetailPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // reportLaborPage renders the productivity dashboard with per-employee alert
-// summaries from internal/employee.Store.AlertSummaries. Wired W2g / GRO-821.
+// summaries from internal/employee.Store.AlertSummaries. Wired W2g.
 func (h *Handler) reportLaborPage(w http.ResponseWriter, r *http.Request) {
 	if h.deps.EmployeeStore == nil {
 		h.render(w, r, "report_labor", "reports", map[string]any{
@@ -2125,7 +2505,7 @@ func (h *Handler) reportLaborPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // receivingListPage lists open + recent goods_receipt documents.
-// Wired W2d / GRO-818.
+// Wired W2d.
 func (h *Handler) receivingListPage(w http.ResponseWriter, r *http.Request) {
 	if h.deps.InventoryStore == nil {
 		h.render(w, r, "receiving_list", "receiving", map[string]any{
@@ -2162,7 +2542,7 @@ func (h *Handler) receivingListPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // receivingDetailPage renders one goods_receipt document with hydrated lines.
-// Wired W2d / GRO-818.
+// Wired W2d.
 func (h *Handler) receivingDetailPage(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -2214,16 +2594,17 @@ func (h *Handler) receivingDetailPage(w http.ResponseWriter, r *http.Request) {
 	view["OpenedAt"] = doc.CreatedAt.Format(time.RFC3339)
 	lineRows := make([]map[string]any, 0, len(lines))
 	for _, l := range lines {
-		lineRows = append(lineRows, transferLineView(l)) // shared shape: SKU/Description/QtyShipped/QtyReceived/Variance
+		lineRows = append(lineRows, receivingLineView(l))
 	}
 	h.render(w, r, "receiving_detail", "receiving", map[string]any{
 		"Session": view,
 		"Lines":   lineRows,
+		"Flash":   r.URL.Query().Get("flash"),
 	})
 }
 
 // receivingClosePage renders the close-and-post summary for a goods_receipt
-// document. Wired W2d / GRO-818. Close action POST is W5 / GRO-824.
+// document. Wired W2d. Close action POST is W5.
 func (h *Handler) receivingClosePage(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -2283,7 +2664,7 @@ func (h *Handler) receivingClosePage(w http.ResponseWriter, r *http.Request) {
 }
 
 // returnsListPage lists RTV (return-to-vendor) documents.
-// Wired W2d / GRO-818.
+// Wired W2d.
 func (h *Handler) returnsListPage(w http.ResponseWriter, r *http.Request) {
 	if h.deps.InventoryStore == nil {
 		h.render(w, r, "returns_list", "returns", map[string]any{
@@ -2320,7 +2701,7 @@ func (h *Handler) returnsListPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // returnsDetailPage renders one RTV document with hydrated lines.
-// Wired W2d / GRO-818.
+// Wired W2d.
 func (h *Handler) returnsDetailPage(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -2488,16 +2869,8 @@ func stubDashboard(_ *http.Request) any {
 	}
 }
 
-func stubChirps(_ *http.Request) any {
-	return map[string]any{"Chirps": nil}
-}
-
 func stubTransactions(_ *http.Request) any {
 	return map[string]any{"Transactions": nil, "TotalCount": 0}
-}
-
-func stubAlerts(_ *http.Request) any {
-	return map[string]any{"Alerts": nil, "OpenCount": 0, "TotalCount": 0}
 }
 
 func stubCases(_ *http.Request) any {
@@ -2522,10 +2895,6 @@ func stubSettings(_ *http.Request) any {
 	}
 }
 
-func stubRules(_ *http.Request) any {
-	return map[string]any{"Rules": nil, "ActiveCount": 0, "TotalCount": 0}
-}
-
 func stubConnect(_ *http.Request) any {
 	days := []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
 	type lookbackOpt struct {
@@ -2533,27 +2902,11 @@ func stubConnect(_ *http.Request) any {
 		Label string
 	}
 	return map[string]any{
-		"WeekDays":    days,
-		"WeekStart":   0,
-		"Lookback":    "30",
+		"WeekDays":  days,
+		"WeekStart": 0,
+		"Lookback":  "30",
 		"LookbackOpts": []lookbackOpt{
 			{"7", "7 days"}, {"30", "30 days"}, {"90", "90 days"}, {"all", "All"},
-		},
-	}
-}
-
-func stubHawkList(_ *http.Request) any {
-	type statusOpt struct {
-		Value string
-		Label string
-	}
-	return map[string]any{
-		"Cases":        nil,
-		"OpenCount":    0,
-		"StatusFilter": "open",
-		"Statuses": []statusOpt{
-			{"open", "Open"}, {"investigating", "Investigating"},
-			{"closed", "Closed"}, {"", "All"},
 		},
 	}
 }
@@ -2642,10 +2995,10 @@ func (h *Handler) customersListPage(w http.ResponseWriter, r *http.Request) {
 				name := customerDisplayName(c)
 				shortID := c.ID.String()[:8]
 				customers = append(customers, map[string]any{
-					"ID":              c.ID.String(),
-					"ShortID":         shortID,
-					"Name":            name,
-					"RiskTier":        "—",
+					"ID":               c.ID.String(),
+					"ShortID":          shortID,
+					"Name":             name,
+					"RiskTier":         "—",
 					"LastPurchaseDate": "—",
 				})
 			}
@@ -2861,99 +3214,20 @@ func customerDisplayName(c customer.CustomerDTO) string {
 	return c.ID.String()[:8]
 }
 
-func (h *Handler) exceptionDetailPage(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	shortID := id
-	if len(id) >= 8 {
-		shortID = id[:8]
-	}
-	h.render(w, r, "exceptions_detail", "exceptions", map[string]any{
-		"Exception": map[string]any{
-			"ID":             id,
-			"ShortID":        shortID,
-			"Domain":         "—",
-			"Type":           "—",
-			"Severity":       "high",
-			"Status":         "open",
-			"Store":          "—",
-			"DetectedAt":     "—",
-			"AssignedTo":     "—",
-			"TriggerRule":    "—",
-			"TriggerProcess": "—",
-			"SignalSummary":  "—",
-		},
-	})
-}
-
-func (h *Handler) casesNewPage(w http.ResponseWriter, r *http.Request) {
-	exceptionID := r.URL.Query().Get("exception")
-	preFillTitle := ""
-	if exceptionID != "" {
-		preFillTitle = "Exception " + exceptionID
-	}
-	h.render(w, r, "cases_new", "cases", map[string]any{
-		"ExceptionID":  exceptionID,
-		"PreFillTitle": preFillTitle,
-	})
-}
-
-func (h *Handler) casesEvidencePage(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	shortID := id
-	if len(id) >= 8 {
-		shortID = id[:8]
-	}
-	h.render(w, r, "cases_evidence", "cases", map[string]any{
-		"Case": map[string]any{
-			"ID":      id,
-			"ShortID": shortID,
-			"Title":   "Case " + shortID,
-		},
-		"Evidence": nil,
-		"DomainCounts": map[string]int{
-			"lp":        0,
-			"inventory": 0,
-			"finance":   0,
-			"receiving": 0,
-		},
-	})
-}
-
-func (h *Handler) casesCorrelationPage(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	shortID := id
-	if len(id) >= 8 {
-		shortID = id[:8]
-	}
-	h.render(w, r, "cases_correlation", "cases", map[string]any{
-		"Case": map[string]any{
-			"ID":      id,
-			"ShortID": shortID,
-		},
-		"Subjects": nil,
-		"Timeline": nil,
-	})
-}
-
-func (h *Handler) casesRemediatePage(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	shortID := id
-	if len(id) >= 8 {
-		shortID = id[:8]
-	}
-	h.render(w, r, "cases_remediate", "cases", map[string]any{
-		"Case": map[string]any{
-			"ID":      id,
-			"ShortID": shortID,
-			"Title":   "Case " + shortID,
-		},
-		"Remediations": nil,
-	})
-}
+// W16 case-management capstone handlers (exceptionDetailPage, casesNewPage,
+// casesEvidencePage, classifyEvidenceDomain, casesCorrelationPage,
+// casesRemediatePage) live in handler_w16.go per the per-W-series
+// file convention. Route registrations stay in this file's Mount().
+// Sprint 2 T-J.
 
 // tenantIDFromCtx extracts the tenant UUID from the request context.
-// Returns uuid.Nil until auth middleware (GRO-769) is wired.
+// Wired by tenantSessionMiddleware (T-B / GRO-849), which reads the
+// signed session cookie via Deps.MerchantResolver and injects through
+// tenant.InjectMerchantID. Returns uuid.Nil when no session is
+// resolved — handlers that need an authenticated tenant should be
+// wrapped in h.requireTenant() so the nil case redirects to /connect
+// instead of rendering empty data.
 func tenantIDFromCtx(ctx context.Context) uuid.UUID {
-	// TODO(GRO-769): replace with identity.TenantIDFromCtx(ctx)
-	return uuid.Nil
+	id, _ := tenant.FromContext(ctx)
+	return id
 }

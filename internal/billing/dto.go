@@ -1,7 +1,7 @@
 // Package billing implements Bull (Module B) — L402-gated open-to-buy
 // budgeting + satoshi cost rollup over ledger.ildwac_positions.
 //
-// Spec: GRO-765 Phase A (folds GRO-643). The accountability rail this
+// The accountability rail this
 // module enforces:
 //
 //   1. Every cadence step (minute/hour/day/week/month) records an

@@ -2,7 +2,7 @@
 // zap logger with trace-id correlation, and chi middleware to emit a
 // span per request.
 //
-// Loop 4 Wave A scaffold (GRO-763 Phase A.2). Replaces ad-hoc logging
+// Loop 4 Wave A scaffold. Replaces ad-hoc logging
 // in cmd/* binaries with a single configurable surface.
 //
 // Configuration is env-var driven; defaults match the dispatch:

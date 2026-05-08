@@ -2,25 +2,25 @@
 //
 // pgx-backed access to inventory.inventory_positions and inventory.inventory_movements.
 //
-// Loop 2 dispatch override: direct pgx + raw SQL. The CanaryGo CLAUDE.md
+// override: direct pgx + raw SQL. The CanaryGo CLAUDE.md
 // rule "all queries go through sqlc" is paused for Loop 2 — sqlc retrofit
-// happens in Loop 3.
+// happens in
 //
 // Design invariants:
 //
-//  1. inventory_movements is APPEND-ONLY. There are no UpdateMovement or
-//     DeleteMovement methods on this Store, even private. Per dispatch
-//     line 67: "even private ones." The only mutation is INSERT.
+// 1. inventory_movements is APPEND-ONLY. There are no UpdateMovement or
+// DeleteMovement methods on this Store, even private. Per dispatch
+// line 67: "even private ones." The only mutation is INSERT.
 //
-//  2. inventory_document_lines.variance_quantity is GENERATED STORED. We
-//     do not write to it. (This package does not touch document_lines yet
-//     — flagged here so Wave 3+ inherits the invariant.)
+// 2. inventory_document_lines.variance_quantity is GENERATED STORED. We
+// do not write to it. (This package does not touch document_lines yet
+// — flagged here so Wave 3+ inherits the invariant.)
 //
-//  3. AppendMovement is transactional: INSERT into inventory_movements +
-//     UPSERT into inventory_positions, both committed together. The schema
-//     ships no trigger to maintain on_hand_quantity from the movement log,
-//     so the service does it inline. This makes the position row a cached
-//     running balance, not a stale snapshot.
+// 3. AppendMovement is transactional: INSERT into inventory_movements +
+// UPSERT into inventory_positions, both committed together. The schema
+// ships no trigger to maintain on_hand_quantity from the movement log,
+// so the service does it inline. This makes the position row a cached
+// running balance, not a stale snapshot.
 package inventory
 
 import (
@@ -52,7 +52,7 @@ var ErrPositionNotFound = errors.New("inventory: position not found")
 // GetPosition reads the current position for (tenant, item, location).
 // Returns ErrPositionNotFound if no row exists. zone_id is treated as
 // NULL (location-aggregate row); zone-level reads are out of scope for
-// Loop 2.
+//
 func (s *Store) GetPosition(ctx context.Context, tenantID, itemID, locationID uuid.UUID) (*PositionDTO, error) {
 	const q = `
 		SELECT id, tenant_id, item_id, location_id, zone_id,

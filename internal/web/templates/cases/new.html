@@ -21,7 +21,7 @@
 
 <div style="max-width:600px;">
   <div class="ops-card">
-    <form action="#" method="POST">
+    <form action="#" method="POST">{{ .CSRFField }}
       {{if .ExceptionID}}
       <input type="hidden" name="exception_id" value="{{.ExceptionID}}">
       {{end}}

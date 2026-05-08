@@ -8,7 +8,7 @@
 //   GET /v1/employees/{id}/alerts      — detection alert summary for employee
 //   GET /v1/employees/alert-summary    — ranked alert summary across all employees
 //
-// Spec: GRO-766 Phase D.
+//
 
 package employee
 
@@ -22,7 +22,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 // Handler binds employee endpoints onto a chi router.

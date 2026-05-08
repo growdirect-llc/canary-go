@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/growdirect-llc/rapidpos/internal/config"
+	"github.com/ruptiv/canary/internal/config"
 )
 
 func TestDiscoveryHandler(t *testing.T) {

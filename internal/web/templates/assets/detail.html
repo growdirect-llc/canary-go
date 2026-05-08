@@ -1,0 +1,85 @@
+{{template "base.html" .}}
+
+{{define "title"}}Asset Detail — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div style="margin-bottom:16px;">
+  <a href="/assets" style="font-size:12px;color:var(--text-muted);text-decoration:none;">← Assets</a>
+</div>
+
+<div class="page-header" style="margin-bottom:8px;">
+  <h1>{{.Item.SKU}}</h1>
+</div>
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+  <span style="font-size:13px;color:var(--text-secondary);">{{.Item.Description}}</span>
+  <span style="color:var(--border-subtle);">·</span>
+  <span style="font-size:13px;color:var(--text-secondary);">{{.Item.ItemType}}</span>
+  <span class="badge">{{.Item.Status}}</span>
+</div>
+
+<div class="ops-card" style="margin-bottom:24px;">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Positions by Location</div>
+  {{if .Positions}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Location</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">On Hand</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Reserved</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">On Order</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">In Transit</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Cost Basis</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Last Move</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Positions}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;font-family:'Space Grotesk',monospace;font-size:11px;color:var(--text-muted);">{{.LocationShort}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-primary);font-weight:600;">{{.OnHand}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.Reserved}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.OnOrder}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.InTransit}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.CostBasis}}</td>
+        <td style="padding:10px 0;color:var(--text-muted);font-size:11px;">{{.LastMovementAt}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No position data for this item.</p>
+  {{end}}
+</div>
+
+<div class="ops-card">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Active Lots</div>
+  {{if .Lots}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Lot</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Number</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Type</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Expiry</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Lots}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;font-family:'Space Grotesk',monospace;font-size:11px;color:var(--text-muted);">{{.LotID}}</td>
+        <td style="padding:10px 12px;color:var(--text-primary);">{{.LotNumber}}</td>
+        <td style="padding:10px 12px;color:var(--text-secondary);">{{.LotType}}</td>
+        <td style="padding:10px 12px;color:var(--text-secondary);">{{.ExpiryDate}}</td>
+        <td style="padding:10px 0;color:var(--text-secondary);">{{.Status}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No active lots.</p>
+  {{end}}
+</div>
+{{end}}
+{{end}}

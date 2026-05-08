@@ -9,8 +9,14 @@
   <p class="page-subtitle">System-generated reorder recommendations</p>
 </div>
 
+{{if .Flash}}
+<div style="margin-bottom:16px;padding:10px 14px;background:rgba(234,179,8,0.08);border:1px solid var(--signal-yellow);border-radius:6px;font-size:12px;color:var(--signal-yellow);">
+  Action: {{.Flash}}
+</div>
+{{end}}
+
 <div style="margin-bottom:16px;padding:10px 14px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;font-size:12px;color:var(--text-muted);">
-  Orders require buyer approval before PO creation.
+  Orders require buyer approval before PO creation. Vendor send routes through the supplier portal (W11).
 </div>
 
 <div class="ops-card">
@@ -43,8 +49,15 @@
         <td style="padding:12px;text-align:right;color:var(--text-primary);font-weight:600;">{{.SuggestedQty}}</td>
         <td style="padding:12px;text-align:right;color:var(--text-secondary);">{{.EstCost}}</td>
         <td style="padding:12px 0;text-align:right;">
-          <span style="font-size:11px;color:var(--health-green);cursor:pointer;margin-right:8px;">Approve</span>
-          <span style="font-size:11px;color:var(--text-muted);cursor:pointer;">Dismiss</span>
+          <form method="POST" action="/orders/suggested/{{.ID}}/approve" style="display:inline;">{{ .CSRFField }}
+            <button type="submit" style="font-size:11px;padding:3px 8px;background:transparent;border:1px solid var(--health-green);color:var(--health-green);border-radius:4px;cursor:pointer;margin-right:4px;">Approve</button>
+          </form>
+          <form method="POST" action="/orders/suggested/{{.ID}}/reject" style="display:inline;">{{ .CSRFField }}
+            <button type="submit" style="font-size:11px;padding:3px 8px;background:transparent;border:1px solid var(--text-muted);color:var(--text-muted);border-radius:4px;cursor:pointer;margin-right:4px;">Reject</button>
+          </form>
+          <form method="POST" action="/orders/suggested/{{.ID}}/send" style="display:inline;">{{ .CSRFField }}
+            <button type="submit" style="font-size:11px;padding:3px 8px;background:transparent;border:1px solid var(--signal-yellow);color:var(--signal-yellow);border-radius:4px;cursor:pointer;">Send</button>
+          </form>
         </td>
       </tr>
       {{end}}
@@ -52,7 +65,7 @@
   </table>
   {{else}}
   <div style="text-align:center;padding:40px 0;color:var(--text-muted);">
-    <p style="font-size:13px;">No suggested orders at this time.</p>
+    <p style="font-size:13px;">No suggested orders at this time. Recommendations land here once Min/Max replenishment fires.</p>
   </div>
   {{end}}
 </div>

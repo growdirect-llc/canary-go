@@ -1,8 +1,8 @@
 // internal/fox/store.go
 //
-// Direct pgx + raw SQL persistence layer. Loop 2 dispatch (GRO-761)
+// Direct pgx + raw SQL persistence layer. 
 // overrides the CanaryGo CLAUDE.md "all queries through sqlc" rule
-// for this wave — sqlc retrofit lands in Loop 3.
+// for this wave — sqlc retrofit lands in
 package fox
 
 import (
@@ -18,7 +18,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/growdirect-llc/rapidpos/internal/db/types"
+	"github.com/ruptiv/canary/internal/db/types"
 )
 
 // ErrNotFound is returned by lookups when no row matches. Wrap with
@@ -100,11 +100,11 @@ func (s *Store) LoadCase(ctx context.Context, id uuid.UUID) (*types.Case, error)
 // match exists (a soft miss is not an error).
 //
 // Implementation notes:
-//   - detection.cases.primary_subject_id is the clustering key.
-//   - "open" excludes resolved/closed; the schema's idx_qcases_active
-//     partial index covers this filter exactly.
-//   - We pick the most recent by opened_at to match the human
-//     intuition of "the case the investigator is currently on."
+// - detection.cases.primary_subject_id is the clustering key.
+// - "open" excludes resolved/closed; the schema's idx_qcases_active
+// partial index covers this filter exactly.
+// - We pick the most recent by opened_at to match the human
+// intuition of "the case the investigator is currently on."
 func (s *Store) FindOpenCaseBySubject(ctx context.Context, tenantID, subjectID uuid.UUID) (*types.Case, error) {
 	const q = `
 		SELECT id, tenant_id, case_number, case_type, title, description,

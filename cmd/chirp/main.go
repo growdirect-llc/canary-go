@@ -4,7 +4,7 @@
 // q.detection_rules, evaluates them against transaction events from
 // schema t, writes matched detections to q.detections.
 //
-// Built in GRO-761 Loop 2 Wave 2.
+//
 package main
 
 import (
@@ -16,10 +16,10 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/chirp"
-	"github.com/growdirect-llc/rapidpos/internal/chirp/rules"
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/db"
+	"github.com/ruptiv/canary/internal/chirp"
+	"github.com/ruptiv/canary/internal/chirp/rules"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/db"
 )
 
 const serviceName = "canary-chirp"
@@ -63,7 +63,7 @@ func main() {
 	}
 }
 
-// registerBaseline wires the seven Loop 2 wave 2 evaluators.
+// registerBaseline wires the seven evaluators.
 func registerBaseline(r *chirp.Registry, logger *zap.Logger) {
 	for _, e := range []chirp.RuleEvaluator{
 		rules.VoidThreshold{},

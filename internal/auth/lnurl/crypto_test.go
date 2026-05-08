@@ -9,7 +9,7 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 
-	"github.com/growdirect-llc/rapidpos/internal/auth/lnurl"
+	"github.com/ruptiv/canary/internal/auth/lnurl"
 )
 
 func TestVerifySignature(t *testing.T) {

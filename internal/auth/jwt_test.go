@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/growdirect-llc/rapidpos/internal/auth"
+	"github.com/ruptiv/canary/internal/auth"
 )
 
 func TestSignAndVerifyClaims(t *testing.T) {

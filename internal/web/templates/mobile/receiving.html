@@ -1,0 +1,26 @@
+{{template "mobile_base.html" .}}
+{{define "title"}}Receiving — Canary{{end}}
+{{define "content"}}
+{{with .Data}}
+<div class="m-header">
+  <h1>Receiving</h1>
+  <p>{{.Count}} sessions</p>
+</div>
+<div class="m-card">
+  {{if .Sessions}}
+  {{range .Sessions}}
+  <div class="m-row">
+    <div style="flex:1;min-width:0;">
+      <strong>{{.DocumentNumber}}</strong>
+      <div><small>{{.ShortID}}</small></div>
+    </div>
+    <span class="m-badge" style="background:rgba(107,114,128,0.15);color:var(--text-muted);">{{.Status}}</span>
+  </div>
+  {{end}}
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);">No receiving sessions.</p>
+  {{end}}
+</div>
+<div class="m-scan-hint">📷 Scan PO barcode to open a receiving session.</div>
+{{end}}
+{{end}}

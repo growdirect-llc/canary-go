@@ -130,31 +130,66 @@ func APIKeyMiddleware(opts APIKeyMiddlewareOpts) func(http.Handler) http.Handler
 	}
 }
 
+// keyPrefixLen is the number of plaintext characters (after the cy_
+// brand prefix) used to bucket keys for indexed verify-loop selection.
+// 8 base32 characters = 40 bits of entropy in the prefix space, more
+// than enough to filter to ~1 candidate per request without leaking
+// the secret material.
+const keyPrefixLen = len(KeyPlaintextPrefix) + 8
+
+// extractPrefix returns the indexable prefix of a plaintext API key
+// (the brand prefix + first 8 random characters). Returns "" if the
+// plaintext is too short to have a prefix — callers fall back to the
+// full scan, which is also the path for legacy NULL-prefix rows.
+func extractPrefix(plaintext string) string {
+	if len(plaintext) < keyPrefixLen {
+		return ""
+	}
+	return plaintext[:keyPrefixLen]
+}
+
 // AuthenticateAPIKey verifies plaintext against app.api_keys and
 // returns the claim set on success. Updates last_used_at as a
 // side-effect — fire-and-forget UPDATE outside the request hot-path.
 //
-// Lookup strategy: we cannot index on a hash of the plaintext
-// (argon2id is non-deterministic; salt-per-row), so the verify
-// loop scans active keys. The tenant_id filter limits the candidate
-// set when the caller has hinted a tenant via header X-Canary-Merchant.
-// Otherwise platform-scope keys (tenant_id IS NULL) are checked first,
-// then a full active-keys scan as fallback. For dev/test scale this
-// is fine; production scale gets a per-prefix sharding optimization
-// when key counts cross 10⁴ per tenant.
+// Lookup strategy (post-T-L):
+//  1. Extract the indexable prefix from the plaintext (cy_<8 chars>).
+//  2. Filter candidate rows by `WHERE key_prefix = $1` using the
+//     idx_api_keys_key_prefix index. Normal case: 1 candidate.
+//  3. Run argon2id verify on the candidate(s).
+//  4. If no rows match the prefix (legacy NULL-prefix rows from before
+//     the T-L migration), fall back to the full active scan + verify
+//     loop so legacy keys keep working until they're rotated.
+//
+// argon2id is non-deterministic (salt-per-row), so we cannot index on
+// the hash directly — but the plaintext prefix gives us a deterministic
+// filter that's safe to expose (it's already on the wire) and reduces
+// the verify-loop cost from O(n) to O(1) for new keys.
 func AuthenticateAPIKey(ctx context.Context, pool *pgxpool.Pool, plaintext string) (*APIKeyAuthClaims, error) {
 	if !strings.HasPrefix(plaintext, KeyPlaintextPrefix) {
 		return nil, ErrAPIKeyInvalid
+	}
+
+	// Fast path: prefix-indexed candidate selection.
+	if prefix := extractPrefix(plaintext); prefix != "" {
+		if claims, err := authenticateByPrefix(ctx, pool, plaintext, prefix); err == nil {
+			return claims, nil
+		} else if !errors.Is(err, ErrAPIKeyInvalid) {
+			return nil, err
+		}
+		// ErrAPIKeyInvalid from prefix path → fall through to legacy scan
+		// in case the row predates the prefix migration.
 	}
 
 	const q = `
 		SELECT id, tenant_id, agent_name, key_hash, scopes, status, expires_at
 		  FROM app.api_keys
 		 WHERE status = 'active'
-		   AND (expires_at IS NULL OR expires_at > now())`
+		   AND (expires_at IS NULL OR expires_at > now())
+		   AND key_prefix IS NULL`
 	rows, err := pool.Query(ctx, q)
 	if err != nil {
-		return nil, fmt.Errorf("identity: query api_keys: %w", err)
+		return nil, fmt.Errorf("identity: query api_keys (legacy): %w", err)
 	}
 	defer rows.Close()
 
@@ -197,6 +232,60 @@ func AuthenticateAPIKey(ctx context.Context, pool *pgxpool.Pool, plaintext strin
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("identity: iter api_keys: %w", err)
+	}
+	return nil, ErrAPIKeyInvalid
+}
+
+// authenticateByPrefix is the indexed-fast-path of AuthenticateAPIKey.
+// Filters candidate rows by the deterministic plaintext prefix and
+// runs argon2id verify on the (typically single) match.
+func authenticateByPrefix(ctx context.Context, pool *pgxpool.Pool, plaintext, prefix string) (*APIKeyAuthClaims, error) {
+	const q = `
+		SELECT id, tenant_id, agent_name, key_hash, scopes, status, expires_at
+		  FROM app.api_keys
+		 WHERE status = 'active'
+		   AND key_prefix = $1
+		   AND (expires_at IS NULL OR expires_at > now())`
+	rows, err := pool.Query(ctx, q, prefix)
+	if err != nil {
+		return nil, fmt.Errorf("identity: query api_keys (prefix): %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			id        uuid.UUID
+			tenantID  *uuid.UUID
+			agentName string
+			keyHash   string
+			scopes    []string
+			status    string
+			expiresAt *time.Time
+		)
+		if err := rows.Scan(&id, &tenantID, &agentName, &keyHash, &scopes, &status, &expiresAt); err != nil {
+			return nil, fmt.Errorf("identity: scan api_keys (prefix): %w", err)
+		}
+		ok, verr := VerifyAPIKey(plaintext, keyHash)
+		if verr != nil || !ok {
+			continue
+		}
+		go func(keyID uuid.UUID) {
+			ctx2, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			_, _ = pool.Exec(ctx2,
+				`UPDATE app.api_keys SET last_used_at = now() WHERE id = $1`,
+				keyID,
+			)
+		}(id)
+		return &APIKeyAuthClaims{
+			KeyID:     id,
+			TenantID:  tenantID,
+			AgentName: agentName,
+			Scopes:    scopes,
+		}, nil
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("identity: iter api_keys (prefix): %w", err)
 	}
 	return nil, ErrAPIKeyInvalid
 }
@@ -278,10 +367,11 @@ func CreateAPIKeyRow(
 	}
 	const insertQ = `
 		INSERT INTO app.api_keys
-		    (tenant_id, agent_name, key_hash, scopes, rate_limit_rpm, expires_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		    (tenant_id, agent_name, key_hash, key_prefix, scopes, rate_limit_rpm, expires_at)
+		VALUES ($1, $2, $3, NULLIF($4, ''), $5, $6, $7)
 		RETURNING id`
-	row := pool.QueryRow(ctx, insertQ, tenantID, agentName, hash, scopes, rateLimitRPM, expiresAt)
+	prefix := extractPrefix(plaintext)
+	row := pool.QueryRow(ctx, insertQ, tenantID, agentName, hash, prefix, scopes, rateLimitRPM, expiresAt)
 	if err := row.Scan(&id); err != nil {
 		return "", uuid.Nil, fmt.Errorf("identity: insert api_key: %w", err)
 	}

@@ -3,7 +3,7 @@
 // exposure). Helpers take a pgxpool.Pool, a tenant_id, and a period
 // window — returning DTO types from the parent owl package.
 //
-// SQL dialect: PostgreSQL 17. Raw SQL per Loop 2 dispatch override
+// SQL dialect: PostgreSQL 17. Raw SQL per override
 // (CanaryGo CLAUDE.md mandates sqlc; dispatch suspends that rule
 // because Wave 1 types are hand-written and the dashboard surface is
 // still moving fast — sqlc retrofit is Loop 3).
@@ -17,7 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/growdirect-llc/rapidpos/internal/owl/dtotypes"
+	"github.com/ruptiv/canary/internal/owl/dtotypes"
 )
 
 // SalesSummary aggregates transaction.transactions over [from, to).

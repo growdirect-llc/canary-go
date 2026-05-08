@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/protocol/sub3"
+	"github.com/ruptiv/canary/internal/protocol/sub3"
 )
 
 // Handler exposes the L402 sat-gated verification API.

@@ -13,11 +13,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/auth"
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/identity"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+	"github.com/ruptiv/canary/internal/auth"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 type handlers struct {
@@ -107,7 +107,7 @@ func (h *handlers) sessionsValidate(w http.ResponseWriter, r *http.Request) {
 
 // ─────────────────────────────────────────────────────────────────────
 // /v1/identity/* — API key lifecycle + caller introspection
-// (GRO-763 Phase C.6 / folds GRO-688)
+//
 // ─────────────────────────────────────────────────────────────────────
 
 type createKeyRequest struct {

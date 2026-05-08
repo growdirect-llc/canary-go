@@ -1,0 +1,217 @@
+{{define "etl.html"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>etl · Canary Sysadmin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0e1117;
+      --bg-2: #161b22;
+      --bg-3: #1f2630;
+      --border: #2a313c;
+      --text: #c9d1d9;
+      --text-muted: #8b949e;
+      --accent: #FBBF24;
+      --accent-2: #58a6ff;
+      --p0: #f85149;
+      --tier-daily-batch: #58a6ff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; font-size: 14px; line-height: 1.5; }
+    code, pre, .mono { font-family: 'JetBrains Mono', Menlo, monospace; }
+
+    .sidebar { background: var(--bg-2); border-right: 1px solid var(--border); padding: 20px 16px; overflow-y: auto; }
+    .sidebar-brand { font-weight: 700; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); margin-bottom: 24px; }
+    .sidebar-group-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 16px 0 8px; }
+    .sidebar a { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 13px; }
+    .sidebar a:hover { background: var(--bg-3); }
+    .sidebar a.active { background: var(--bg-3); color: var(--accent); font-weight: 500; }
+    .sidebar-tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--bg-3); color: var(--text-muted); }
+    .sidebar a.active .sidebar-tag { background: var(--accent); color: var(--bg); }
+
+    main { padding: 24px 32px; overflow-x: auto; }
+    .topnav { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .topnav-spacer { flex: 1; }
+    .topnav-selector { background: var(--bg-2); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px; }
+    .topnav-selector label { color: var(--text-muted); margin-right: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    .zone { background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+    .zone-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 12px; }
+
+    .zone-header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+    .zone-header h1 { font-size: 24px; font-weight: 600; }
+    .zone-header .port { font-family: 'JetBrains Mono', Menlo, monospace; color: var(--text-muted); }
+    .zone-header .priority { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; background: var(--p0); color: white; }
+    .zone-header .scope { color: var(--text-muted); font-size: 12px; }
+
+    .capability { display: grid; grid-template-columns: 120px 1fr; gap: 8px 16px; align-items: center; font-size: 13px; }
+    .capability dt { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .capability dd .pill { display: inline-block; background: var(--bg-3); border: 1px solid var(--border); padding: 2px 8px; border-radius: 4px; margin-right: 4px; font-size: 12px; font-family: 'JetBrains Mono', Menlo, monospace; }
+
+    .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .kpi-tile { background: var(--bg-3); border-radius: 6px; padding: 16px; text-align: center; }
+    .kpi-tile .value { font-size: 28px; font-weight: 700; color: var(--accent); }
+    .kpi-tile .value.muted { color: var(--text-muted); }
+    .kpi-tile .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-top: 4px; }
+
+    .source-list { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+    .source-row { display: flex; justify-content: space-between; padding: 8px 12px; background: var(--bg-3); border-radius: 6px; }
+    .source-row a { color: var(--accent-2); text-decoration: none; font-family: 'JetBrains Mono', Menlo, monospace; font-size: 12px; }
+    .source-row .role { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* Stage flow */
+    .etl-flow { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; align-items: stretch; margin-bottom: 24px; }
+    .etl-stage { background: var(--bg-3); border: 1px solid var(--border); border-top: 3px solid var(--tier-daily-batch); border-radius: 8px; padding: 16px; position: relative; display: flex; flex-direction: column; }
+    .etl-stage:not(:last-child)::after { content: "→"; position: absolute; right: -14px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 18px; z-index: 2; }
+    .etl-stage .stage-num { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600; margin-bottom: 4px; }
+    .etl-stage .stage-name { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+    .etl-stage .stage-role { font-size: 12px; color: var(--text); line-height: 1.5; margin-bottom: 12px; flex: 1; }
+    .etl-stage .stage-tables-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 4px; padding-top: 10px; border-top: 1px solid var(--border); }
+    .etl-stage .stage-table-pill { display: inline-block; font-family: 'JetBrains Mono', Menlo, monospace; font-size: 11px; padding: 2px 6px; background: var(--bg-2); border-radius: 3px; margin: 2px 4px 2px 0; color: var(--text-muted); }
+    .etl-stage .stage-source { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 10px; color: var(--text-muted); padding-top: 8px; }
+    .etl-stage .stage-source a { color: var(--accent-2); text-decoration: none; }
+    @media (max-width: 1100px) {
+      .etl-flow { grid-template-columns: 1fr; }
+      .etl-stage:not(:last-child)::after { content: "↓"; right: 50%; top: auto; bottom: -14px; transform: translateX(50%); }
+    }
+
+    /* Table catalog */
+    .table-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+    .table-card { background: var(--bg-3); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+    .table-card .table-name { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 14px; font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+    .table-card .table-stage { display: inline-block; font-size: 10px; padding: 1px 6px; background: var(--bg-2); border-radius: 3px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; }
+    .table-card .table-cadence { color: var(--text-muted); font-size: 11px; margin-bottom: 8px; }
+    .table-card .table-role { font-size: 12px; line-height: 1.45; margin-bottom: 8px; }
+    .table-card .table-grouping { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 10px; color: var(--text-muted); padding-top: 8px; border-top: 1px solid var(--border); }
+
+    .placeholder { padding: 32px; text-align: center; color: var(--text-muted); background: var(--bg-3); border-radius: 6px; }
+
+    .linked-list { display: flex; gap: 12px; flex-wrap: wrap; }
+    .linked-card { flex: 1; min-width: 180px; padding: 12px 16px; background: var(--bg-3); border-radius: 6px; }
+    .linked-card .name { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+    .linked-card .name a { color: var(--accent-2); text-decoration: none; }
+    .linked-card .role { color: var(--text-muted); font-size: 11px; }
+  </style>
+</head>
+<body>
+  {{template "sidebar.html" .}}
+
+  <main>
+    <div class="topnav">
+      <div class="topnav-selector mono"><label>Tenant</label>{{.Tenant}}</div>
+      <div class="topnav-selector mono"><label>Env</label>{{.Env}}</div>
+      <div class="topnav-spacer"></div>
+      <div class="topnav-selector"><label>Status</label><span style="color: var(--text-muted);">discovery surface only · runtime not built</span></div>
+    </div>
+
+    <div class="zone zone-header">
+      <h1>etl</h1>
+      <span class="port mono">:{{.Service.Port}}</span>
+      <span class="priority">{{.Service.Priority}}</span>
+      <span class="scope">{{.Service.Category}} · {{.Service.Scope}}</span>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Capability</div>
+      <dl class="capability">
+        <dt>Owner</dt><dd>{{.Service.Owner}}</dd>
+        <dt>Cells</dt><dd>{{range .Service.Cells}}<span class="pill">{{.}}</span>{{end}}</dd>
+        <dt>Tier</dt><dd>Daily-batch · cron-driven export · idempotent re-run on the same date range</dd>
+        <dt>Recovery</dt><dd>From <code class="mono">Canary/canary/services/metrics_etl.py</code> + <code class="mono">etl_runner.py</code> + <code class="mono">period_aggregation.py</code> (~1,500 LOC). Runtime port = separate multi-ticket; this page is the contract surface.</dd>
+      </dl>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">KPIs</div>
+      <div class="kpi-strip">
+        <div class="kpi-tile"><div class="value">{{.StageCount}}</div><div class="label">Pipeline stages</div></div>
+        <div class="kpi-tile"><div class="value">{{.TableCount}}</div><div class="label">Fact tables</div></div>
+        <div class="kpi-tile"><div class="value muted">offline</div><div class="label">Scheduler status</div></div>
+        <div class="kpi-tile"><div class="value muted">—</div><div class="label">Last run</div></div>
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Endpoints (Source files)</div>
+      <div class="source-list">
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/Canary/canary/services/metrics_etl.py">Canary/canary/services/metrics_etl.py</a>
+          <span class="role">Stage 1 — Daily aggregation</span>
+        </div>
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/Canary/canary/services/etl_runner.py">Canary/canary/services/etl_runner.py</a>
+          <span class="role">Unified runner + before/after counts</span>
+        </div>
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/Canary/canary/services/period_aggregation.py">Canary/canary/services/period_aggregation.py</a>
+          <span class="role">Stage 2 — Period rollup</span>
+        </div>
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/docs/sdds/go-handoff/data-model.md">docs/sdds/go-handoff/data-model.md</a>
+          <span class="role">Schema (metrics fact tables)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Pipeline stages</div>
+      <div class="etl-flow">
+        {{range .Stages}}
+        <div class="etl-stage">
+          <div class="stage-num">Stage {{.Index}}</div>
+          <div class="stage-name">{{.Name}}</div>
+          <div class="stage-role">{{.Role}}</div>
+          <div class="stage-tables-label">Writes to</div>
+          <div>
+            {{range .Tables}}<span class="stage-table-pill">{{.}}</span>{{end}}
+          </div>
+          <div class="stage-source">Source: <a href="https://github.com/growdirectprez/GrowDirect/blob/main/{{.Source}}">{{.Source}}</a></div>
+        </div>
+        {{end}}
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Fact tables ({{.TableCount}})</div>
+      <div class="table-grid">
+        {{range .Tables}}
+        <div class="table-card">
+          <div class="table-name">{{.Name}}</div>
+          <div class="table-stage">Stage {{.Stage}} · {{.Cadence}}</div>
+          <div class="table-role">{{.Role}}</div>
+          <div class="table-grouping">Grouped by: {{.GroupedBy}}</div>
+        </div>
+        {{end}}
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Activity — Run history (planned)</div>
+      <div class="placeholder">
+        Run history (start time · merchant · date range · before/after row counts per table · errors · duration) wires when the Go ETL package ships. Source shape is <code class="mono">ETLResult</code> in <code class="mono">etl_runner.py</code>.
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Linked</div>
+      <div class="linked-list">
+        <div class="linked-card">
+          <div class="name"><a href="/devops/pipeline">pipeline</a></div>
+          <div class="role">Upstream — TSP writes canary_sales transactions ETL reads from</div>
+        </div>
+        <div class="linked-card">
+          <div class="name"><a href="/devops/observability">observability</a></div>
+          <div class="role">Daily-batch tier — schedule-adherence + checksum-diff health semantics</div>
+        </div>
+        <div class="linked-card">
+          <div class="name"><a href="/devops/catalog">catalog</a></div>
+          <div class="role">3×5 grid — etl occupies B × daily-batch cell</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>{{end}}

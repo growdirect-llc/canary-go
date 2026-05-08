@@ -9,7 +9,7 @@
 // detection; it returns whether the detection count in the window
 // exceeds the threshold and what severity to assign.
 //
-// Spec: GRO-766 Phase A.2.
+//
 
 package alert
 

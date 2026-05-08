@@ -10,7 +10,7 @@
 //	go test -tags=integration -v ./internal/chirp/...
 //
 // Wave 3 coordinator runs this; do NOT run it in parallel subagent
-// sessions or it will collide with other Loop 2 wave 2 fixtures.
+// sessions or it will collide with other fixtures.
 package chirp_test
 
 import (
@@ -28,8 +28,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/chirp"
-	"github.com/growdirect-llc/rapidpos/internal/chirp/rules"
+	"github.com/ruptiv/canary/internal/chirp"
+	"github.com/ruptiv/canary/internal/chirp/rules"
 )
 
 func skipIfNoIntegration(t *testing.T) string {

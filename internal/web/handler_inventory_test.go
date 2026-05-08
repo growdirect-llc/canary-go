@@ -1,3 +1,5 @@
+//go:build integration
+
 package web_test
 
 import (
@@ -9,9 +11,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/inventory"
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
-	"github.com/growdirect-llc/rapidpos/internal/web"
+	"github.com/ruptiv/canary/internal/inventory"
+	"github.com/ruptiv/canary/internal/testutil"
+	"github.com/ruptiv/canary/internal/web"
 )
 
 // TestTransferList_Renders_NoStore — list page renders empty when no store wired.
@@ -36,7 +38,7 @@ func TestTransferList_Renders_NoStore(t *testing.T) {
 func TestTransferList_Renders_WithStore(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{InventoryStore: inventory.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -66,7 +68,7 @@ func TestTransferDetail_BadID_Returns404(t *testing.T) {
 func TestTransferDetail_NotFound_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{InventoryStore: inventory.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -115,7 +117,7 @@ func TestTransferVariance_BadID_Returns404(t *testing.T) {
 func TestReportDistribution_Renders(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{InventoryStore: inventory.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -131,7 +133,7 @@ func TestReportDistribution_Renders(t *testing.T) {
 func TestReportInventory_Renders(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{InventoryStore: inventory.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

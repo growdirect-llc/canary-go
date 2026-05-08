@@ -61,6 +61,10 @@
 
     <div class="sidebar-section">
       <div class="sidebar-section-label">Ops</div>
+      <a href="/tasks" class="sidebar-item{{if eq .Page "tasks"}} active{{end}}" data-color="tasks">
+        <span class="nav-icon" style="background: var(--nav-chirps);"></span>
+        Tasks
+      </a>
       <a href="/transfers" class="sidebar-item{{if eq .Page "transfers"}} active{{end}}" data-color="transfers">
         <span class="nav-icon" style="background: var(--nav-transactions);"></span>
         Transfers
@@ -77,6 +81,50 @@
         <span class="nav-icon" style="background: var(--nav-dashboard);"></span>
         Items
       </a>
+      <a href="/assets" class="sidebar-item{{if eq .Page "assets"}} active{{end}}" data-color="assets">
+        <span class="nav-icon" style="background: var(--nav-dashboard);"></span>
+        Assets
+      </a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Channels</div>
+      <a href="/ecom/orders" class="sidebar-item{{if eq .Page "channels"}} active{{end}}" data-color="channels">
+        <span class="nav-icon" style="background: var(--nav-transactions);"></span>
+        Ecom Orders
+      </a>
+      <a href="/ecom/sync" class="sidebar-item" data-color="channels">
+        <span class="nav-icon" style="background: var(--nav-chirps);"></span>
+        Ecom Sync
+      </a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Procurement</div>
+      <a href="/suppliers" class="sidebar-item{{if eq .Page "procurement"}} active{{end}}" data-color="procurement">
+        <span class="nav-icon" style="background: var(--nav-employees);"></span>
+        Suppliers
+      </a>
+      <a href="/po" class="sidebar-item" data-color="procurement">
+        <span class="nav-icon" style="background: var(--nav-transactions);"></span>
+        Purchase Orders
+      </a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Billing</div>
+      <a href="/billing/overview" class="sidebar-item{{if eq .Page "billing"}} active{{end}}" data-color="billing">
+        <span class="nav-icon" style="background: var(--nav-reports);"></span>
+        Overview
+      </a>
+      <a href="/billing/invoices" class="sidebar-item" data-color="billing">
+        <span class="nav-icon" style="background: var(--nav-audit);"></span>
+        Invoices
+      </a>
+      <a href="/billing/payment-method" class="sidebar-item" data-color="billing">
+        <span class="nav-icon" style="background: var(--nav-employees);"></span>
+        Payment Method
+      </a>
     </div>
 
     <div class="sidebar-section">
@@ -84,6 +132,22 @@
       <a href="/reports" class="sidebar-item{{if eq .Page "reports"}} active{{end}}" data-color="reports">
         <span class="nav-icon" style="background: var(--nav-reports);"></span>
         Reports
+      </a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Intelligence</div>
+      <a href="/owl/dashboards" class="sidebar-item{{if eq .Page "owl_intel"}} active{{end}}" data-color="owl">
+        <span class="nav-icon" style="background: var(--nav-chirps);"></span>
+        Dashboards
+      </a>
+      <a href="/owl/parties" class="sidebar-item" data-color="owl">
+        <span class="nav-icon" style="background: var(--nav-employees);"></span>
+        Parties
+      </a>
+      <a href="/owl/lp-performance" class="sidebar-item" data-color="owl">
+        <span class="nav-icon" style="background: var(--nav-audit);"></span>
+        LP Performance
       </a>
     </div>
 
@@ -110,6 +174,40 @@
       </a>
       {{end}}
     </div>
+
+    {{if .User.IsAdmin}}
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Admin</div>
+      <a href="/admin/audit" class="sidebar-item{{if eq .Page "admin"}} active{{end}}" data-color="admin">
+        <span class="nav-icon" style="background: var(--nav-audit);"></span>
+        Audit Log
+      </a>
+      <a href="/admin/iso27001" class="sidebar-item" data-color="admin">
+        <span class="nav-icon" style="background: var(--nav-reports);"></span>
+        ISO 27001
+      </a>
+      <a href="/admin/users" class="sidebar-item" data-color="admin">
+        <span class="nav-icon" style="background: var(--nav-employees);"></span>
+        Users
+      </a>
+      <a href="/admin/config" class="sidebar-item" data-color="admin">
+        <span class="nav-icon" style="background: var(--nav-settings);"></span>
+        Config Health
+      </a>
+      <a href="/admin/hierarchy" class="sidebar-item" data-color="admin">
+        <span class="nav-icon" style="background: var(--nav-dashboard);"></span>
+        Hierarchy
+      </a>
+      <a href="/admin/network-integrity" class="sidebar-item" data-color="admin">
+        <span class="nav-icon" style="background: var(--nav-chirps);"></span>
+        Network Integrity
+      </a>
+      <a href="/dashboards/cross-store" class="sidebar-item{{if eq .Page "dashboards"}} active{{end}}" data-color="admin">
+        <span class="nav-icon" style="background: var(--nav-reports);"></span>
+        Cross-Store
+      </a>
+    </div>
+    {{end}}
   </nav>
 
   <div class="sidebar-user">

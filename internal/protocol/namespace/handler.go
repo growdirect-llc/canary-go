@@ -6,18 +6,26 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/protocol/sub3"
-	"github.com/google/uuid"
+	"github.com/ruptiv/canary/internal/identity"
+	"github.com/ruptiv/canary/internal/protocol/sub3"
 )
 
 // Handler exposes the .jeffe namespace registration and lookup API.
 //
-//	POST /v1/protocol/namespace        — register a name
-//	GET  /v1/protocol/namespace/{name} — look up a registration
+//	POST /v1/protocol/namespace        — register a name (auth-required)
+//	GET  /v1/protocol/namespace/{name} — look up a registration (public)
+//
+// T-C splits the surface: lookups stay public (the namespace
+// is intentionally a public registry), but registration requires an
+// API key whose tenant matches the request's owner_id — preventing
+// spoofed registrations that claim ownership of someone else's
+// identity. Use MountPublic + MountProtected from the gateway to
+// place POST behind APIKeyMiddleware while leaving GET reachable.
 type Handler struct {
 	store     NamespaceStore
 	inscriber sub3.Inscriber
@@ -36,10 +44,26 @@ func New(pool *pgxpool.Pool, inscriber sub3.Inscriber, logger *zap.Logger) *Hand
 	}
 }
 
-// Mount registers both routes on a chi router.
+// Mount keeps the legacy single-router wiring for tests that don't
+// exercise auth. Production wiring (cmd/gateway/main.go) calls
+// MountPublic + MountProtected separately so POST sits behind
+// APIKeyMiddleware.
 func (h *Handler) Mount(r chi.Router) {
-	r.Post("/v1/protocol/namespace", h.handleRegister)
+	h.MountProtected(r)
+	h.MountPublic(r)
+}
+
+// MountPublic registers the read-only lookup. Reachable without an
+// API key — the namespace registry is intentionally world-readable.
+func (h *Handler) MountPublic(r chi.Router) {
 	r.Get("/v1/protocol/namespace/{name}", h.handleLookup)
+}
+
+// MountProtected registers the POST register endpoint. Caller must
+// place this inside a Group that runs APIKeyMiddleware so the
+// handler sees identity claims and can enforce tenant ownership.
+func (h *Handler) MountProtected(r chi.Router) {
+	r.Post("/v1/protocol/namespace", h.handleRegister)
 }
 
 // ─── POST /v1/protocol/namespace ─────────────────────────────────────────────
@@ -79,6 +103,29 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 	if req.OwnerType == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{
 			"code": "missing_owner_type",
+		})
+		return
+	}
+
+	// T-C: ownership proof. Caller must present an API key
+	// (claims attached by APIKeyMiddleware). Tenant-scoped keys can
+	// register names only against their own tenant UUID — a tenant-
+	// scoped caller passing a different owner_id would otherwise be
+	// claiming ownership of someone else's identity. Platform-scope
+	// keys (claims.TenantID == uuid.Nil) are exempt — those are
+	// admin-controlled and may register any owner.
+	claims, ok := identity.ClaimsFromContext(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{
+			"code":  "unauthenticated",
+			"error": "POST /v1/protocol/namespace requires an API key",
+		})
+		return
+	}
+	if claims.TenantID != uuid.Nil && claims.TenantID != ownerID {
+		writeJSON(w, http.StatusForbidden, map[string]string{
+			"code":  "owner_mismatch",
+			"error": "owner_id does not match the authenticated tenant",
 		})
 		return
 	}

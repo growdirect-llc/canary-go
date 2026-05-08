@@ -1,3 +1,5 @@
+//go:build integration
+
 package web_test
 
 import (
@@ -15,10 +17,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
-	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
-	"github.com/growdirect-llc/rapidpos/internal/transaction"
-	"github.com/growdirect-llc/rapidpos/internal/web"
+	"github.com/ruptiv/canary/internal/protocol/validate"
+	"github.com/ruptiv/canary/internal/testutil"
+	"github.com/ruptiv/canary/internal/transaction"
+	"github.com/ruptiv/canary/internal/web"
 )
 
 // seedTxnTenant inserts an org/tenant + a location.locations row and returns
@@ -155,7 +157,7 @@ func TestTransactionDetail_BadID_Returns404(t *testing.T) {
 func TestTransactionDetail_NotFound_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{TransactionStore: transaction.NewStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -171,7 +173,7 @@ func TestTransactionDetail_NotFound_Returns404(t *testing.T) {
 // + matching location, then queries via the handler. The web request runs
 // with tenantIDFromCtx → uuid.Nil so the GetByID returns NotFound (tenant
 // scoping). This documents the current state: real data wiring works, but
-// the renderer can only show data once identity middleware (GRO-769) lands
+// the renderer can only show data once identity middleware lands
 // and forwards a real tenant. The 404 IS the expected behavior pre-identity.
 func TestTransactionDetail_RealData(t *testing.T) {
 	ctx := context.Background()
@@ -189,7 +191,7 @@ func TestTransactionDetail_RealData(t *testing.T) {
 	}
 
 	deps := web.Deps{TransactionStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -216,7 +218,7 @@ func TestTransactionDetail_TenantIsolation_Returns404(t *testing.T) {
 	dto := seedTxn(t, ctx, store, tenantID, locID)
 
 	deps := web.Deps{TransactionStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -258,7 +260,7 @@ func deriveHashForTest(id string) string {
 func TestTransactionProof_Pending_NoAnchor(t *testing.T) {
 	stub := &stubValidateStore{proofs: map[string]*validate.AnchorProof{}}
 	deps := web.Deps{ValidateStore: stub}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -301,7 +303,7 @@ func TestTransactionProof_Valid_RendersAnchor(t *testing.T) {
 	}}
 
 	deps := web.Deps{ValidateStore: stub}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

@@ -94,9 +94,7 @@ CREATE TABLE IF NOT EXISTS app.merchant_settings (
     -- default) restricts visibility to LP-tier roles + auditor; the
     -- party-module de-merge UX returns 403 to other internal roles.
     -- 'all_internal' opens the trail to every authenticated tenant
-    -- user. Per OQ Resolution Pack §A.1 OQ-1.4 (founder-approved
-    -- 2026-05-03 per GRO-762). Handler-level enforcement lands when
-    -- the de-merge UX ships in a later loop.
+    -- user. Handler-level enforcement lands when the de-merge UX ships.
     de_merge_audit_visibility TEXT       NOT NULL DEFAULT 'lp_only'
                                          CHECK (de_merge_audit_visibility IN ('lp_only', 'all_internal')),
     -- three_way_match_variance_pct — variance tolerance for the PO ↔
@@ -436,6 +434,9 @@ CREATE TABLE IF NOT EXISTS app.api_keys (
     tenant_id       UUID        REFERENCES app.tenants(id),
     agent_name      TEXT        NOT NULL,
     key_hash        TEXT        NOT NULL UNIQUE,
+    -- key_prefix: first 11 plaintext characters (cy_<8 random>) used to
+    -- bucket the verify loop. NULL on legacy rows pre-T-L. GRO-860.
+    key_prefix      TEXT,
     scopes          TEXT[]      NOT NULL DEFAULT '{}',
     rate_limit_rpm  INT         NOT NULL DEFAULT 600,
     status          TEXT        NOT NULL DEFAULT 'active'
@@ -448,10 +449,10 @@ CREATE TABLE IF NOT EXISTS app.api_keys (
 );
 CREATE INDEX IF NOT EXISTS idx_api_keys_tenant_status ON app.api_keys(tenant_id, status);
 CREATE INDEX IF NOT EXISTS idx_api_keys_agent ON app.api_keys(agent_name);
+CREATE INDEX IF NOT EXISTS idx_api_keys_key_prefix ON app.api_keys(key_prefix) WHERE key_prefix IS NOT NULL;
 
 -- ─────────────────────────────────────────────────────────────────────
--- Workflow substrate — per OQ Resolution Pack §A.1 OQ-3.2
--- (founder-approved 2026-05-03 per GRO-762).
+-- Workflow substrate.
 --
 -- Two-table substrate for cross-cutting orchestration: long-running
 -- multi-step processes that span modules (three-way-match, l402
@@ -500,3 +501,56 @@ CREATE INDEX IF NOT EXISTS idx_workflow_exec_workflow
 CREATE INDEX IF NOT EXISTS idx_workflow_exec_external_ref
     ON app.workflow_executions(tenant_id, external_ref)
     WHERE external_ref IS NOT NULL;
+
+-- ─── JWT signing keys (T-2 / GRO-862) ─────────────────────────────────
+-- JWKS keystore with two-key rotation. One active row mints; active +
+-- retiring rows both verify; expired rows kept for forensic lookup.
+-- See deploy/migrations/033_signing_keys.up.sql for migration narrative.
+
+CREATE TABLE IF NOT EXISTS app.signing_keys (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    kid             TEXT NOT NULL UNIQUE,
+    alg             TEXT NOT NULL CHECK (alg IN ('RS256', 'ES256', 'EdDSA')),
+    public_jwk      JSONB NOT NULL,
+    private_key_pem TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'active'
+                    CHECK (status IN ('active', 'retiring', 'expired')),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    retiring_at     TIMESTAMPTZ,
+    retired_at      TIMESTAMPTZ,
+    CONSTRAINT signing_keys_status_timestamps_consistent CHECK (
+        (status = 'active'   AND retiring_at IS NULL AND retired_at IS NULL) OR
+        (status = 'retiring' AND retiring_at IS NOT NULL AND retired_at IS NULL) OR
+        (status = 'expired'  AND retiring_at IS NOT NULL AND retired_at IS NOT NULL)
+    )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS signing_keys_one_active
+    ON app.signing_keys (status)
+    WHERE status = 'active';
+
+CREATE INDEX IF NOT EXISTS signing_keys_verify_set
+    ON app.signing_keys (status, kid)
+    WHERE status IN ('active', 'retiring');
+
+-- ─── Refresh-token families (T-1 / GRO-861) ───────────────────────────
+-- Refresh-token family ledger with reuse detection. A family is
+-- created on /auth/login and continues across /auth/refresh
+-- rotations. A refresh request whose jti != last_jti revokes the
+-- whole family (OAuth 2.1 / RFC 6819 §5.2.2.3 pattern).
+-- See deploy/migrations/034_refresh_token_families.up.sql for
+-- migration narrative.
+
+CREATE TABLE IF NOT EXISTS app.refresh_token_families (
+    id              UUID PRIMARY KEY,
+    subject         UUID NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_used_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_jti        TEXT NOT NULL,
+    revoked_at      TIMESTAMPTZ,
+    revoked_reason  TEXT
+);
+
+CREATE INDEX IF NOT EXISTS refresh_token_families_subject
+    ON app.refresh_token_families(subject)
+    WHERE revoked_at IS NULL;

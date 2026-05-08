@@ -1,0 +1,31 @@
+{{template "base.html" .}}
+{{define "title"}}Onboarding — Canary{{end}}
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Onboarding &middot; Connect POS</h1>
+  <p class="page-subtitle">Step 1 of 4 &middot; Connect a Square or Counterpoint merchant account</p>
+</div>
+
+{{template "onboarding_progress" .}}
+
+<div class="ops-card" style="margin-bottom:24px;">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Pick a POS</div>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;">
+    <a href="/connect?source=square" class="ops-card" style="display:block;padding:24px;text-decoration:none;border:1px solid var(--border-subtle);">
+      <div style="font-size:18px;font-weight:600;color:var(--text-primary);">Square</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">OAuth flow &middot; webhook bind &middot; reads sales / refunds / employees</div>
+    </a>
+    <a href="/connect?source=counterpoint" class="ops-card" style="display:block;padding:24px;text-decoration:none;border:1px solid var(--border-subtle);">
+      <div style="font-size:18px;font-weight:600;color:var(--text-primary);">NCR Counterpoint</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">RapidPOS API &middot; credential pair &middot; reads sales / inventory / locations</div>
+    </a>
+  </div>
+</div>
+
+<div style="display:flex;justify-content:space-between;">
+  <span></span>
+  <a href="{{.NextURL}}" class="ops-btn ops-btn-primary" style="font-size:13px;padding:10px 24px;text-decoration:none;">Skip for now &rarr;</a>
+</div>
+{{end}}
+{{end}}

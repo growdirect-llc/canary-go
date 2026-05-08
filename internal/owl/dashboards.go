@@ -1,11 +1,11 @@
 // internal/owl/dashboards.go
 //
-// Wave C analytics surface — RFM rollups per party (consumer of the
-// party.decisioning_facts materialized view from Wave A B.5) plus
-// LP-rate metrics aggregating detection.detections / detection.cases. Spec: GRO-765
+// analytics surface — RFM rollups per party (consumer of the
+// party.decisioning_facts materialized view from plus
+// LP-rate metrics aggregating detection.detections / detection.cases.
 // Phase C.
 //
-// Loop 2 ships internal/owl/ with metrics aggregation primitives;
+// ships internal/owl/ with metrics aggregation primitives;
 // this file adds the Wave C dashboard endpoints. The existing owl
 // metrics package stays — these dashboards sit alongside it.
 
@@ -27,10 +27,10 @@ type PartyRFM struct {
 	PartyID         uuid.UUID `json:"party_id"`
 	TenantID        uuid.UUID `json:"tenant_id"`
 	Confidence      string    `json:"confidence"`
-	PartyValue      string    `json:"party_value"`     // numeric — 12-month rolling spend
-	PartyRecency    int       `json:"party_recency"`   // days since last_seen_at
-	PartyFrequency  int       `json:"party_frequency"` // 12-month transaction count
-	PartyMonetary   string    `json:"party_monetary"`  // 12-month average transaction
+	PartyValue string `json:"party_value"` // numeric — 12-month rolling spend
+	PartyRecency int `json:"party_recency"` // days since last_seen_at
+	PartyFrequency int `json:"party_frequency"` // 12-month transaction count
+	PartyMonetary string `json:"party_monetary"` // 12-month average transaction
 	PartyFraudRisk  string    `json:"party_fraud_risk"`
 	PartyChurnRisk  string    `json:"party_churn_risk"`
 	ComputedAt      time.Time `json:"computed_at"`
@@ -44,7 +44,7 @@ type LPRateMetric struct {
 	WindowEnd       time.Time `json:"window_end"`
 	DetectionCount  int       `json:"detection_count"`
 	CaseCount       int       `json:"case_count"`
-	EscalationRate  float64   `json:"escalation_rate"`  // case_count / detection_count
+	EscalationRate float64 `json:"escalation_rate"` // case_count / detection_count
 }
 
 // DashboardStore is the pgx-backed read layer for owl dashboards.
@@ -129,7 +129,7 @@ func (s *DashboardStore) ListPartyRFM(ctx context.Context, tenantID uuid.UUID, l
 
 // RefreshDecisioningFacts triggers REFRESH MATERIALIZED VIEW on
 // party.decisioning_facts. CONCURRENTLY when supported (postgres
-// requires a unique index — Wave A B.5 created idx_dfacts_party
+// requires a unique index — created idx_dfacts_party
 // UNIQUE so CONCURRENTLY works). Idempotent at the DB level.
 func (s *DashboardStore) RefreshDecisioningFacts(ctx context.Context) error {
 	if _, err := s.pool.Exec(ctx,

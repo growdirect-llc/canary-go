@@ -1,0 +1,26 @@
+{{template "base.html" .}}
+{{define "title"}}Welcome — Canary{{end}}
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>You're set up.</h1>
+  <p class="page-subtitle">Step 4 of 4 &middot; Where to look for your first detection</p>
+</div>
+
+{{template "onboarding_progress" .}}
+
+<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:24px;">
+  {{range .Tiles}}
+  <a href="{{.URL}}" class="ops-card" style="display:block;padding:24px;text-decoration:none;border:1px solid var(--border-subtle);">
+    <div style="font-size:18px;font-weight:600;color:{{.Color}};">{{.Title}}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">{{.Subtitle}}</div>
+  </a>
+  {{end}}
+</div>
+
+<div style="display:flex;justify-content:space-between;">
+  <a href="{{.PrevURL}}" style="font-size:13px;padding:10px 24px;color:var(--text-muted);text-decoration:none;">&larr; Back</a>
+  <a href="{{.NextURL}}" class="ops-btn ops-btn-primary" style="font-size:13px;padding:10px 24px;text-decoration:none;">Go to dashboard &rarr;</a>
+</div>
+{{end}}
+{{end}}

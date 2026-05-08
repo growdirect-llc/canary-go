@@ -2,20 +2,20 @@
 // upstream-of-customer identity node that resolves cashier / customer
 // / loyalty references into a single canonical party.parties row.
 //
-// Wave A B.5 (GRO-763) landed the schema (party.parties, party.identifiers,
+// B.5 landed the schema (party.parties, party.identifiers,
 // party.resolution_events, party.households, party.household_memberships,
-// party.household_evidence, party.decisioning_facts MV). Wave B C.2
+// party.household_evidence, party.decisioning_facts MV).
 // (this package) ships the resolution helpers Fox + downstream
 // modules call: ResolveFromDetection + ResolveSubject.
 //
 // Spec: GRO-764 Phase C.2 (folds Fox SDD-bug from
 // docs/sdds/go-handoff/canonical-data-model-party-edits.md §D).
 //
-// Posture: LAZY-mode resolution per OQ Resolution Pack §A.1 OQ-1.5.
-// Detection volume is 100×–1000× case volume; we resolve party at
-// case-escalation time (when Fox calls), not at every detection
-// write. Per-tenant override available via
-// app.tenants.attributes->>'subjects_resolve_mode' = 'eager'.
+// Posture: LAZY-mode resolution by default. Detection volume is
+// 100×–1000× case volume; we resolve party at case-escalation time
+// (when Fox calls), not at every detection write. Per-tenant override
+// available via app.tenants.attributes->>'subjects_resolve_mode' =
+// 'eager'.
 package party
 
 import (
@@ -29,7 +29,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/growdirect-llc/rapidpos/internal/db/types"
+	"github.com/ruptiv/canary/internal/db/types"
 )
 
 // IdentifierType values for party.identifiers.identifier_type.
@@ -72,7 +72,7 @@ func NewStore(pool *pgxpool.Pool) *Store {
 //
 // Returns nil when neither field is populated (detection has no
 // resolvable signal subject) — Fox handles this as "open case with
-// primary_subject_id NULL", same as Loop 2 behavior.
+// primary_subject_id NULL", same as behavior.
 //
 // LAZY-mode: each call performs UPSERT on
 // party.identifiers(tenant_id, identifier_type, identifier_value_hash)

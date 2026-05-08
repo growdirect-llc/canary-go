@@ -3,7 +3,7 @@
 // HTTP layer for analytics endpoints. All endpoints are tenant-scoped,
 // read-only aggregations. No mutations.
 //
-// Spec: GRO-766 Phase B.
+//
 
 package analytics
 
@@ -16,7 +16,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 // Handler binds analytics endpoints onto a chi router.

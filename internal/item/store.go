@@ -1,20 +1,20 @@
 // internal/item/store.go
 //
-// pgx-backed store for the item domain. Direct SQL — Loop 2 dispatch
+// pgx-backed store for the item domain. Direct SQL — 
 // overrides the codebase-wide sqlc rule (CanaryGo/CLAUDE.md). The
 // generated sqlc retrofit is a Loop 3 deliverable.
 //
 // Design notes:
-//   - Every read/write is tenant-scoped. The schema's UNIQUE constraints
-//     are (tenant_id, …); queries always include tenant_id in the
-//     predicate to avoid cross-tenant reads even on indexed lookups.
-//   - The barcode resolve query (GetByBarcode) is the keystone POS-scan
-//     path. It hits idx_barcodes_lookup (a partial unique index on
-//     active barcodes), joins catalog.items once, returns in a single round
-//     trip. No N+1, no extra fetches before the hot path returns.
-//   - Soft delete: DELETE flips status to 'inactive'. The dispatch said
-//     soft-delete unless the schema demands hard delete; catalog.items has a
-//     status column so soft is the right call.
+// - Every read/write is tenant-scoped. The schema's UNIQUE constraints
+// are (tenant_id, …); queries always include tenant_id in the
+// predicate to avoid cross-tenant reads even on indexed lookups.
+// - The barcode resolve query (GetByBarcode) is the keystone POS-scan
+// path. It hits idx_barcodes_lookup (a partial unique index on
+// active barcodes), joins catalog.items once, returns in a single round
+// trip. No N+1, no extra fetches before the hot path returns.
+// - Soft delete: DELETE flips status to 'inactive'. The dispatch said
+// soft-delete unless the schema demands hard delete; catalog.items has a
+// status column so soft is the right call.
 
 package item
 
@@ -30,7 +30,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/growdirect-llc/rapidpos/internal/db/types"
+	"github.com/ruptiv/canary/internal/db/types"
 )
 
 // Store is the data-access surface used by the HTTP handler. The
@@ -45,7 +45,22 @@ type Store interface {
 	Delete(ctx context.Context, tenantID, id uuid.UUID) error
 	List(ctx context.Context, f ListFilters) ([]Item, error)
 	ListCategories(ctx context.Context, tenantID uuid.UUID) ([]Category, error)
+	AggregateByCategory(ctx context.Context, tenantID uuid.UUID) ([]CategoryAggregate, error)
 	ListVendors(ctx context.Context, tenantID uuid.UUID) ([]Vendor, error)
+}
+
+// CategoryAggregate is the per-category report row produced by
+// AggregateByCategory. AvgMarginPct is the average of
+// ((default_price - default_cost) / default_price) * 100 across items
+// where default_price > 0; HasMargin is false when no priced items
+// exist (callers render "—"). Categories with zero items still appear,
+// with SKUCount=0 and HasMargin=false. 
+type CategoryAggregate struct {
+	CategoryID   uuid.UUID
+	Name         string
+	SKUCount     int
+	AvgMarginPct float64
+	HasMargin    bool
 }
 
 // PgxStore is the production Store. Construct with NewPgxStore(pool).
@@ -66,7 +81,7 @@ const itemColumns = `id, tenant_id, sku, description, short_description, item_ty
 // scanItem reads one catalog.items row from a Row interface (Row or RowsRow).
 // Numeric columns are cast to ::text in the SELECT so pgx delivers them
 // as Go strings — Wave 1 types use string for numerics until decimal
-// support lands in Loop 3.
+// support lands in
 func scanItem(row pgx.Row) (types.Item, error) {
 	var it types.Item
 	err := row.Scan(
@@ -491,6 +506,60 @@ func (s *PgxStore) ListCategories(ctx context.Context, tenantID uuid.UUID) ([]Ca
 	return out, rows.Err()
 }
 
+// AggregateByCategory returns SKU count + average margin per category
+// for the tenant. One row per category that exists for this tenant
+// (categories with zero items return SKUCount=0 + HasMargin=false).
+//
+// AvgMarginPct = AVG( ((default_price - default_cost) / default_price) * 100 )
+// across items where default_price > 0. Categories with no priced
+// items return HasMargin=false. Soft-deleted items (status='deleted')
+// are excluded.
+//
+// Replaces the in-memory bucket-and-average that ran on the first 500
+// items only — the SQL aggregate is a single round-trip and accurate
+// across the full catalog. 
+func (s *PgxStore) AggregateByCategory(ctx context.Context, tenantID uuid.UUID) ([]CategoryAggregate, error) {
+	q := `
+		SELECT
+		  c.id,
+		  c.name,
+		  COUNT(i.id) AS sku_count,
+		  AVG(
+		    CASE WHEN i.default_price > 0
+		         THEN ((i.default_price - COALESCE(i.default_cost, 0)) / i.default_price) * 100
+		    END
+		  ) AS avg_margin_pct
+		FROM catalog.product_categories c
+		LEFT JOIN catalog.items i
+		  ON i.category_id = c.id
+		  AND i.tenant_id = c.tenant_id
+		  AND i.status != 'deleted'
+		WHERE c.tenant_id = $1
+		  AND c.status != 'deleted'
+		GROUP BY c.id, c.name
+		ORDER BY c.name`
+	rows, err := s.pool.Query(ctx, q, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("item: aggregate by category: %w", err)
+	}
+	defer rows.Close()
+
+	var out []CategoryAggregate
+	for rows.Next() {
+		var a CategoryAggregate
+		var avg *float64
+		if err := rows.Scan(&a.CategoryID, &a.Name, &a.SKUCount, &avg); err != nil {
+			return nil, fmt.Errorf("item: scan category aggregate: %w", err)
+		}
+		if avg != nil {
+			a.AvgMarginPct = *avg
+			a.HasMargin = true
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
 // ListVendors returns the merchant's vendors.
 func (s *PgxStore) ListVendors(ctx context.Context, tenantID uuid.UUID) ([]Vendor, error) {
 	q := `SELECT id, tenant_id, vendor_code, name, short_name, vendor_type,
@@ -543,9 +612,9 @@ func derefBoolOr(p *bool, def bool) bool {
 
 // mapWriteErr translates a pgx error into the domain's sentinel set.
 // We care about three categories:
-//   - unique violation (23505) → ErrConflict
-//   - foreign-key violation (23503) → ErrValidation (caller passed a bad ID)
-//   - everything else → wrapped pgx error
+// - unique violation (23505) → ErrConflict
+// - foreign-key violation (23503) → ErrValidation (caller passed a bad ID)
+// - everything else → wrapped pgx error
 func mapWriteErr(err error, op string) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound

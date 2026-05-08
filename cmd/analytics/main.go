@@ -4,7 +4,7 @@
 // Exposes sales summary, basket metrics, customer cohort, item velocity,
 // and shrink indicators — all tenant-scoped, all API-key gated.
 //
-// Spec: GRO-766 Phase B.
+//
 package main
 
 import (
@@ -16,11 +16,11 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/analytics"
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/db"
-	"github.com/growdirect-llc/rapidpos/internal/identity"
-	"github.com/growdirect-llc/rapidpos/internal/obs"
+	"github.com/ruptiv/canary/internal/analytics"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/identity"
+	"github.com/ruptiv/canary/internal/obs"
 )
 
 const serviceName = "canary-analytics"

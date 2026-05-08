@@ -4,7 +4,7 @@
 // canonical alert surface. JOINs detection.detection_rules for the enriched
 // wire shape (rule_code, rule_category).
 //
-// Spec: GRO-766 Phase A.1.
+//
 
 package alert
 

@@ -1,0 +1,76 @@
+{{template "base.html" .}}
+
+{{define "title"}}Suppliers — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Suppliers</h1>
+  <p class="page-subtitle">Vendor master &middot; contact &middot; payment terms &middot; compliance status</p>
+</div>
+
+{{if .Flash}}
+<div style="margin-bottom:16px;padding:10px 14px;background:rgba(234,179,8,0.08);border:1px solid var(--signal-yellow);border-radius:6px;font-size:12px;color:var(--signal-yellow);">
+  Action: {{.Flash}}
+</div>
+{{end}}
+
+<div class="ops-card" style="margin-bottom:24px;">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">Add Supplier</div>
+  <form method="POST" action="/suppliers" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr auto;gap:8px;align-items:center;">{{ .CSRFField }}
+    <input type="text" name="supplier_name" placeholder="Supplier name" required style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"/>
+    <input type="email" name="contact_email" placeholder="contact@..." style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"/>
+    <input type="text" name="contact_phone" placeholder="Phone" style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"/>
+    <input type="text" name="payment_terms" placeholder="NET 30" style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"/>
+    <select name="compliance_status" style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;">
+      <option value="active">active</option>
+      <option value="review">review</option>
+      <option value="blocked">blocked</option>
+    </select>
+    <button type="submit" class="ops-btn ops-btn-primary" style="font-size:12px;padding:6px 14px;">Add</button>
+  </form>
+</div>
+
+<div style="display:flex;gap:12px;margin-bottom:24px;align-items:center;">
+  <form method="GET" action="/suppliers" style="display:flex;gap:8px;align-items:center;">
+    <label style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Compliance</label>
+    <select name="compliance" onchange="this.form.submit()" style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;">
+      <option value=""{{if eq .Compliance ""}} selected{{end}}>all</option>
+      {{$cur := .Compliance}}{{range $opt := .Options}}<option value="{{$opt}}"{{if eq $opt $cur}} selected{{end}}>{{$opt}}</option>{{end}}
+    </select>
+  </form>
+  <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">{{.Count}} suppliers</span>
+</div>
+
+<div class="ops-card">
+  {{if .Suppliers}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">ID</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Name</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Email</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Compliance</th>
+        <th style="padding:6px 0;text-align:left;font-weight:500;">Created</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Suppliers}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;font-family:'Space Grotesk',monospace;font-size:11px;color:var(--text-muted);"><a href="/suppliers/{{.ID}}" style="color:var(--text-muted);text-decoration:none;">{{.ShortID}}</a></td>
+        <td style="padding:10px 12px;color:var(--text-primary);"><a href="/suppliers/{{.ID}}" style="color:var(--text-primary);text-decoration:none;">{{.SupplierName}}</a></td>
+        <td style="padding:10px 12px;color:var(--text-secondary);">{{.ContactEmail}}</td>
+        <td style="padding:10px 12px;">
+          <span class="badge" style="{{if eq .ComplianceStatus "active"}}background:rgba(16,185,129,0.10);color:var(--health-green);{{else if eq .ComplianceStatus "review"}}background:rgba(234,179,8,0.12);color:var(--signal-yellow);{{else}}background:rgba(239,68,68,0.12);color:var(--critical-red);{{end}}">{{.ComplianceStatus}}</span>
+        </td>
+        <td style="padding:10px 0;color:var(--text-muted);font-size:11px;">{{.CreatedAt}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No suppliers yet. Use the form above to add one.</p>
+  {{end}}
+</div>
+{{end}}
+{{end}}

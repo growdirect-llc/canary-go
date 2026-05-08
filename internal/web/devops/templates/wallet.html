@@ -1,0 +1,239 @@
+{{define "wallet.html"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>wallet · Canary Sysadmin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0e1117;
+      --bg-2: #161b22;
+      --bg-3: #1f2630;
+      --border: #2a313c;
+      --text: #c9d1d9;
+      --text-muted: #8b949e;
+      --accent: #FBBF24;
+      --accent-2: #58a6ff;
+      --p0: #f85149;
+      --state-active: #3fb950;
+      --state-warning: #d29922;
+      --state-depleted: #f85149;
+      --state-suspended: #6e7681;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; font-size: 14px; line-height: 1.5; }
+    code, pre, .mono { font-family: 'JetBrains Mono', Menlo, monospace; }
+
+    .sidebar { background: var(--bg-2); border-right: 1px solid var(--border); padding: 20px 16px; overflow-y: auto; }
+    .sidebar-brand { font-weight: 700; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); margin-bottom: 24px; }
+    .sidebar-group-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 16px 0 8px; }
+    .sidebar a { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 13px; }
+    .sidebar a:hover { background: var(--bg-3); }
+    .sidebar a.active { background: var(--bg-3); color: var(--accent); font-weight: 500; }
+    .sidebar-tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--bg-3); color: var(--text-muted); }
+    .sidebar a.active .sidebar-tag { background: var(--accent); color: var(--bg); }
+
+    main { padding: 24px 32px; overflow-x: auto; }
+    .topnav { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .topnav-spacer { flex: 1; }
+    .topnav-selector { background: var(--bg-2); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px; }
+    .topnav-selector label { color: var(--text-muted); margin-right: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    .zone { background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+    .zone-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 12px; }
+
+    .zone-header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+    .zone-header h1 { font-size: 24px; font-weight: 600; }
+    .zone-header .port { font-family: 'JetBrains Mono', Menlo, monospace; color: var(--text-muted); }
+    .zone-header .priority { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; background: var(--p0); color: white; }
+    .zone-header .scope { color: var(--text-muted); font-size: 12px; }
+
+    .capability { display: grid; grid-template-columns: 120px 1fr; gap: 8px 16px; align-items: center; font-size: 13px; }
+    .capability dt { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .capability dd .pill { display: inline-block; background: var(--bg-3); border: 1px solid var(--border); padding: 2px 8px; border-radius: 4px; margin-right: 4px; font-size: 12px; font-family: 'JetBrains Mono', Menlo, monospace; }
+
+    .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .kpi-tile { background: var(--bg-3); border-radius: 6px; padding: 16px; text-align: center; }
+    .kpi-tile .value { font-size: 28px; font-weight: 700; color: var(--accent); }
+    .kpi-tile .value.muted { color: var(--text-muted); }
+    .kpi-tile .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-top: 4px; }
+
+    .source-list { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+    .source-row { display: flex; justify-content: space-between; padding: 8px 12px; background: var(--bg-3); border-radius: 6px; }
+    .source-row a { color: var(--accent-2); text-decoration: none; font-family: 'JetBrains Mono', Menlo, monospace; font-size: 12px; }
+    .source-row .role { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* L402 horizontal flow */
+    .l402-flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+    .l402-step { background: var(--bg-3); border: 1px solid var(--border); border-radius: 8px; padding: 12px; position: relative; border-left: 3px solid var(--accent); }
+    .l402-step:not(:last-child)::after { content: "→"; position: absolute; right: -12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 16px; z-index: 2; }
+    .l402-step .step-num { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600; margin-bottom: 4px; }
+    .l402-step .step-name { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    .l402-step .step-role { font-size: 11px; color: var(--text); line-height: 1.4; }
+    @media (max-width: 1100px) {
+      .l402-flow { grid-template-columns: 1fr; }
+      .l402-step:not(:last-child)::after { content: "↓"; right: 50%; top: auto; bottom: -14px; transform: translateX(50%); }
+    }
+
+    /* State machine */
+    .state-flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .state-card { background: var(--bg-3); border: 1px solid var(--border); border-radius: 8px; padding: 14px; border-top: 3px solid var(--text-muted); position: relative; }
+    .state-card[data-state="active"]    { border-top-color: var(--state-active); }
+    .state-card[data-state="warning"]   { border-top-color: var(--state-warning); }
+    .state-card[data-state="depleted"]  { border-top-color: var(--state-depleted); }
+    .state-card[data-state="suspended"] { border-top-color: var(--state-suspended); }
+    .state-card:not(:last-child)::after { content: "→"; position: absolute; right: -12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 16px; z-index: 2; }
+    .state-card .state-name { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    .state-card .state-desc { font-size: 11px; color: var(--text); line-height: 1.4; margin-bottom: 8px; }
+    .state-card .state-trans { font-size: 10px; color: var(--text-muted); padding-top: 8px; border-top: 1px solid var(--border); line-height: 1.4; }
+    @media (max-width: 1100px) {
+      .state-flow { grid-template-columns: 1fr; }
+      .state-card:not(:last-child)::after { content: "↓"; right: 50%; top: auto; bottom: -14px; transform: translateX(50%); }
+    }
+
+    /* Module catalog */
+    .module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+    .module-card { background: var(--bg-3); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+    .module-card .mod-name { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 6px; }
+    .module-card .mod-role { font-size: 12px; color: var(--text); line-height: 1.45; margin-bottom: 8px; }
+    .module-card .mod-owns-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 4px; padding-top: 8px; border-top: 1px solid var(--border); }
+    .module-card .mod-owns-pill { display: inline-block; font-family: 'JetBrains Mono', Menlo, monospace; font-size: 10px; padding: 2px 6px; background: var(--bg-2); border-radius: 3px; margin: 2px 4px 2px 0; color: var(--text-muted); }
+
+    .placeholder { padding: 32px; text-align: center; color: var(--text-muted); background: var(--bg-3); border-radius: 6px; }
+
+    .linked-list { display: flex; gap: 12px; flex-wrap: wrap; }
+    .linked-card { flex: 1; min-width: 180px; padding: 12px 16px; background: var(--bg-3); border-radius: 6px; }
+    .linked-card .name { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+    .linked-card .name a { color: var(--accent-2); text-decoration: none; }
+    .linked-card .role { color: var(--text-muted); font-size: 11px; }
+  </style>
+</head>
+<body>
+  {{template "sidebar.html" .}}
+
+  <main>
+    <div class="topnav">
+      <div class="topnav-selector mono"><label>Tenant</label>{{.Tenant}}</div>
+      <div class="topnav-selector mono"><label>Env</label>{{.Env}}</div>
+      <div class="topnav-spacer"></div>
+      <div class="topnav-selector"><label>Status</label><span style="color: var(--text-muted);">discovery surface only · runtime not built</span></div>
+    </div>
+
+    <div class="zone zone-header">
+      <h1>wallet</h1>
+      <span class="port mono">:{{.Service.Port}}</span>
+      <span class="priority">{{.Service.Priority}}</span>
+      <span class="scope">{{.Service.Category}} · {{.Service.Scope}}</span>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Capability</div>
+      <dl class="capability">
+        <dt>Owner</dt><dd>{{.Service.Owner}}</dd>
+        <dt>Cells</dt><dd>{{range .Service.Cells}}<span class="pill">{{.}}</span>{{end}}</dd>
+        <dt>Currency</dt><dd>Sats — Bitcoin Lightning Network. Treasury holds the float; merchant wallets hold per-tenant balances.</dd>
+        <dt>Recovery</dt><dd>From <code class="mono">Canary/canary/services/goose/</code> (9 modules, 1,311 LOC). Runtime port = multiple follow-on tickets; this page is the discovery surface.</dd>
+      </dl>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">KPIs</div>
+      <div class="kpi-strip">
+        <div class="kpi-tile"><div class="value">{{.ModuleCount}}</div><div class="label">Goose modules</div></div>
+        <div class="kpi-tile"><div class="value">{{.StateCount}}</div><div class="label">Wallet states</div></div>
+        <div class="kpi-tile"><div class="value muted">offline</div><div class="label">Strike client</div></div>
+        <div class="kpi-tile"><div class="value muted">$500</div><div class="label">Reserve floor</div></div>
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Endpoints (Source files)</div>
+      <div class="source-list">
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/Canary/canary/blueprints/goose_api.py">Canary/canary/blueprints/goose_api.py</a>
+          <span class="role">Flask blueprint — paywall + balance + ledger</span>
+        </div>
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/tree/main/Canary/canary/services/goose">Canary/canary/services/goose/</a>
+          <span class="role">Service modules (9 files)</span>
+        </div>
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/Canary/brain/wiki/canary-goose.md">Canary/brain/wiki/canary-goose.md</a>
+          <span class="role">Brain wiki — narrative</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">L402 paywall flow</div>
+      <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 12px;">Five-step handshake — RFC L402 (Lightning HTTP 402 Payment Required). Each metered endpoint enforces this loop via the <code class="mono">@gas_metered</code> decorator.</p>
+      <div class="l402-flow">
+        {{range .L402Flow}}
+        <div class="l402-step">
+          <div class="step-num">Step {{.Index}}</div>
+          <div class="step-name">{{.Name}}</div>
+          <div class="step-role">{{.Role}}</div>
+        </div>
+        {{end}}
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Wallet state machine</div>
+      <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 12px;">Lifecycle from <code class="mono">wallet_service.py</code>: <code class="mono">active → warning → depleted → suspended</code>. Suspended-state cron is captured as a follow-on dispatch.</p>
+      <div class="state-flow">
+        {{range .States}}
+        <div class="state-card" data-state="{{.Name}}">
+          <div class="state-name">{{.Name}}</div>
+          <div class="state-desc">{{.Description}}</div>
+          <div class="state-trans">{{.Transition}}</div>
+        </div>
+        {{end}}
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Goose modules ({{.ModuleCount}})</div>
+      <div class="module-grid">
+        {{range .Modules}}
+        <div class="module-card">
+          <div class="mod-name">{{.Name}}</div>
+          <div class="mod-role">{{.Role}}</div>
+          <div class="mod-owns-label">Owns</div>
+          <div>
+            {{range .Owns}}<span class="mod-owns-pill">{{.}}</span>{{end}}
+          </div>
+        </div>
+        {{end}}
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Activity — Ledger + pending invoices (planned)</div>
+      <div class="placeholder">
+        Wallet ledger drilldown (per-merchant credits/debits with source attribution) and pending Strike invoice list wire when the Goose runtime ports to Go. Schema migration for wallet tables is captured as an explicit spec exception — lands with the implementation, not this surface.
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">Linked</div>
+      <div class="linked-list">
+        <div class="linked-card">
+          <div class="name"><a href="/devops/anchor">anchor</a></div>
+          <div class="role">Bitcoin L2 anchor — same chain as Lightning settlement</div>
+        </div>
+        <div class="linked-card">
+          <div class="name"><a href="/devops/evidence">evidence</a></div>
+          <div class="role">Audit trail — wallet credits/debits hash-anchored alongside protocol evidence</div>
+        </div>
+        <div class="linked-card">
+          <div class="name"><a href="/devops/catalog">catalog</a></div>
+          <div class="role">3×5 grid — wallet occupies B × reference cell</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>{{end}}

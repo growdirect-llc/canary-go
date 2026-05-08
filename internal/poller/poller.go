@@ -3,17 +3,17 @@
 // Server and emits sale document events to the Canary protocol pipeline.
 //
 // Poll cycle (per active merchant, every 60 seconds):
-//  1. Load credentials from app.bull_api_credentials
-//  2. GET {endpoint_url}/Documents?since={cursor} with Basic Auth
-//  3. Wrap each document in a publisher.Event (source_code=counterpoint)
-//  4. Publish to Valkey stream "protocol:events" for Sub1 hash-seal
-//  5. Advance cursor to the latest DocumentDate in the batch
+// 1. Load credentials from app.bull_api_credentials
+// 2. GET {endpoint_url}/Documents?since={cursor} with Basic Auth
+// 3. Wrap each document in a publisher.Event (source_code=counterpoint)
+// 4. Publish to Valkey stream "protocol:events" for Sub1 hash-seal
+// 5. Advance cursor to the latest DocumentDate in the batch
 //
 // Cursor is stored in Valkey at key "counterpoint:cursor:{merchant_id}".
 // Per-merchant errors are logged and skipped — one bad credential does
 // not stall the whole poll cycle.
 //
-// GRO-801: Loop 4 — poll → wrap → publish. Parse logic stays in
+// poll → wrap → publish. Parse logic stays in
 // internal/adapters/counterpoint (consumed downstream by sub2-parse-route).
 package poller
 
@@ -32,8 +32,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/adapters"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
+	"github.com/ruptiv/canary/internal/adapters"
+	"github.com/ruptiv/canary/internal/protocol/publisher"
 )
 
 const (
@@ -62,7 +62,7 @@ type Config struct {
 	Valkey       *redis.Client
 	Publisher    publisher.Publisher
 	PollInterval time.Duration // defaults to 60s
-	HTTPTimeout  time.Duration // defaults to 20s
+	HTTPTimeout time.Duration // defaults to 20s
 }
 
 // New constructs a Poller. Panics if required fields are nil.
@@ -211,7 +211,7 @@ func (p *Poller) wrapDocument(merchantID uuid.UUID, raw json.RawMessage) (publis
 
 // fetchDocuments calls the Counterpoint REST API and returns raw document JSON.
 // The api_key_encrypted field is used directly as the Basic Auth password;
-// decryption (KMS) is a Loop 5 hardening step — test seeds store plaintext.
+// decryption (KMS) is a hardening step — test seeds store plaintext.
 func (p *Poller) fetchDocuments(ctx context.Context, cred adapters.Credential, since time.Time) ([]json.RawMessage, error) {
 	url := strings.TrimRight(cred.EndpointURL, "/") + "/Documents"
 	if !since.IsZero() {

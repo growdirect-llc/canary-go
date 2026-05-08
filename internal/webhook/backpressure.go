@@ -15,7 +15,7 @@
 // scale; if we cross 10⁵ events/min sustained against a single
 // merchant we re-tune via fixed-window reservoirs (deferred).
 //
-// Spec: GRO-764 Phase A.1.
+//
 
 package webhook
 

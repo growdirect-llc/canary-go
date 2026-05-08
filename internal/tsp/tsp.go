@@ -3,7 +3,7 @@
 // per event get gap detection + replay-by-sequence; sources that
 // don't supply one fall back to canonical event_hash dedup at sub1.
 //
-// Spec: GRO-764 Phase A.2 (folds part of GRO-642 epic). Companion
+// Companion
 // SDDs: docs/sdds/go-handoff/tsp.md, tsp-seal.md, tsp-parse.md,
 // feed-tier-contract.md.
 //

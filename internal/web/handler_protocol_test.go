@@ -1,3 +1,5 @@
+//go:build integration
+
 package web_test
 
 import (
@@ -8,10 +10,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/growdirect-llc/rapidpos/internal/protocol/namespace"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/validate"
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
-	"github.com/growdirect-llc/rapidpos/internal/web"
+	"github.com/ruptiv/canary/internal/protocol/namespace"
+	"github.com/ruptiv/canary/internal/protocol/validate"
+	"github.com/ruptiv/canary/internal/testutil"
+	"github.com/ruptiv/canary/internal/web"
 )
 
 // TestProtocolOverview_NoStores_RendersStub — empty-state copy renders
@@ -44,7 +46,7 @@ func TestProtocolOverview_WithStores_Renders(t *testing.T) {
 		ProtocolValidate:  validate.NewPgxStore(pool),
 		ProtocolNamespace: namespace.NewStore(pool),
 	}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -65,7 +67,7 @@ func TestProtocolOverview_WithStores_Renders(t *testing.T) {
 func TestProtocolOverview_OnlyValidate_Renders(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{ProtocolValidate: validate.NewPgxStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

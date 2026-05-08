@@ -1,6 +1,6 @@
 // Package pricing — price-resolve service. Given (tenant, location, line items,
 // optional customer, optional as_of), returns the resolved unit price after
-// promotions plus tax breakdown. Wave 2 of GRO-761 Loop 2.
+// promotions plus tax breakdown. 
 //
 // This package owns the on-the-wire request/response contract for
 // POST /v1/pricing/resolve plus three quick-lookup GET endpoints. The

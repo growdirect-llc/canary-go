@@ -1,0 +1,318 @@
+{{define "manifest.html"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>manifest · Canary Sysadmin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0e1117;
+      --bg-2: #161b22;
+      --bg-3: #1f2630;
+      --border: #2a313c;
+      --text: #c9d1d9;
+      --text-muted: #8b949e;
+      --accent: #FBBF24;
+      --accent-2: #58a6ff;
+      --pass: #3fb950;
+      --warn: #d29922;
+      --fail: #f85149;
+      --p0: #f85149;
+      --p1: #d29922;
+      --p2: #6e7681;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; font-size: 14px; line-height: 1.5; }
+    code, pre, .mono { font-family: 'JetBrains Mono', Menlo, monospace; }
+
+    .sidebar { background: var(--bg-2); border-right: 1px solid var(--border); padding: 20px 16px; overflow-y: auto; }
+    .sidebar-brand { font-weight: 700; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); margin-bottom: 24px; }
+    .sidebar-group-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 16px 0 8px; }
+    .sidebar a { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 13px; }
+    .sidebar a:hover { background: var(--bg-3); }
+    .sidebar a.active { background: var(--bg-3); color: var(--accent); font-weight: 500; }
+    .sidebar-tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--bg-3); color: var(--text-muted); }
+    .sidebar a.active .sidebar-tag { background: var(--accent); color: var(--bg); }
+
+    main { padding: 24px 32px; overflow-x: auto; }
+    .topnav { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .topnav-spacer { flex: 1; }
+    .topnav-selector { background: var(--bg-2); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px; }
+    .topnav-selector label { color: var(--text-muted); margin-right: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* Six-zone shell — same visual language as shell.html */
+    .zone { background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+    .zone-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 12px; }
+
+    .zone-header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+    .zone-header h1 { font-size: 24px; font-weight: 600; }
+    .zone-header .port { font-family: 'JetBrains Mono', Menlo, monospace; color: var(--text-muted); }
+    .zone-header .priority { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+    .zone-header .priority.P0 { background: var(--p0); color: white; }
+    .zone-header .scope { color: var(--text-muted); font-size: 12px; }
+
+    .capability { display: grid; grid-template-columns: 120px 1fr; gap: 8px 16px; align-items: center; font-size: 13px; }
+    .capability dt { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .capability dd .pill { display: inline-block; background: var(--bg-3); border: 1px solid var(--border); padding: 2px 8px; border-radius: 4px; margin-right: 4px; font-size: 12px; font-family: 'JetBrains Mono', Menlo, monospace; }
+
+    /* KPI strip */
+    .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .kpi-tile { background: var(--bg-3); border-radius: 6px; padding: 16px; text-align: center; }
+    .kpi-tile .value { font-size: 28px; font-weight: 700; color: var(--accent); }
+    .kpi-tile .value.muted { color: var(--text-muted); }
+    .kpi-tile .value.pass { color: var(--pass); }
+    .kpi-tile .value.warn { color: var(--warn); }
+    .kpi-tile .value.fail { color: var(--fail); }
+    .kpi-tile .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-top: 4px; }
+
+    /* Source files (Endpoints zone) */
+    .source-list { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+    .source-row { display: flex; justify-content: space-between; padding: 8px 12px; background: var(--bg-3); border-radius: 6px; }
+    .source-row a { color: var(--accent-2); text-decoration: none; font-family: 'JetBrains Mono', Menlo, monospace; font-size: 12px; }
+    .source-row .role { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* Services table */
+    .svc-section { margin-top: 8px; }
+    .svc-section-title { font-size: 12px; color: var(--text-muted); margin: 16px 0 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .svc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .svc-table th { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+    .svc-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    .svc-table tr:last-child td { border-bottom: 0; }
+    .svc-table tr:hover { background: var(--bg-3); }
+    .svc-table a { color: var(--accent-2); text-decoration: none; }
+    .svc-table a:hover { text-decoration: underline; }
+    .svc-table .priority { font-size: 10px; padding: 1px 8px; border-radius: 3px; font-weight: 600; }
+    .svc-table .priority.P0 { background: var(--p0); color: white; }
+    .svc-table .priority.P1 { background: var(--p1); color: var(--bg); }
+    .svc-table .priority.P2 { background: var(--p2); color: white; }
+    .svc-table .pill { display: inline-block; background: var(--bg-3); border: 1px solid var(--border); padding: 1px 8px; border-radius: 3px; margin-right: 4px; font-size: 11px; font-family: 'JetBrains Mono', Menlo, monospace; }
+    .svc-table .port { font-family: 'JetBrains Mono', Menlo, monospace; color: var(--text-muted); }
+
+    /* Drift table (Activity zone) */
+    .drift-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .drift-table td { padding: 8px 12px; }
+    .drift-table td:first-child { color: var(--text-muted); width: 280px; }
+    .drift-table td:last-child { font-family: 'JetBrains Mono', Menlo, monospace; text-align: right; font-weight: 500; }
+    .drift-table .gate-pass { color: var(--pass); font-weight: 600; }
+    .drift-table .gate-fail { color: var(--fail); font-weight: 600; }
+
+    .empty { color: var(--text-muted); font-style: italic; font-size: 12px; padding: 8px 0; }
+    .placeholder { padding: 32px; text-align: center; color: var(--text-muted); background: var(--bg-3); border-radius: 6px; }
+
+    /* Linked zone */
+    .linked-list { display: flex; gap: 12px; flex-wrap: wrap; }
+    .linked-card { flex: 1; min-width: 180px; padding: 12px 16px; background: var(--bg-3); border-radius: 6px; }
+    .linked-card .name { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+    .linked-card .name a { color: var(--accent-2); text-decoration: none; }
+    .linked-card .role { color: var(--text-muted); font-size: 11px; }
+  </style>
+</head>
+<body>
+  {{template "sidebar.html" .}}
+
+  <main>
+    <div class="topnav">
+      <div class="topnav-selector mono"><label>Tenant</label>{{.Tenant}}</div>
+      <div class="topnav-selector mono"><label>Env</label>{{.Env}}</div>
+      <div class="topnav-spacer"></div>
+      <div class="topnav-selector"><label>Source</label><a href="https://github.com/growdirectprez/GrowDirect/blob/main/Brain/wiki/canary-go-portal.md" style="color: var(--accent-2); text-decoration: none;">canary-go-portal.md ↗</a></div>
+    </div>
+
+    <!-- HEADER -->
+    <div class="zone zone-header">
+      <h1>manifest</h1>
+      <span class="port mono">:{{.Service.Port}}</span>
+      <span class="priority {{.Service.Priority}}">{{.Service.Priority}}</span>
+      <span class="scope">{{.Service.Category}} · {{.Service.Scope}}</span>
+    </div>
+
+    <!-- CAPABILITY -->
+    <div class="zone">
+      <div class="zone-title">Capability</div>
+      <dl class="capability">
+        <dt>Owner</dt><dd>{{.Service.Owner}}</dd>
+        <dt>Cells</dt><dd>{{range .Service.Cells}}<span class="pill">{{.}}</span>{{end}}</dd>
+        <dt>Source</dt><dd><code class="mono">services/canary-protocol/manifest/manifest.yaml</code></dd>
+        <dt>Pipeline</dt><dd><code class="mono">make manifest</code> — parse_manifest.py → manifest.yaml + devops-catalog.json + drift-report.txt</dd>
+      </dl>
+    </div>
+
+    <!-- KPI STRIP -->
+    <div class="zone">
+      <div class="zone-title">KPIs</div>
+      <div class="kpi-strip">
+        {{if .CatalogLoaded}}
+          <div class="kpi-tile"><div class="value">{{.Catalog.Totals.ServiceCount}}</div><div class="label">Services declared</div></div>
+          <div class="kpi-tile"><div class="value">{{.Catalog.Totals.EndpointCount}}</div><div class="label">Endpoints declared</div></div>
+        {{else}}
+          <div class="kpi-tile"><div class="value muted">—</div><div class="label">Services declared</div></div>
+          <div class="kpi-tile"><div class="value muted">—</div><div class="label">Endpoints declared</div></div>
+        {{end}}
+        {{if .DriftLoaded}}
+          {{if .Drift.GatePass}}
+            <div class="kpi-tile"><div class="value pass">PASS</div><div class="label">Phase 1 Gate</div></div>
+          {{else}}
+            <div class="kpi-tile"><div class="value fail">FAIL</div><div class="label">Phase 1 Gate</div></div>
+          {{end}}
+          <div class="kpi-tile">
+            {{if eq .Drift.RoutesOnly 0}}
+              <div class="value pass">{{.Drift.RoutesOnly}}</div>
+            {{else}}
+              <div class="value warn">{{.Drift.RoutesOnly}}</div>
+            {{end}}
+            <div class="label">Unaccounted routes</div>
+          </div>
+        {{else}}
+          <div class="kpi-tile"><div class="value muted">—</div><div class="label">Phase 1 Gate</div></div>
+          <div class="kpi-tile"><div class="value muted">—</div><div class="label">Unaccounted routes</div></div>
+        {{end}}
+      </div>
+    </div>
+
+    <!-- ENDPOINTS (Source files) -->
+    <div class="zone">
+      <div class="zone-title">Endpoints (Source files)</div>
+      <div class="source-list">
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/Brain/wiki/canary-go-portal.md">Brain/wiki/canary-go-portal.md</a>
+          <span class="role">Service inventory</span>
+        </div>
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/docs/sdds/go-handoff/microservice-architecture.md">docs/sdds/go-handoff/microservice-architecture.md</a>
+          <span class="role">Architecture SDD</span>
+        </div>
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/docs/sdds/go-handoff/canonical-data-model.md">docs/sdds/go-handoff/canonical-data-model.md</a>
+          <span class="role">Canonical data model SDD</span>
+        </div>
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/services/canary-protocol/manifest/manifest.yaml">services/canary-protocol/manifest/manifest.yaml</a>
+          <span class="role">Generated artifact</span>
+        </div>
+        <div class="source-row">
+          <a href="https://github.com/growdirectprez/GrowDirect/blob/main/services/canary-protocol/openapi/openapi.yaml">services/canary-protocol/openapi/openapi.yaml</a>
+          <span class="role">Generated OpenAPI 3.0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SERVICE BODY (Services table) -->
+    <div class="zone">
+      <div class="zone-title">Services</div>
+      {{if .CatalogLoaded}}
+        {{if .P0Services}}
+        <div class="svc-section">
+          <div class="svc-section-title">P0 — {{len .P0Services}} services</div>
+          <table class="svc-table">
+            <thead>
+              <tr><th>Name</th><th>Port</th><th>Category</th><th>Cells</th><th>Endpoints</th></tr>
+            </thead>
+            <tbody>
+              {{range .P0Services}}
+              <tr>
+                <td><a href="/devops/{{.Name}}">{{.Name}}</a></td>
+                <td class="port">{{if .Port}}:{{.Port}}{{else}}—{{end}}</td>
+                <td>{{.Category}}</td>
+                <td>{{range .Cells}}<span class="pill">{{.}}</span>{{end}}</td>
+                <td>{{.EndpointCount}}</td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </div>
+        {{end}}
+        {{if .P1Services}}
+        <div class="svc-section">
+          <div class="svc-section-title">P1 — {{len .P1Services}} services</div>
+          <table class="svc-table">
+            <thead>
+              <tr><th>Name</th><th>Port</th><th>Category</th><th>Cells</th><th>Endpoints</th></tr>
+            </thead>
+            <tbody>
+              {{range .P1Services}}
+              <tr>
+                <td><a href="/devops/{{.Name}}">{{.Name}}</a></td>
+                <td class="port">{{if .Port}}:{{.Port}}{{else}}—{{end}}</td>
+                <td>{{.Category}}</td>
+                <td>{{range .Cells}}<span class="pill">{{.}}</span>{{end}}</td>
+                <td>{{.EndpointCount}}</td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </div>
+        {{end}}
+        {{if .P2Services}}
+        <div class="svc-section">
+          <div class="svc-section-title">P2 — {{len .P2Services}} services</div>
+          <table class="svc-table">
+            <thead>
+              <tr><th>Name</th><th>Port</th><th>Category</th><th>Cells</th><th>Endpoints</th></tr>
+            </thead>
+            <tbody>
+              {{range .P2Services}}
+              <tr>
+                <td><a href="/devops/{{.Name}}">{{.Name}}</a></td>
+                <td class="port">{{if .Port}}:{{.Port}}{{else}}—{{end}}</td>
+                <td>{{.Category}}</td>
+                <td>{{range .Cells}}<span class="pill">{{.}}</span>{{end}}</td>
+                <td>{{.EndpointCount}}</td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </div>
+        {{end}}
+      {{else}}
+        <div class="placeholder">
+          devops-catalog.json not loaded. Run <code class="mono">make manifest</code> from the repo root and restart the gateway.
+        </div>
+      {{end}}
+    </div>
+
+    <!-- ACTIVITY (Drift report) -->
+    <div class="zone">
+      <div class="zone-title">Activity — Drift report</div>
+      {{if .DriftLoaded}}
+      <table class="drift-table">
+        <tr><td>Manifest endpoints</td><td>{{.Drift.ManifestEndpoints}}</td></tr>
+        <tr><td>Mounted endpoints (routes-seen)</td><td>{{.Drift.MountedEndpoints}}</td></tr>
+        <tr><td>OpenAPI endpoints</td><td>{{.Drift.OpenAPIEndpoints}}</td></tr>
+        <tr><td>Matched (manifest ∩ routes ∩ openapi)</td><td>{{.Drift.Matched}}</td></tr>
+        <tr><td>Manifest-only (informational)</td><td>{{.Drift.ManifestOnly}}</td></tr>
+        <tr><td>OpenAPI-only (backfill candidates)</td><td>{{.Drift.OpenAPIOnly}}</td></tr>
+        <tr>
+          <td>Routes-only — unaccounted (Phase 1 Gate ≤ 10)</td>
+          <td class="{{if .Drift.GatePass}}gate-pass{{else}}gate-fail{{end}}">{{.Drift.RoutesOnly}}{{if .Drift.GatePass}} · PASS{{else}} · FAIL{{end}}</td>
+        </tr>
+      </table>
+      {{else}}
+        <div class="placeholder">
+          drift-report.txt not loaded. Run <code class="mono">make manifest</code> from the repo root.
+        </div>
+      {{end}}
+    </div>
+
+    <!-- LINKED -->
+    <div class="zone">
+      <div class="zone-title">Linked</div>
+      <div class="linked-list">
+        <div class="linked-card">
+          <div class="name"><a href="/devops/catalog">catalog</a></div>
+          <div class="role">Consumes manifest → 3×5 grid heat-map</div>
+        </div>
+        <div class="linked-card">
+          <div class="name"><a href="/devops/api-docs">api-docs</a></div>
+          <div class="role">Renders openapi.yaml regenerated from manifest</div>
+        </div>
+        <div class="linked-card">
+          <div class="name"><a href="/devops/observability">observability</a></div>
+          <div class="role">Per-tier health rollup driven by manifest cells (Phase 3)</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>{{end}}

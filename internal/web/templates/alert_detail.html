@@ -86,12 +86,12 @@
     <div class="ops-card">
       <h3 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px;">Actions</h3>
       <div style="display:grid;gap:8px;">
-        <form method="POST" action="/alerts/{{.Alert.ID}}/acknowledge">
+        <form method="POST" action="/alerts/{{.Alert.ID}}/acknowledge">{{ .CSRFField }}
           <button type="submit" style="width:100%;padding:8px 12px;background:var(--health-green);color:#0d1117;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
             Acknowledge
           </button>
         </form>
-        <form method="POST" action="/alerts/{{.Alert.ID}}/escalate">
+        <form method="POST" action="/alerts/{{.Alert.ID}}/escalate">{{ .CSRFField }}
           <button type="submit" style="width:100%;padding:8px 12px;background:transparent;color:var(--critical-red);border:1px solid var(--critical-red);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
             Escalate
           </button>

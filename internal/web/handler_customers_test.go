@@ -1,3 +1,5 @@
+//go:build integration
+
 package web_test
 
 import (
@@ -8,9 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/growdirect-llc/rapidpos/internal/customer"
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
-	"github.com/growdirect-llc/rapidpos/internal/web"
+	"github.com/ruptiv/canary/internal/customer"
+	"github.com/ruptiv/canary/internal/testutil"
+	"github.com/ruptiv/canary/internal/web"
 )
 
 // TestCustomerListPage_Renders verifies the customers list page returns 200
@@ -19,7 +21,7 @@ func TestCustomerListPage_Renders(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := customer.NewStore(pool)
 	deps := web.Deps{CustomerStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -42,7 +44,7 @@ func TestCustomerListPage_SearchQuery(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := customer.NewStore(pool)
 	deps := web.Deps{CustomerStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -63,7 +65,7 @@ func TestCustomerListPage_SearchQuery(t *testing.T) {
 // when no CustomerStore is wired (nil-store fallback path).
 func TestCustomerListPage_NoStore(t *testing.T) {
 	deps := web.Deps{}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -82,7 +84,7 @@ func TestCustomerDetailPage_UnknownID_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := customer.NewStore(pool)
 	deps := web.Deps{CustomerStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -101,7 +103,7 @@ func TestCustomerDetailPage_BadID_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := customer.NewStore(pool)
 	deps := web.Deps{CustomerStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -119,7 +121,7 @@ func TestCustomerRiskPage_UnknownID_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := customer.NewStore(pool)
 	deps := web.Deps{CustomerStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -137,7 +139,7 @@ func TestCustomerContextPage_UnknownID_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := customer.NewStore(pool)
 	deps := web.Deps{CustomerStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

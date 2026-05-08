@@ -1,5 +1,5 @@
-// Code generated from deploy/schema/07_p_f_pricing_finance.sql for Loop 2 (GRO-761).
-// Wave 1 hand-written types — sqlc retrofit is Loop 3.
+// Code generated from deploy/schema/07_p_f_pricing_finance.sql for
+// Wave 1 hand-written types — sqlc retrofit is
 // Edit the SQL files in deploy/schema/, regenerate this file by hand.
 package types
 
@@ -56,14 +56,14 @@ type SupplierInvoice struct {
 	RelatedPOID              *uuid.UUID      `db:"related_po_id"`
 	RelatedReceiptDocumentID *uuid.UUID      `db:"related_receipt_document_id"`
 	Status                   string          `db:"status"`
-	Subtotal                 string          `db:"subtotal"`       // numeric — decimal.Decimal dep needed; using string for Loop 2
-	TaxTotal                 string          `db:"tax_total"`      // numeric — decimal.Decimal dep needed; using string for Loop 2
-	ShippingTotal            string          `db:"shipping_total"` // numeric — decimal.Decimal dep needed; using string for Loop 2
-	DiscountTotal            string          `db:"discount_total"` // numeric — decimal.Decimal dep needed; using string for Loop 2
-	GrandTotal               string          `db:"grand_total"`    // numeric — decimal.Decimal dep needed; using string for Loop 2
+	Subtotal string `db:"subtotal"` // numeric — decimal.Decimal dep needed; using string for
+	TaxTotal string `db:"tax_total"` // numeric — decimal.Decimal dep needed; using string for
+	ShippingTotal string `db:"shipping_total"` // numeric — decimal.Decimal dep needed; using string for
+	DiscountTotal string `db:"discount_total"` // numeric — decimal.Decimal dep needed; using string for
+	GrandTotal string `db:"grand_total"` // numeric — decimal.Decimal dep needed; using string for
 	Currency                 string          `db:"currency"`
 	MatchStatus              string          `db:"match_status"`
-	MatchVariance            *string         `db:"match_variance"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	MatchVariance *string `db:"match_variance"` // numeric — decimal.Decimal dep needed; using string for
 	ApprovalUserID           *uuid.UUID      `db:"approval_user_id"`
 	ApprovedAt               *time.Time      `db:"approved_at"`
 	Attributes               json.RawMessage `db:"attributes"`
@@ -81,12 +81,12 @@ type SupplierInvoiceLine struct {
 	RelatedReceiptLineID *uuid.UUID      `db:"related_receipt_line_id"`
 	ItemID               *uuid.UUID      `db:"item_id"`
 	Description          string          `db:"description"`
-	Quantity             *string         `db:"quantity"`   // numeric — decimal.Decimal dep needed; using string for Loop 2
-	UnitCost             *string         `db:"unit_cost"`  // numeric — decimal.Decimal dep needed; using string for Loop 2
-	LineTotal            string          `db:"line_total"` // numeric — decimal.Decimal dep needed; using string for Loop 2
-	TaxAmount            string          `db:"tax_amount"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	Quantity *string `db:"quantity"` // numeric — decimal.Decimal dep needed; using string for
+	UnitCost *string `db:"unit_cost"` // numeric — decimal.Decimal dep needed; using string for
+	LineTotal string `db:"line_total"` // numeric — decimal.Decimal dep needed; using string for
+	TaxAmount string `db:"tax_amount"` // numeric — decimal.Decimal dep needed; using string for
 	GLAccountID          *uuid.UUID      `db:"gl_account_id"`
-	MatchVariance        *string         `db:"match_variance"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	MatchVariance *string `db:"match_variance"` // numeric — decimal.Decimal dep needed; using string for
 	Attributes           json.RawMessage `db:"attributes"`
 	CreatedAt            time.Time       `db:"created_at"`
 	UpdatedAt            time.Time       `db:"updated_at"`
@@ -100,7 +100,7 @@ type Payment struct {
 	VendorID        uuid.UUID       `db:"vendor_id"`
 	PaymentMethod   string          `db:"payment_method"`
 	PaymentDate     time.Time       `db:"payment_date"`
-	Amount          string          `db:"amount"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	Amount string `db:"amount"` // numeric — decimal.Decimal dep needed; using string for
 	Currency        string          `db:"currency"`
 	BankAccountID   *uuid.UUID      `db:"bank_account_id"`
 	ReferenceNumber *string         `db:"reference_number"`
@@ -117,6 +117,6 @@ type PaymentInvoiceApplication struct {
 	TenantID      uuid.UUID `db:"tenant_id"`
 	PaymentID     uuid.UUID `db:"payment_id"`
 	InvoiceID     uuid.UUID `db:"invoice_id"`
-	AmountApplied string    `db:"amount_applied"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	AmountApplied string `db:"amount_applied"` // numeric — decimal.Decimal dep needed; using string for
 	CreatedAt     time.Time `db:"created_at"`
 }

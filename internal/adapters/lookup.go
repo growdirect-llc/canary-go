@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/growdirect-llc/rapidpos/internal/protocol/sub2"
+	"github.com/ruptiv/canary/internal/protocol/sub2"
 )
 
 // LookupShim adapts a *Registry into the sub2.AdapterLookup interface
@@ -42,9 +42,9 @@ var ErrNoDefaultTenderType = errors.New("no default tender_type for tenant+sourc
 // ResolveTenderType returns the tenant's source-default tender_type_id
 // for the given source_code, looked up via the partial unique index
 // uq_tender_source_default. The seed in deploy/schema/99_seed.sql
-// installs one row per (tenant, source) — see GRO-762 §B.2.
+// installs one row per (tenant, source) — §B.2.
 //
-// Loop 3 Wave 1: simple per-call query. Loop 3 Wave 2 will add an
+//: simple per-call query. will add an
 // LRU cache (the lookup is invariant once seeded; cache eviction only
 // needed when an admin re-classifies a tender_type, which is rare).
 //

@@ -1,3 +1,5 @@
+//go:build integration
+
 package web_test
 
 import (
@@ -8,9 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/growdirect-llc/rapidpos/internal/casemgmt"
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
-	"github.com/growdirect-llc/rapidpos/internal/web"
+	"github.com/ruptiv/canary/internal/casemgmt"
+	"github.com/ruptiv/canary/internal/testutil"
+	"github.com/ruptiv/canary/internal/web"
 )
 
 // TestHawkListPage_Renders verifies the hawk case list page handler mounts
@@ -20,7 +22,7 @@ func TestHawkListPage_Renders(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := casemgmt.NewStore(pool)
 	deps := web.Deps{CaseStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -42,7 +44,7 @@ func TestHawkDetailPage_UnknownID_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := casemgmt.NewStore(pool)
 	deps := web.Deps{CaseStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -61,7 +63,7 @@ func TestHawkEvidencePage_UnknownID_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := casemgmt.NewStore(pool)
 	deps := web.Deps{CaseStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

@@ -35,7 +35,7 @@
   </section>
 
   <div style="padding-top:24px;border-top:1px solid var(--border);">
-    <form method="POST" action="/connect" id="connectForm">
+    <form method="POST" action="/connect" id="connectForm">{{ .CSRFField }}
       <input type="hidden" name="week_start_day" id="inputWeekStartDay" value="{{$data.WeekStart}}">
       <input type="hidden" name="lookback_days" id="inputLookbackDays" value="{{$data.Lookback}}">
       <input type="hidden" name="choice" id="inputChoice" value="continue">

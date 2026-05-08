@@ -2,7 +2,7 @@
 // RS256 JWT validation against an IdP JWKS endpoint, per-agent scoped
 // API keys backed by app.api_keys, and tenant boundary helpers.
 //
-// Spec: docs/sdds/canary-go/identity-auth-tenant.md (GRO-763 Phase C).
+// Spec: docs/sdds/canary-go/identity-auth-tenant.md.
 //
 // This file: RS256 JWT validation. The legacy HS256 path in
 // internal/auth stays in place during the migration; new
@@ -70,10 +70,10 @@ type JWTValidator struct {
 
 // NewJWTValidator constructs a validator from environment configuration:
 //
-//   IDENTITY_JWKS_URL                 (required for non-test paths)
-//   IDENTITY_JWT_ISSUER               (required)
-//   IDENTITY_JWT_AUDIENCE             (required)
-//   IDENTITY_JWKS_CACHE_TTL_SECONDS   (optional, default 300)
+//	IDENTITY_JWKS_URL                 (required for non-test paths)
+//	IDENTITY_JWT_ISSUER               (required)
+//	IDENTITY_JWT_AUDIENCE             (required)
+//	IDENTITY_JWKS_CACHE_TTL_SECONDS   (optional, default 300)
 //
 // When IDENTITY_JWKS_URL is empty the validator constructs in
 // "disabled" mode — Validate returns ErrJWKSFetch on every call. This

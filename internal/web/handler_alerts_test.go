@@ -1,3 +1,5 @@
+//go:build integration
+
 package web_test
 
 import (
@@ -9,9 +11,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/growdirect-llc/rapidpos/internal/alert"
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
-	"github.com/growdirect-llc/rapidpos/internal/web"
+	"github.com/ruptiv/canary/internal/alert"
+	"github.com/ruptiv/canary/internal/testutil"
+	"github.com/ruptiv/canary/internal/web"
 )
 
 // TestAlertListPage_Renders is a smoke test: verifies the alerts page handler
@@ -21,7 +23,7 @@ func TestAlertListPage_Renders(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := alert.NewStore(pool)
 	deps := web.Deps{AlertStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 
 	r := chi.NewRouter()
 	h.Mount(r)
@@ -87,7 +89,7 @@ func TestAlertListPage_WithData(t *testing.T) {
 
 	store := alert.NewStore(pool)
 	deps := web.Deps{AlertStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -106,7 +108,7 @@ func TestAlertDetailPage_UnknownID_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := alert.NewStore(pool)
 	deps := web.Deps{AlertStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

@@ -1,3 +1,5 @@
+//go:build integration
+
 package web_test
 
 import (
@@ -11,9 +13,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	lpPkg "github.com/growdirect-llc/rapidpos/internal/lp"
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
-	"github.com/growdirect-llc/rapidpos/internal/web"
+	lpPkg "github.com/ruptiv/canary/internal/lp"
+	"github.com/ruptiv/canary/internal/testutil"
+	"github.com/ruptiv/canary/internal/web"
 )
 
 // allLPSettingsPaths covers the 10 W1 settings screens.
@@ -37,7 +39,7 @@ func TestLPSettingsPages_RenderWithStore(t *testing.T) {
 	deps := web.Deps{
 		AllowListStore: lpPkg.NewAllowListStore(pool),
 	}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -59,7 +61,7 @@ func TestLPSettings_CreateRoundTrip(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := lpPkg.NewAllowListStore(pool)
 	deps := web.Deps{AllowListStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -156,7 +158,7 @@ func TestLPSettings_DeleteRoundTrip(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := lpPkg.NewAllowListStore(pool)
 	deps := web.Deps{AllowListStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -195,7 +197,7 @@ func TestLPSettings_DeleteRoundTrip(t *testing.T) {
 func TestLPSettings_DeleteUnknownIDIsIdempotent(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{AllowListStore: lpPkg.NewAllowListStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -213,7 +215,7 @@ func TestLPSettings_DeleteUnknownIDIsIdempotent(t *testing.T) {
 func TestLPSettings_PostMissingFieldRedirectsWithError(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	deps := web.Deps{AllowListStore: lpPkg.NewAllowListStore(pool)}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

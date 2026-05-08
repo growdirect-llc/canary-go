@@ -5,9 +5,9 @@
 // sales, cases, and detections into the dashboard a merchant operator
 // looks at first thing in the morning.
 //
-// Loop 2 dispatch (GRO-761 Wave 2). Owl's longer-arc role per
+// Owl's longer-arc role per
 // docs/sdds/go-handoff/owl.md is the AI / MCP intelligence layer
-// (chat, personalities, embeddings); that's deferred. Loop 2 ships
+// (chat, personalities, embeddings); that's deferred. ships
 // the dashboard surface only — the SQL spine that the AI layer will
 // eventually wrap.
 //
@@ -23,11 +23,11 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/db"
-	"github.com/growdirect-llc/rapidpos/internal/identity"
-	"github.com/growdirect-llc/rapidpos/internal/obs"
-	"github.com/growdirect-llc/rapidpos/internal/owl"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/identity"
+	"github.com/ruptiv/canary/internal/obs"
+	"github.com/ruptiv/canary/internal/owl"
 )
 
 const serviceName = "canary-owl"
@@ -46,8 +46,8 @@ func main() {
 	}
 	defer pool.Close()
 
-	// Wave A obs scaffold — first module to fully exercise tracer +
-	// trace-aware logger + chi span middleware. GRO-765 Phase C.3.
+	// obs scaffold — first module to fully exercise tracer +
+	// trace-aware logger + chi span middleware. 
 	obsLogger := obs.NewLogger(serviceName)
 	tracer, err := obs.NewTracer(ctx, serviceName)
 	if err != nil {
@@ -71,7 +71,7 @@ func main() {
 	r.Get("/health", healthHandler(cfg))
 	handler.Mount(r)
 
-	// Wave C dashboard endpoints under API-key auth.
+	// dashboard endpoints under API-key auth.
 	r.Group(func(r chi.Router) {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
 			Pool:     pool,

@@ -1,0 +1,84 @@
+{{template "base.html" .}}
+
+{{define "title"}}Billing — Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+<div class="page-header">
+  <h1>Billing &middot; Overview</h1>
+  <p class="page-subtitle">Current period metered cost &middot; ILDWAC dimensions &middot; active OTB budgets</p>
+</div>
+
+<div style="display:flex;gap:12px;margin-bottom:24px;align-items:center;">
+  <span style="font-size:11px;color:var(--text-muted);">Period: {{.PeriodStart}} → {{.PeriodEnd}}</span>
+  <span style="margin-left:auto;font-size:11px;color:var(--text-muted);">Plan tier: {{.PlanTier}}</span>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--text-primary);">{{.TotalUnits}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Total Units (period)</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--accent-blue);">{{.StorageUnits}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Storage</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--signal-yellow);">{{.WorkloadUnits}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Workload</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:24px;font-weight:700;color:var(--health-green);">{{.CaptureUnits}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Capture</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;">
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:20px;font-weight:700;color:var(--text-primary);">{{.PositionCount}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">ILDWAC Positions</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:20px;font-weight:700;color:var(--signal-yellow);">{{.UnbilledCount}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Unbilled</div>
+  </div>
+  <div class="ops-card" style="text-align:center;">
+    <div style="font-size:20px;font-weight:700;color:var(--text-secondary);">{{.OldestUnbilled}}</div>
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Oldest Unbilled</div>
+  </div>
+</div>
+
+<div class="ops-card">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);">Active OTB Budgets</div>
+    <a href="/reports/otb" style="font-size:11px;color:var(--signal-yellow);text-decoration:none;">All budgets →</a>
+  </div>
+  {{if .ActiveBudgets}}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">
+        <th style="padding:6px 12px 6px 0;text-align:left;font-weight:500;">Period</th>
+        <th style="padding:6px 12px;text-align:left;font-weight:500;">Scope</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Budget</th>
+        <th style="padding:6px 12px;text-align:right;font-weight:500;">Consumed</th>
+        <th style="padding:6px 0;text-align:right;font-weight:500;">Remaining</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .ActiveBudgets}}
+      <tr style="border-top:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px 10px 0;color:var(--text-primary);">{{.PeriodStart}} → {{.PeriodEnd}}</td>
+        <td style="padding:10px 12px;color:var(--text-secondary);">{{.ScopeType}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--text-secondary);">{{.BudgetUnits}}</td>
+        <td style="padding:10px 12px;text-align:right;color:var(--signal-yellow);">{{.ConsumedUnits}}</td>
+        <td style="padding:10px 0;text-align:right;color:var(--health-green);">{{.RemainingUnits}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="font-size:13px;color:var(--text-muted);padding:16px 0;">No active OTB budgets. Spend gating runs without a hard cap until budgets are configured.</p>
+  {{end}}
+</div>
+{{end}}
+{{end}}

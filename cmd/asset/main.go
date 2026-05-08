@@ -4,7 +4,7 @@
 // i.inventory_lots as operator-facing asset views with a flag write path
 // that creates i.inventory_movements rows for discrepancy capture.
 //
-// Spec: GRO-766 Phase C.
+//
 package main
 
 import (
@@ -16,11 +16,11 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/asset"
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/db"
-	"github.com/growdirect-llc/rapidpos/internal/identity"
-	"github.com/growdirect-llc/rapidpos/internal/obs"
+	"github.com/ruptiv/canary/internal/asset"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/identity"
+	"github.com/ruptiv/canary/internal/obs"
 )
 
 const serviceName = "canary-asset"

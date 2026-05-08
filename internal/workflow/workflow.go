@@ -19,7 +19,7 @@
 // Reference: PostgreSQL advisory lock semantics —
 //   https://www.postgresql.org/docs/17/explicit-locking.html
 //
-// Loop 4 Wave A scaffold (GRO-763 Phase B.4). The first real workflow
+// Loop 4 Wave A scaffold. The first real workflow
 // (three-way-match in Module D) lands in Wave B; this package gives
 // it a stable substrate to compose against.
 package workflow
@@ -122,6 +122,31 @@ func (s *Store) RegisterDefinition(
 		&d.Status, &d.Attributes, &d.RegisteredAt,
 	); err != nil {
 		return nil, fmt.Errorf("workflow: register definition: %w", err)
+	}
+	return &d, nil
+}
+
+// GetDefinitionByCode resolves a (workflow_code, version) tuple to a
+// Definition row. Used by callers that hold the code constants but
+// need the workflow_id for KickOff. Returns ErrNotFound when no row
+// matches. Wired W5 for the receiving-close → three-way-match
+// trigger.
+func (s *Store) GetDefinitionByCode(ctx context.Context, code string, version int) (*Definition, error) {
+	const q = `
+		SELECT id, workflow_code, display_name, version, status,
+		       attributes, registered_at::text
+		  FROM app.workflow_definitions
+		 WHERE workflow_code = $1 AND version = $2`
+	row := s.pool.QueryRow(ctx, q, code, version)
+	var d Definition
+	if err := row.Scan(
+		&d.ID, &d.WorkflowCode, &d.DisplayName, &d.Version,
+		&d.Status, &d.Attributes, &d.RegisteredAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrDefinitionNotFound
+		}
+		return nil, fmt.Errorf("workflow: get definition by code: %w", err)
 	}
 	return &d, nil
 }
@@ -272,7 +297,7 @@ type ListExecutionsFilter struct {
 
 // ListExecutions returns app.workflow_executions rows for the tenant,
 // optionally filtered by workflow_id and status. Used by the portal
-// /workflows surface (W4 / GRO-823) to show in-flight workflows.
+// /workflows surface (W4) to show in-flight workflows.
 // Ordered by started_at DESC.
 func (s *Store) ListExecutions(ctx context.Context, f ListExecutionsFilter) ([]Execution, error) {
 	limit := f.Limit

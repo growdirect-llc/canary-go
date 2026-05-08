@@ -2,21 +2,21 @@
 //
 // Three-way-match workflow definition + step constants. The first
 // real workflow registered against the Wave A app.workflow_definitions
-// substrate. Spec: GRO-764 Phase B.4 (folds part of GRO-647).
+// substrate. Spec: GRO-764
 //
 // The workflow advances a (po_line, receipt_line, supplier_invoice_line)
 // triple through these steps:
 //
-//   pending_match     → variance_check
-//   variance_check    → approved | flagged_for_review
-//   flagged_for_review → approved (operator override) | succeeded |
-//                        failed (operator decline)
+// pending_match → variance_check
+// variance_check → approved | flagged_for_review
+// flagged_for_review → approved (operator override) | succeeded |
+// failed (operator decline)
 //
 // Variance threshold is configurable per merchant via
 // app.merchant_settings.three_way_match_variance_pct (default 5.00).
 // Lines with variance ≤ threshold auto-approve; lines above flag for
 // review. The actual evaluation logic lands when supplier_invoice
-// path is wired (Wave C); this file ships the registration + step
+// path is wired; this file ships the registration + step
 // constants so callers can compose against them today.
 
 package workflow

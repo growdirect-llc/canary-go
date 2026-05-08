@@ -1,7 +1,7 @@
 // internal/billing/store.go
 //
 // pgxpool-backed access to ledger.l402_otb_budgets +
-// ledger.ildwac_positions. Spec: GRO-765 Phase A.
+// ledger.ildwac_positions.
 
 package billing
 
@@ -78,6 +78,34 @@ func (s *Store) GetBudget(ctx context.Context, tenantID, id uuid.UUID) (*OTBBudg
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("billing: get budget: %w", err)
+	}
+	return out, nil
+}
+
+// Budget status discriminators stored in ledger.l402_otb_budgets.status.
+const (
+	BudgetStatusActive   = "active"
+	BudgetStatusLocked   = "locked"
+	BudgetStatusDepleted = "depleted"
+	BudgetStatusExpired  = "expired"
+)
+
+// UpdateBudgetStatus flips a budget's status. Used by the OTB report
+// "lock period" action (W5) — operator-initiated active ↔
+// locked toggle. Returns ErrNotFound when no row matches.
+func (s *Store) UpdateBudgetStatus(ctx context.Context, tenantID, id uuid.UUID, status string) (*OTBBudget, error) {
+	const q = `
+		UPDATE ledger.l402_otb_budgets
+		   SET status = $1, updated_at = NOW()
+		 WHERE tenant_id = $2 AND id = $3
+		RETURNING ` + budgetSelectColumns
+	row := s.pool.QueryRow(ctx, q, status, tenantID, id)
+	out, err := scanBudget(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("billing: update budget status: %w", err)
 	}
 	return out, nil
 }

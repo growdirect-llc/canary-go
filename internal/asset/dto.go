@@ -2,7 +2,7 @@
 //
 // Wire types for the asset (inventory) endpoints.
 //
-// Spec: GRO-766 Phase C.
+//
 
 package asset
 

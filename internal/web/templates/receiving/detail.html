@@ -18,6 +18,12 @@
   <span class="badge">{{.Session.Status}}</span>
 </div>
 
+{{if .Flash}}
+<div style="margin-bottom:16px;padding:10px 14px;background:rgba(234,179,8,0.08);border:1px solid var(--signal-yellow);border-radius:6px;font-size:12px;color:var(--signal-yellow);">
+  Action: {{.Flash}}
+</div>
+{{end}}
+
 <div style="display:grid;grid-template-columns:1fr 280px;gap:24px;align-items:start;">
 
   <!-- Main: line entry table -->
@@ -46,10 +52,14 @@
             <input type="number" value="{{.ReceivedQty}}" style="width:64px;padding:4px 6px;font-size:12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:4px;color:var(--text-primary);text-align:right;" />
           </td>
           <td style="padding:12px 0;text-align:center;">
-            {{if .Discrepancy}}
-            <span class="badge" style="background:var(--critical-red);color:#fff;">{{.Discrepancy}}</span>
+            {{if .HasDiscrepancy}}
+            <span class="badge" style="background:var(--critical-red);color:#fff;">{{.Variance}}</span>
+            {{if .VarianceReason}}<div style="font-size:10px;color:var(--text-muted);margin-top:4px;">{{.VarianceReason}}</div>{{end}}
             {{else}}
-            <span style="color:var(--health-green);font-size:12px;">—</span>
+            <form method="POST" action="/receiving/{{$.Session.ID}}/lines/{{.LineID}}/discrepancy" style="display:inline;">{{ .CSRFField }}
+              <input type="hidden" name="reason" value="operator_marked"/>
+              <button type="submit" title="Mark line as discrepancy" style="font-size:11px;padding:3px 8px;background:transparent;border:1px solid var(--text-muted);color:var(--text-muted);border-radius:4px;cursor:pointer;">Mark</button>
+            </form>
             {{end}}
           </td>
         </tr>

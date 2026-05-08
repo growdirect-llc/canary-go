@@ -6,7 +6,6 @@
 // detection.cases.primary_subject_id, violating the FK on detection.subjects(id) on
 // every auto-escalated case.
 //
-// Per OQ Resolution Pack §A.1 OQ-1.5 (founder-approved 2026-05-03):
 // LAZY mode is the default — resolve happens at Fox case-escalation
 // time inside handler.subjectFromDetection, not on chirp detection
 // write. EAGER mode (chirp-time resolve) is reserved for tenants
@@ -36,15 +35,14 @@ const (
 )
 
 // SubjectsResolveMode controls when the resolver runs relative to
-// the detection lifecycle. Per OQ Resolution Pack §A.1 OQ-1.5.
+// the detection lifecycle.
 type SubjectsResolveMode string
 
 const (
 	// ResolveModeLazy resolves at case-escalation time (handler.fromDetection
-	// → OpenCase). This is the founder-approved 2026-05-03 default —
-	// detection volume is 100×–1000× case volume; eager resolve would
-	// burden the hot path with FK lookups for signals that 99% never
-	// escalate.
+	// → OpenCase). This is the default — detection volume is 100×–1000×
+	// case volume; eager resolve would burden the hot path with FK lookups
+	// for signals that 99% never escalate.
 	ResolveModeLazy SubjectsResolveMode = "lazy"
 	// ResolveModeEager resolves on detection write (chirp detection
 	// insert path). Reserved for tenants that need real-time subject

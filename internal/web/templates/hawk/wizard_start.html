@@ -14,7 +14,7 @@
     A case creates an evidence-backed investigation record. All activity is hash-anchored.
   </p>
 
-  <form method="POST" action="/cases/hawk" style="display:grid;gap:20px;">
+  <form method="POST" action="/cases/hawk" style="display:grid;gap:20px;">{{ .CSRFField }}
 
     <div>
       <label style="display:block;font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">Title</label>

@@ -12,16 +12,14 @@
 
 # ---- Stage 1: builder ----
 # Pin to the Go version declared in go.mod (1.25).
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 # Build-time hardening: no cgo, deterministic builds, strip symbols.
-# GOTOOLCHAIN=auto lets Go download the required toolchain version when
-# a dependency requires a newer Go than the base image provides.
+# Image's Go matches go.mod (1.25); no toolchain auto-download needed.
 ENV CGO_ENABLED=0 \
     GOOS=linux \
     GOARCH=amd64 \
-    GOFLAGS="-trimpath" \
-    GOTOOLCHAIN=auto
+    GOFLAGS="-trimpath"
 
 WORKDIR /src
 

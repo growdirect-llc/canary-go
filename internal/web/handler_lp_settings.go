@@ -11,7 +11,7 @@
 // Each screen's row → view-model and form → pattern conversion is captured in
 // an lpScreen value; the unified mount loop wires all three routes per screen.
 //
-// W1 dispatch: GRO-814.
+// W1 dispatch: 
 
 package web
 
@@ -26,7 +26,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	lpPkg "github.com/growdirect-llc/rapidpos/internal/lp"
+	lpPkg "github.com/ruptiv/canary/internal/lp"
 )
 
 // lpScreen ties one settings URL to the unified pattern-backed CRUD path.

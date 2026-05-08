@@ -8,7 +8,6 @@
 //	GATEWAY_TEST_DATABASE_URL=postgres://growdirect:growdirect_dev@localhost:5432/canary_go_test?sslmode=disable \
 //	go test -tags=integration -v ./internal/protocol/audit/...
 //
-// GRO-694.
 package audit
 
 import (

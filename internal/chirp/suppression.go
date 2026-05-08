@@ -8,7 +8,7 @@
 // still inserted — but with status='dismissed' and the suppression
 // reason captured in attributes jsonb so the audit trail is preserved.
 //
-// W3 dispatch: GRO-822. Closes the W1 / GRO-814 loop — allow-list
+// W3 dispatch: GRO-822. Closes the W1 loop — allow-list
 // admin entries actually change rule behavior.
 
 package chirp
@@ -19,7 +19,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/lp"
+	"github.com/ruptiv/canary/internal/lp"
 )
 
 // AllowListLookup is the narrow read surface the suppression check

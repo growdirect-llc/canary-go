@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/growdirect-llc/rapidpos/internal/asset"
-	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/ruptiv/canary/internal/asset"
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 // RegisterAssetTools registers 4 asset tools with the registry.

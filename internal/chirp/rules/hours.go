@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/growdirect-llc/rapidpos/internal/chirp"
+	"github.com/ruptiv/canary/internal/chirp"
 )
 
 // AfterHoursParams binds the rule_definition.parameters block.
 //
 //	{ "rule_type": "after_hours_transaction",
-//	  "parameters": { "tolerance_minutes": 15 } }
+//	 "parameters": { "tolerance_minutes": 15 } }
 //
 // tolerance_minutes pads the operating-hours window before flagging,
 // so a register that closes 2 minutes after posted close doesn't fire
@@ -27,16 +27,16 @@ type AfterHoursParams struct {
 // operating_hours JSONB shape (per 03_l_s_locations.sql):
 //
 //	{
-//	  "monday":    [{"open":"07:00","close":"22:00"}],
-//	  "tuesday":   [{"open":"07:00","close":"22:00"}],
-//	  ...
+//	 "monday": [{"open":"07:00","close":"22:00"}],
+//	 "tuesday": [{"open":"07:00","close":"22:00"}],
+//	 ...
 //	}
 //
 // A day with no entry is assumed closed all day. A day with an empty
 // array is also closed all day. Multiple intervals per day are
 // supported (e.g., split breakfast/dinner shifts).
 //
-// Timezone handling (Loop 3 Wave 1): the transaction's started_at is
+// Timezone handling: the transaction's started_at is
 // converted from UTC to the location's IANA timezone (per RFC 6557 /
 // tzdata, sourced from l.locations.timezone) before comparing against
 // the operating_hours values. operating_hours are interpreted in the

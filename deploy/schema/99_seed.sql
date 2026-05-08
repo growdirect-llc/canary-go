@@ -52,16 +52,20 @@ INSERT INTO app.merchant_sources (merchant_id, source_code, status, raas_namespa
 ON CONFLICT DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────
--- Dev source secret for the gateway smoke test (matches the merchant above)
--- secret value is a known constant for local-dev only; rotate before any
--- exposure beyond the laptop.
+-- Dev source secret for the gateway smoke test. The literal value is a
+-- placeholder — `deploy/scripts/seed-dev-secrets.sh` substitutes a real
+-- random 32-byte hex string at apply time and writes it to .env.local
+-- so the gateway smoke-test caller can sign with the same value. Never
+-- ship this seed file's placeholder verbatim; CI fails the build if the
+-- placeholder appears in any file under deploy/ outside this comment.
+-- GRO-859 / Sprint 2 T-W.
 -- ─────────────────────────────────────────────────────────────────────
 INSERT INTO protocol.source_secrets
     (id, merchant_id, source_code, secret, signature_algo, status, replay_window_seconds) VALUES
     ('44444444-0000-0000-0000-000000000001',
      '33333333-0000-0000-0000-000000000001',
      'square',
-     'dev-only-do-not-ship-this-secret-1234567890abcdef',
+     '__SEED_HMAC_PLACEHOLDER__',
      'HMAC-SHA256',
      'active',
      300)
@@ -146,11 +150,9 @@ VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────
--- finance.markup_envelope_tiers defaults per archetype — loop4-wave-a
--- (GRO-763 §B.2). Source: OQ Resolution Pack §A.1 OQ-2.1
--- (founder-approved 2026-05-03 per GRO-762).
+-- finance.markup_envelope_tiers defaults per archetype.
 --
--- Pricing module (Wave B) reads tenant override
+-- Pricing module reads tenant override
 -- (app.tenants.attributes->>'markup_envelope_pct') first and falls back
 -- to the active row here for the tenant's archetype. Idempotent: skip
 -- if a non-expired row for the archetype already exists.

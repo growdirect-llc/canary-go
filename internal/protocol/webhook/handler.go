@@ -31,10 +31,10 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/protocol/audit"
-	canaryhmac "github.com/growdirect-llc/rapidpos/internal/protocol/hmac"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/secrets"
+	"github.com/ruptiv/canary/internal/protocol/audit"
+	canaryhmac "github.com/ruptiv/canary/internal/protocol/hmac"
+	"github.com/ruptiv/canary/internal/protocol/publisher"
+	"github.com/ruptiv/canary/internal/protocol/secrets"
 )
 
 // HeaderMerchant carries the tenant scope. Sources that don't natively
@@ -175,7 +175,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	eventID := uuid.New()
 
 	// Bridge minted event_id + resolved source code onto the request
-	// context so the audit middleware (GRO-694) can record them. This
+	// context so the audit middleware can record them. This
 	// is a no-op when the middleware isn't installed.
 	ctx = audit.WithEventID(ctx, eventID)
 	ctx = audit.WithSource(ctx, source)

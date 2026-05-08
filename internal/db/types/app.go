@@ -1,5 +1,5 @@
-// Code generated from deploy/schema/01_app_foundation.sql for Loop 2 (GRO-761).
-// Wave 1 hand-written types — sqlc retrofit is Loop 3.
+// Code generated from deploy/schema/01_app_foundation.sql for
+// Wave 1 hand-written types — sqlc retrofit is
 // Edit the SQL files in deploy/schema/, regenerate this file by hand.
 package types
 
@@ -151,7 +151,7 @@ type AppEmployee struct {
 	SquareEmployeeID string     `db:"square_employee_id"`
 	EmployeeName     string     `db:"employee_name"`
 	Email            *string    `db:"email"`
-	RiskScore        string     `db:"risk_score"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	RiskScore string `db:"risk_score"` // numeric — decimal.Decimal dep needed; using string for
 	IsActive         bool       `db:"is_active"`
 	CreatedAt        time.Time  `db:"created_at"`
 	UpdatedAt        time.Time  `db:"updated_at"`

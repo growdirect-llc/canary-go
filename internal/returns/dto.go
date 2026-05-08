@@ -2,7 +2,7 @@
 //
 // Wire types for the returns endpoints.
 //
-// Spec: GRO-766 Phase E.
+//
 
 package returns
 

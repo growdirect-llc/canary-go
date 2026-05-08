@@ -2,7 +2,7 @@
 //
 // Wire types for employee endpoints.
 //
-// Spec: GRO-766 Phase D.
+//
 
 package employee
 

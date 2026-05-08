@@ -4,7 +4,7 @@
 // No mutation endpoints — customer records are written by the Bull ingest
 // pipeline from POS transaction data.
 //
-// Spec: GRO-766 Phase D.
+//
 
 package customer
 

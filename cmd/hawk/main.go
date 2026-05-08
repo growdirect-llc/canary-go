@@ -1,8 +1,8 @@
 // cmd/hawk/main.go
 //
-// Hawk — case-side reader binary. Spec: GRO-765 Phase B.4.
+// Hawk — case-side reader binary.
 //
-// Wave C wires Hawk against the casemgmt store directly so a
+// wires Hawk against the casemgmt store directly so a
 // read-only operator dashboard can list cases / inspect actions /
 // inspect evidence without depending on cmd/case being deployed.
 // Mutating endpoints (open / close / append) are intentionally
@@ -19,10 +19,10 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/casemgmt"
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/db"
-	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/ruptiv/canary/internal/casemgmt"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 const serviceName = "canary-hawk"

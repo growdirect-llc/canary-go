@@ -58,9 +58,9 @@ const pgUniqueViolation = "23505"
 // The canonical event arrives with FKs unset — adapters don't have
 // access to the tenant database. The store fills:
 //
-//   - Transaction.TenantID    from app.merchants.tenant_id
-//   - Transaction.LocationID  from location.locations(tenant_id, location_code)
-//   - Transaction.CashierEmployeeID from employee.employees(tenant_id, employee_code)
+// - Transaction.TenantID from app.merchants.tenant_id
+// - Transaction.LocationID from location.locations(tenant_id, location_code)
+// - Transaction.CashierEmployeeID from employee.employees(tenant_id, employee_code)
 //
 // Then mints the parent ID, propagates it onto each child, and inserts.
 func (s *PgxStore) Persist(ctx context.Context, evt *CanonicalEvent) error {
@@ -130,7 +130,7 @@ func (s *PgxStore) Persist(ctx context.Context, evt *CanonicalEvent) error {
 	}
 
 	// Resolve the per-source default tender_type_id once for the
-	// envelope. Loop 3 Wave 1 (GRO-762 §B.2): adapters set
+	// envelope.: adapters set
 	// TenderTypeID = uuid.Nil because their wire envelopes don't
 	// carry a stable tender-type identifier; the (tenant, source)
 	// default seeded in finance.tender_types is the FK we resolve here.
@@ -289,7 +289,7 @@ func (s *PgxStore) lookupEmployee(ctx context.Context, tenantID uuid.UUID, emplo
 // tender_type_id from the partial unique index uq_tender_source_default
 // (deploy/schema/07_p_f_pricing_finance.sql). Mirrors
 // adapters.ResolveTenderType but kept inline here to avoid an import
-// cycle (internal/adapters already imports sub2). Loop 3 Wave 2 will
+// cycle (internal/adapters already imports sub2). will
 // add an LRU cache; Wave 1 keeps it simple.
 func (s *PgxStore) resolveTenderTypeID(ctx context.Context, tenantID uuid.UUID, sourceCode string) (uuid.UUID, error) {
 	if sourceCode == "" {

@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/growdirect-llc/rapidpos/internal/analytics"
-	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/ruptiv/canary/internal/analytics"
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 const dateLayout = "2006-01-02"

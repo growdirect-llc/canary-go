@@ -1,11 +1,11 @@
 // cmd/inventory/main.go
 //
-// Inventory service — GRO-798 (Loop 4). SOH read/write + sale event consumer.
+// Inventory service. SOH read/write + sale event consumer.
 //
 // Two goroutines run concurrently:
-//  1. HTTP server — position reads, movement appends, cycle-count adjustments
-//  2. SaleConsumer — polls transaction_line_items for unlinked sale lines,
-//     applies inventory movements, emits replenish signals to Valkey
+// 1. HTTP server — position reads, movement appends, cycle-count adjustments
+// 2. SaleConsumer — polls transaction_line_items for unlinked sale lines,
+// applies inventory movements, emits replenish signals to Valkey
 package main
 
 import (
@@ -21,9 +21,9 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/db"
-	"github.com/growdirect-llc/rapidpos/internal/inventory"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/inventory"
 )
 
 const serviceName = "canary-inventory"

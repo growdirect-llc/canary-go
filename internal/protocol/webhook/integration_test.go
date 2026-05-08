@@ -29,9 +29,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
-	canaryhmac "github.com/growdirect-llc/rapidpos/internal/protocol/hmac"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/secrets"
+	canaryhmac "github.com/ruptiv/canary/internal/protocol/hmac"
+	"github.com/ruptiv/canary/internal/protocol/publisher"
+	"github.com/ruptiv/canary/internal/protocol/secrets"
 )
 
 const (
@@ -76,7 +76,7 @@ func seedFixtures(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (uuid.U
 		t.Fatalf("seed merchant: %v", err)
 	}
 
-	// Source secret. signature_algo + status NOT NULL added by Loop 1
+	// Source secret. signature_algo + status NOT NULL added by
 	// declarative schema (deploy/schema/11_protocol.sql).
 	if _, err := pool.Exec(ctx,
 		`INSERT INTO protocol.source_secrets (id, merchant_id, source_code, secret, signature_algo, status)

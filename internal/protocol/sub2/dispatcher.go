@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/protocol/publisher"
+	"github.com/ruptiv/canary/internal/protocol/publisher"
 )
 
 // AdapterLookup is the surface the dispatcher needs from the

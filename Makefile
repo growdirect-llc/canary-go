@@ -1,11 +1,19 @@
-.PHONY: migrate-up migrate-down migrate-test-up sqlc-gen test \
-        build-identity build-all build-edge-windows lint \
+.PHONY: migrate-up migrate-down migrate-test-up sqlc-gen test test-integration \
+        build-identity build-all build-edge-windows lint vulncheck \
+        check-no-dev-secrets \
         db-reset db-reset-test db-seed db-seed-test \
+        identity-db-reset identity-db-reset-test \
+        identity-migrate-up identity-migrate-down identity-migrate-test-up \
         dev dev-down dev-logs
 
 # Default DATABASE_URL — override on command line
 DATABASE_URL ?= postgres://growdirect:growdirect_dev@localhost:5432/canary_gcp?sslmode=disable
 TEST_DATABASE_URL ?= postgres://growdirect:growdirect_dev@localhost:5432/canary_gcp_test?sslmode=disable
+
+# Identity DB — separate physical database per
+# Brain/wiki/cards/platform-identity-database-boundary.md (T-1.a / GRO-848).
+IDENTITY_DATABASE_URL ?= postgres://growdirect:growdirect_dev@localhost:5432/canary_identity_gcp?sslmode=disable
+IDENTITY_TEST_DATABASE_URL ?= postgres://growdirect:growdirect_dev@localhost:5432/canary_identity_gcp_test?sslmode=disable
 
 # Local Docker Postgres connection params (used by db-reset / db-seed)
 PG_CONTAINER ?= growdirect_postgres
@@ -47,6 +55,47 @@ db-seed:
 db-seed-test:
 	@docker exec -i $(PG_CONTAINER) psql -U $(PG_USER) -d canary_gcp_test -v ON_ERROR_STOP=1 < deploy/schema/99_seed.sql
 
+# ─────────────────────────────────────────────────────────────────────
+# Identity DB targets — canary_identity_gcp lives separately from
+# canary_gcp per the platform-identity-database-boundary card.
+# ─────────────────────────────────────────────────────────────────────
+identity-db-reset:
+	@echo "==> dropping + recreating canary_identity_gcp (LOCAL ONLY)"
+	docker exec $(PG_CONTAINER) psql -U $(PG_USER) -d postgres -c "DROP DATABASE IF EXISTS canary_identity_gcp" >/dev/null
+	docker exec $(PG_CONTAINER) psql -U $(PG_USER) -d postgres -c "CREATE DATABASE canary_identity_gcp" >/dev/null
+	@echo "==> applying deploy/schema/identity/*.sql in order"
+	@for f in deploy/schema/identity/*.sql; do \
+	    echo "  -- $$f"; \
+	    docker exec -i $(PG_CONTAINER) psql -U $(PG_USER) -d canary_identity_gcp -v ON_ERROR_STOP=1 < $$f >/dev/null \
+	      || { echo "FAILED: $$f"; exit 1; }; \
+	done
+	@echo "==> done. tables:"
+	@docker exec $(PG_CONTAINER) psql -U $(PG_USER) -d canary_identity_gcp -t -c \
+	    "SELECT table_schema || '.' || table_name FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema') ORDER BY 1" \
+	  | sed 's/^/    /' | grep -v '^    $$'
+
+identity-db-reset-test:
+	@echo "==> dropping + recreating canary_identity_gcp_test (LOCAL ONLY)"
+	docker exec $(PG_CONTAINER) psql -U $(PG_USER) -d postgres -c "DROP DATABASE IF EXISTS canary_identity_gcp_test" >/dev/null
+	docker exec $(PG_CONTAINER) psql -U $(PG_USER) -d postgres -c "CREATE DATABASE canary_identity_gcp_test" >/dev/null
+	@for f in deploy/schema/identity/*.sql; do \
+	    docker exec -i $(PG_CONTAINER) psql -U $(PG_USER) -d canary_identity_gcp_test -v ON_ERROR_STOP=1 < $$f >/dev/null \
+	      || { echo "FAILED: $$f"; exit 1; }; \
+	done
+	@echo "==> canary_identity_gcp_test ready"
+
+identity-migrate-up:
+	migrate -path=deploy/migrations/identity \
+	        -database="$(IDENTITY_DATABASE_URL)" up
+
+identity-migrate-down:
+	migrate -path=deploy/migrations/identity \
+	        -database="$(IDENTITY_DATABASE_URL)" down 1
+
+identity-migrate-test-up:
+	migrate -path=deploy/migrations/identity \
+	        -database="$(IDENTITY_TEST_DATABASE_URL)" up
+
 migrate-up:
 	migrate -path=deploy/migrations \
 	        -database="$(DATABASE_URL)" up
@@ -62,12 +111,22 @@ migrate-test-up:
 sqlc-gen:
 	sqlc generate
 
+# test — run pure unit tests (no DB / no integration tag).
+# Bare `go test ./...` works for this — the integration-shaped tests
+# under //go:build integration are skipped without the tag.
 test:
+	go test ./... -v -count=1
+
+# test-integration — run the full corpus including integration tests.
+# Requires Postgres + Valkey reachable per the URLs below.
+# GRO-857 / Sprint 2 T-K — integration tests gated on //go:build integration.
+test-integration:
 	DATABASE_URL="$(TEST_DATABASE_URL)" \
+	IDENTITY_DATABASE_URL="$(IDENTITY_TEST_DATABASE_URL)" \
 	VALKEY_URL=redis://:valkey_dev@localhost:6379/2 \
 	SESSION_SECRET="test-session-secret-at-least-32-bytes!" \
 	INTERNAL_SERVICE_SECRET=test-internal-secret \
-	go test ./... -v -count=1
+	go test -tags integration ./... -v -count=1
 
 build-identity:
 	go build -o bin/identity ./cmd/identity
@@ -87,6 +146,28 @@ build-edge-windows:
 
 lint:
 	go vet ./...
+
+# vulncheck — scan dependencies for known CVEs via govulncheck.
+# Installs the tool if missing. Runs against the loaded module graph.
+# Wire into CI (cloudbuild.gateway.yaml) as a deploy gate before staging.
+# GRO-849 / Sprint 2 T-G.
+vulncheck:
+	@command -v govulncheck >/dev/null 2>&1 || go install golang.org/x/vuln/cmd/govulncheck@latest
+	@govulncheck ./...
+
+# check-no-dev-secrets — fail the build if a known dev-secret literal
+# leaks into source-controlled files. The seed file ships placeholders
+# (e.g. __SEED_HMAC_PLACEHOLDER__) which deploy/scripts/seed-dev-secrets.sh
+# substitutes at apply time. This guard catches a regression where a
+# real-looking secret is committed back into deploy/. GRO-859 / Sprint 2 T-W.
+check-no-dev-secrets:
+	@echo "==> checking for dev-secret literals committed to deploy/"
+	@if grep -rE "dev-only-do-not-ship-this-secret-[0-9a-f]+" deploy/ >/dev/null 2>&1; then \
+	  echo "FAIL: dev-secret literal found in deploy/ — replace with __SEED_HMAC_PLACEHOLDER__"; \
+	  grep -rnE "dev-only-do-not-ship-this-secret-[0-9a-f]+" deploy/; \
+	  exit 1; \
+	fi
+	@echo "==> ok"
 
 test-cockroach:
 	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test -tags integration ./internal/protocol/cockroach/... -v -timeout 60s

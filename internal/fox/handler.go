@@ -12,9 +12,9 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/db/types"
-	"github.com/growdirect-llc/rapidpos/internal/pagination"
-	"github.com/growdirect-llc/rapidpos/internal/party"
+	"github.com/ruptiv/canary/internal/db/types"
+	"github.com/ruptiv/canary/internal/pagination"
+	"github.com/ruptiv/canary/internal/party"
 )
 
 // Service is the slim interface the Handler depends on. Store
@@ -36,7 +36,7 @@ type Service interface {
 // Handler wires HTTP endpoints onto a chi.Router.
 type Handler struct {
 	svc    Service
-	party  *party.Store // optional: party-based subject resolution (Wave B C.2)
+	party *party.Store // optional: party-based subject resolution
 	cfg    EscalationConfig
 	logger *zap.Logger
 	now    func() time.Time
@@ -63,7 +63,7 @@ func New(svc Service, cfg EscalationConfig, logger *zap.Logger) *Handler {
 // WithPartyResolver attaches a party.Store so case-open routes
 // resolve subjects through party.parties instead of the legacy
 // employee_id / customer_id lookup. Per Wave A canonical-data-model-
-// party-edits §D and Wave B C.2.
+// party-edits §D and
 //
 // When set: subjectFromDetection uses
 // party.ResolveFromDetection → party.ResolveSubject and falls back
@@ -101,7 +101,7 @@ type fromDetectionResp struct {
 }
 
 type createCaseReq struct {
-	MerchantID   string   `json:"merchant_id"` // interpreted as tenant_id
+	MerchantID string `json:"merchant_id"` // interpreted as tenant_id
 	SubjectID    string   `json:"subject_id,omitempty"`
 	LocationID   string   `json:"location_id,omitempty"`
 	DetectionIDs []string `json:"detection_ids,omitempty"`
@@ -533,20 +533,19 @@ func (h *Handler) closeCase(w http.ResponseWriter, r *http.Request) {
 // when resolution fails — the case's primary_subject_id is nullable
 // in the schema, so a missed resolution degrades cleanly.
 //
-// Per OQ Resolution Pack §A.1 OQ-1.5 (founder-approved 2026-05-03):
-// LAZY mode by default — this method runs at case-escalation time,
+// LAZY mode is the default — this method runs at case-escalation time,
 // not on chirp detection write. Detection volume is 100×–1000× case
 // volume; eager resolve would burden the hot path with FK lookups for
 // signals that 99% never escalate. EAGER mode is reserved for tenants
 // with explicit clustering needs on the detection stream itself
 // (per-tenant override via app.tenants.attributes->>'subjects_resolve_mode').
 //
-// Subject precedence: cashier_employee_id wins over customer_id
-// (LP cases skew employee-driven per the founder's prior context on
-// detection-rule design). When neither is present, returns nil and
+// Subject precedence: cashier_employee_id wins over customer_id —
+// LP cases skew employee-driven per the detection-rule design. When
+// neither is present, returns nil and
 // the case opens with primary_subject_id NULL.
 func (h *Handler) subjectFromDetection(ctx context.Context, det *types.Detection) *uuid.UUID {
-	// Wave B C.2: when a party.Store is wired, route through party.
+	// C.2: when a party.Store is wired, route through party.
 	// Per docs/sdds/go-handoff/canonical-data-model-party-edits.md §D.
 	if h.party != nil {
 		partyID, err := h.party.ResolveFromDetection(ctx, det)

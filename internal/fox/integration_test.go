@@ -7,7 +7,7 @@
 //	go test -tags=integration -v ./internal/fox/...
 //
 // Wave 3 coordinator runs this post-merge — the per-subagent verify
-// pass for Loop 2 Wave 2 explicitly does NOT run integration tests.
+// pass for explicitly does NOT run integration tests.
 package fox
 
 import (
@@ -24,7 +24,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/growdirect-llc/rapidpos/internal/db/types"
+	"github.com/ruptiv/canary/internal/db/types"
 )
 
 func skipIfNoIntegration(t *testing.T) string {
@@ -261,7 +261,7 @@ func TestIntegration_CloseCase_TerminalState(t *testing.T) {
 	}
 }
 
-// TestIntegration_ResolveSubject — GRO-762 §B.3.
+// TestIntegration_ResolveSubject §B.3.
 // Verifies (a) Resolve creates a detection.subjects row when none exists,
 // (b) the second call with the same (tenant, kind, refID) returns
 // the SAME subject id (idempotency via the existing

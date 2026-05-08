@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/growdirect-llc/rapidpos/internal/tenant"
+	"github.com/ruptiv/canary/internal/tenant"
 )
 
 // BearerMiddleware extracts the Authorization Bearer token, verifies it, and

@@ -1,6 +1,8 @@
 // Package counterpoint implements the SourceAdapter for NCR
-// Counterpoint. This is the keystone for Bart's wedge — proving the
-// substrate generalizes beyond Square is the point of Loop 2.
+// Counterpoint. It demonstrates that the SourceAdapter substrate
+// generalizes beyond Square — the same canonical event shape
+// (transaction.canonical) is produced from a vendor with a different
+// authentication model, payload schema, and pull-vs-push posture.
 //
 // NCR Counterpoint exposes a REST API with a `/Documents` endpoint
 // that returns sales documents. Each document carries a header plus
@@ -8,31 +10,31 @@
 // payload shape is roughly:
 //
 //	{
-//	  "DocumentNumber": "DOC-12345",
-//	  "DocumentType": "TKT",
-//	  "DocumentDate": "2026-05-02T18:00:00Z",
-//	  "StoreNumber": "01",
-//	  "TerminalNumber": "01-01",
-//	  "CashierNumber": "5",
-//	  "Total": 19.99,
-//	  "TaxAmount": 1.50,
-//	  "DiscountAmount": 0,
-//	  "Currency": "USD",
-//	  "Lines": [
-//	    {"LineNumber": 1, "ItemNumber": "SKU-001", "Description": "Widget",
-//	     "Quantity": 1, "Price": 18.49, "ExtendedPrice": 18.49}
-//	  ],
-//	  "Payments": [
-//	    {"PaymentSequence": 1, "PaymentType": "VISA",
-//	     "Amount": 19.99, "AuthorizationCode": "AUTH-001"}
-//	  ]
+//	 "DocumentNumber": "DOC-12345",
+//	 "DocumentType": "TKT",
+//	 "DocumentDate": "2026-05-02T18:00:00Z",
+//	 "StoreNumber": "01",
+//	 "TerminalNumber": "01-01",
+//	 "CashierNumber": "5",
+//	 "Total": 19.99,
+//	 "TaxAmount": 1.50,
+//	 "DiscountAmount": 0,
+//	 "Currency": "USD",
+//	 "Lines": [
+//	 {"LineNumber": 1, "ItemNumber": "SKU-001", "Description": "Widget",
+//	 "Quantity": 1, "Price": 18.49, "ExtendedPrice": 18.49}
+//	 ],
+//	 "Payments": [
+//	 {"PaymentSequence": 1, "PaymentType": "VISA",
+//	 "Amount": 19.99, "AuthorizationCode": "AUTH-001"}
+//	 ]
 //	}
 //
 // SDD-vague: pos-adapter-substrate.md doesn't enumerate the
 // Counterpoint REST schema. The shape above is reconstructed from
 // project_canary_native_labor_module_opportunity.md notes plus the
 // memory_recall result for "NCR Counterpoint endpoint mapping". Treat
-// this Loop 2 implementation as the substrate proof — Loop 3 hardens
+// this as the substrate proof — Loop 3 hardens
 // the field map against a real Counterpoint sandbox.
 //
 // SDD-missing: there is no Counterpoint webhook surface — Counterpoint
@@ -49,9 +51,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/growdirect-llc/rapidpos/internal/adapters"
-	"github.com/growdirect-llc/rapidpos/internal/db/types"
-	"github.com/growdirect-llc/rapidpos/internal/protocol/sub2"
+	"github.com/ruptiv/canary/internal/adapters"
+	"github.com/ruptiv/canary/internal/db/types"
+	"github.com/ruptiv/canary/internal/protocol/sub2"
 )
 
 // SourceCode is the canonical identifier for this adapter.
@@ -70,10 +72,10 @@ func (*Adapter) SourceCode() string { return SourceCode }
 //
 // Document type mapping:
 //
-//   - "TKT"   (sales ticket) → transaction_type=sale
-//   - "RET"   (return)        → transaction_type=refund
-//   - "QTE"   (quote)         → discard (not a financial event)
-//   - default                 → discard
+// - "TKT" (sales ticket) → transaction_type=sale
+// - "RET" (return) → transaction_type=refund
+// - "QTE" (quote) → discard (not a financial event)
+// - default → discard
 //
 // Loop 2 scope: header + line items + payments. Discounts and
 // taxes per-line are not yet mapped — pulled into the parent
@@ -160,7 +162,7 @@ func (*Adapter) Parse(env adapters.Envelope) (*sub2.CanonicalEvent, error) {
 	}
 
 	for _, pay := range doc.Payments {
-		// Loop 3 Wave 1 (GRO-762 §B.2): leave TenderTypeID = uuid.Nil
+		//: leave TenderTypeID = uuid.Nil
 		// — Sub2 store resolves the (tenant, source_code='counterpoint')
 		// default from f.tender_types before insert. Adapters pkg
 		// invariant preserved: parsers never invent FK IDs.

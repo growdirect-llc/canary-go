@@ -2,7 +2,7 @@
 //
 // HTTP layer for the alert endpoints.
 //
-// Spec: GRO-766 Phase A.1.
+//
 
 package alert
 
@@ -16,7 +16,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/identity"
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 // Handler binds alert endpoints onto a chi router.

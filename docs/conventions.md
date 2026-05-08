@@ -157,7 +157,7 @@ Run via `go test -tags=integration ./...`. CI runs both passes; the integration 
 
 [`github.com/shopspring/decimal`](https://github.com/shopspring/decimal) v1.4.0+, exposed as `internal/db/types.Decimal` (direct alias).
 
-Authority: OQ Resolution Pack §A.1 OQ-2.3. Full reasoning + per-module retrofit roadmap: [`Brain/wiki/cards/loop3-decimal-standard.md`](../../Brain/wiki/cards/loop3-decimal-standard.md).
+Reasoning + per-module retrofit roadmap: [`Brain/wiki/cards/loop3-decimal-standard.md`](../../Brain/wiki/cards/loop3-decimal-standard.md).
 
 **Rules:**
 
@@ -232,7 +232,7 @@ Examples already in-repo: `shopspring/decimal`, `pg_advisory_lock`, `Wazuh`, IAN
 - [`CanaryGo/CLAUDE.md`](../CLAUDE.md) — short agent-context sheet; references this doc
 - [`Brain/wiki/cards/loop3-decimal-standard.md`](../../Brain/wiki/cards/loop3-decimal-standard.md) — decimal standard
 - [`Brain/wiki/cards/loop2-build-report.md`](../../Brain/wiki/cards/loop2-build-report.md) — Loop 2 closure + top-10 findings
-- [`docs/superpowers/plans/2026-05-03-oq-resolution-pack.md`](../../docs/superpowers/plans/2026-05-03-oq-resolution-pack.md) — 22 founder-approved decisions
+- [`docs/superpowers/plans/2026-05-03-oq-resolution-pack.md`](../../docs/superpowers/plans/2026-05-03-oq-resolution-pack.md) — decisions register
 - [`docs/superpowers/plans/2026-05-03-loop3-backlog.md`](../../docs/superpowers/plans/2026-05-03-loop3-backlog.md) — 15-item priority backlog
 - [`docs/sdds/go-handoff/go-observability.md`](../../docs/sdds/go-handoff/go-observability.md) — observability SDD (full spec)
 - [`docs/sdds/go-handoff/go-module-layout.md`](../../docs/sdds/go-handoff/go-module-layout.md) — service inventory + port assignments

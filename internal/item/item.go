@@ -4,7 +4,7 @@
 // POS-scan path — every scan invokes GetByBarcode, so the read path
 // is shaped for sub-100ms latency.
 //
-// Built in GRO-761 Loop 2 Wave 2.
+//
 //
 // Note on the schema/dispatch terminology mismatch: the dispatch brief
 // uses "merchant_id" everywhere, but the canonical schema (deploy/schema/
@@ -23,7 +23,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/growdirect-llc/rapidpos/internal/db/types"
+	"github.com/ruptiv/canary/internal/db/types"
 )
 
 // ─────────────────────────────────────────────────────────────────────

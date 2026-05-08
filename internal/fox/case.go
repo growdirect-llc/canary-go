@@ -6,7 +6,7 @@
 // per the canonical schema (no updated_at columns) — fox issues only
 // INSERTs against them; lifecycle state lives on q.cases itself.
 //
-// Built in GRO-761 (Loop 2 Wave 2). Schema source of truth:
+// Built in GRO-761. Schema source of truth:
 // deploy/schema/09_q_canary_mechanics.sql.
 //
 // SDD-conflict: the dispatch brief refers to "merchant_id" throughout,

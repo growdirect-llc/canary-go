@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/growdirect-llc/rapidpos/internal/config"
+	"github.com/ruptiv/canary/internal/config"
 	"go.uber.org/zap"
 )
 

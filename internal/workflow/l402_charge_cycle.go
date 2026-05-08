@@ -6,10 +6,10 @@
 // compatible invoice, and gets charged. Failed charges retry per
 // configurable policy.
 //
-// Spec: GRO-765 Phase A.1 (folds part of GRO-643).
+// Spec: GRO-765
 //
 // L402 reference (Lightning Service Authentication Token):
-//   https://docs.lightning.engineering/the-lightning-network/l402
+// https://docs.lightning.engineering/the-lightning-network/l402
 
 package workflow
 
@@ -47,7 +47,7 @@ func RegisterL402ChargeCycle(ctx context.Context, store *Store) (*Definition, er
 			StepUsageCollected, StepSatoshiPriced,
 			StepInvoiceGenerated, StepL402Charged, StepChargeFailed,
 		},
-		"reference":   "https://docs.lightning.engineering/the-lightning-network/l402",
+		"reference": "https://docs.lightning.engineering/the-lightning-network/l402",
 		"sponsor":     "GRO-643 / GRO-765 Phase A.1",
 		"folded_from": "memory project_satoshi_cost_model",
 	})

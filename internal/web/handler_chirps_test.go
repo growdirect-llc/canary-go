@@ -1,3 +1,5 @@
+//go:build integration
+
 package web_test
 
 import (
@@ -8,9 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/growdirect-llc/rapidpos/internal/chirp"
-	"github.com/growdirect-llc/rapidpos/internal/testutil"
-	"github.com/growdirect-llc/rapidpos/internal/web"
+	"github.com/ruptiv/canary/internal/chirp"
+	"github.com/ruptiv/canary/internal/testutil"
+	"github.com/ruptiv/canary/internal/web"
 )
 
 // TestChirpListPage_Renders verifies the chirps page handler mounts correctly,
@@ -20,7 +22,7 @@ func TestChirpListPage_Renders(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := chirp.NewPgxStore(pool)
 	deps := web.Deps{ChirpStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -42,7 +44,7 @@ func TestChirpDetailPage_UnknownID_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := chirp.NewPgxStore(pool)
 	deps := web.Deps{ChirpStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -63,7 +65,7 @@ func TestRulesListPage_Renders(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := chirp.NewPgxStore(pool)
 	deps := web.Deps{ChirpStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 
@@ -85,7 +87,7 @@ func TestRuleDetailPage_UnknownID_Returns404(t *testing.T) {
 	pool := testutil.MustConnect(t)
 	store := chirp.NewPgxStore(pool)
 	deps := web.Deps{ChirpStore: store}
-	h := web.New(deps, nil)
+	h := web.New(withTestAuth(deps), nil)
 	r := chi.NewRouter()
 	h.Mount(r)
 

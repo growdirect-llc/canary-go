@@ -4,7 +4,7 @@
 // job table (app.report_jobs) is scoped to Wave E schema work. This
 // stub keeps the API contract live and testable without a DB migration.
 //
-// Spec: GRO-766 Phase E.
+//
 
 package report
 

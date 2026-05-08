@@ -2,17 +2,16 @@
 //
 // Canonical decimal type for Canary Go — alias for shopspring/decimal.
 //
-// Per OQ Resolution Pack §A.1 OQ-2.3 (founder-approved 2026-05-03):
 // shopspring/decimal is the open-source standard for Go decimal math
 // (https://github.com/shopspring/decimal). The library handles arbitrary
 // precision, deterministic rounding, and database scan/value
 // implementations correctly — none of which is true of float64 or
-// int64-cents-encoded-as-string, both of which Loop 2 modules used.
+// int64-cents-encoded-as-string, both of which earlier modules used.
 //
-// Loop 3 Wave 1 (GRO-762 §B.4) lands the dep + this canonical alias
-// + JSON marshal helpers + DB scan/value implementations. Wave 2
-// retrofits each module that currently uses string/int64 cents to
-// the canonical Decimal type — see Brain/wiki/cards/loop3-decimal-standard.md
+// This package provides the canonical alias plus JSON marshal helpers
+// and DB scan/value implementations. Modules that currently use
+// string/int64 cents retrofit to this canonical Decimal type — see
+// Brain/wiki/cards/loop3-decimal-standard.md
 // for the per-module retrofit roadmap.
 //
 // Why a type alias instead of a wrapper struct: callers should be able

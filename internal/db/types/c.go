@@ -1,5 +1,5 @@
-// Code generated from deploy/schema/04_c_e_customers_employees.sql for Loop 2 (GRO-761).
-// Wave 1 hand-written types — sqlc retrofit is Loop 3.
+// Code generated from deploy/schema/04_c_e_customers_employees.sql for
+// Wave 1 hand-written types — sqlc retrofit is
 // Edit the SQL files in deploy/schema/, regenerate this file by hand.
 package types
 
@@ -46,8 +46,8 @@ type CustomerAddress struct {
 	Region        *string         `db:"region"`
 	PostalCode    *string         `db:"postal_code"`
 	Country       string          `db:"country"`
-	Latitude      *string         `db:"latitude"`  // numeric — decimal.Decimal dep needed; using string for Loop 2
-	Longitude     *string         `db:"longitude"` // numeric — decimal.Decimal dep needed; using string for Loop 2
+	Latitude *string `db:"latitude"` // numeric — decimal.Decimal dep needed; using string for
+	Longitude *string `db:"longitude"` // numeric — decimal.Decimal dep needed; using string for
 	IsDefault     bool            `db:"is_default"`
 	Attributes    json.RawMessage `db:"attributes"`
 	Status        string          `db:"status"`

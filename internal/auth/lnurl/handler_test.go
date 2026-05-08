@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/auth/lnurl"
+	"github.com/ruptiv/canary/internal/auth/lnurl"
 )
 
 // ─── in-memory stub store ─────────────────────────────────────────────────────

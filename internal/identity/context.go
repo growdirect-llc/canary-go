@@ -13,7 +13,7 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-	"github.com/growdirect-llc/rapidpos/internal/tenant"
+	"github.com/ruptiv/canary/internal/tenant"
 )
 
 // ErrTenantMismatch is returned by AssertBodyTenantMatches when the
@@ -24,8 +24,8 @@ var ErrTenantMismatch = errors.New("identity: body tenant_id does not match auth
 // AuthMethod values for downstream code that needs to distinguish
 // the path that produced the claim.
 const (
-	AuthMethodJWT       = "jwt"
-	AuthMethodAPIKey    = "apikey"
+	AuthMethodJWT        = "jwt"
+	AuthMethodAPIKey     = "apikey"
 	AuthMethodLegacyHMAC = "legacy_hmac"
 )
 

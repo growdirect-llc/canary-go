@@ -2,7 +2,7 @@
 // promotion × tax → final unit price + line breakdown for transactions
 // at the register, web add-to-cart, and any agent that needs a quote.
 //
-// Wave 2 of GRO-761 Loop 2. Service port 8091.
+// Service port 8091.
 //
 // Endpoints:
 //
@@ -22,9 +22,9 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 
-	"github.com/growdirect-llc/rapidpos/internal/config"
-	"github.com/growdirect-llc/rapidpos/internal/db"
-	"github.com/growdirect-llc/rapidpos/internal/pricing"
+	"github.com/ruptiv/canary/internal/config"
+	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/pricing"
 )
 
 const serviceName = "canary-pricing"

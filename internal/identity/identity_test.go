@@ -36,6 +36,48 @@ func TestGenerateAPIKeyPlaintextDistinct(t *testing.T) {
 	}
 }
 
+// TestExtractPrefixGeneratedFormat — every plaintext from
+// GenerateAPIKeyPlaintext yields a prefix of the documented length.
+// Locks the contract for the prefix-indexed verify path.
+func TestExtractPrefixGeneratedFormat(t *testing.T) {
+	for i := 0; i < 5; i++ {
+		p, _ := GenerateAPIKeyPlaintext()
+		prefix := extractPrefix(p)
+		if len(prefix) != keyPrefixLen {
+			t.Errorf("prefix len: got %d, want %d (plaintext=%q)", len(prefix), keyPrefixLen, p)
+		}
+		if !strings.HasPrefix(prefix, KeyPlaintextPrefix) {
+			t.Errorf("prefix missing brand prefix: %s", prefix)
+		}
+		if !strings.HasPrefix(p, prefix) {
+			t.Errorf("prefix not at head of plaintext: prefix=%q plaintext=%q", prefix, p)
+		}
+	}
+}
+
+// TestExtractPrefixDistinct — two different keys with high entropy in
+// their first 8 random chars produce different prefixes. (Collisions
+// are statistically possible but not at any plausible scale.)
+func TestExtractPrefixDistinct(t *testing.T) {
+	a, _ := GenerateAPIKeyPlaintext()
+	b, _ := GenerateAPIKeyPlaintext()
+	if extractPrefix(a) == extractPrefix(b) {
+		t.Errorf("two prefixes collided — extremely unlikely; check entropy: %q == %q", a, b)
+	}
+}
+
+// TestExtractPrefixShortPlaintext — guards against panic on a too-short
+// plaintext (e.g. malformed input). Returns "" so the caller can fall
+// back to the legacy scan path.
+func TestExtractPrefixShortPlaintext(t *testing.T) {
+	if got := extractPrefix("cy_"); got != "" {
+		t.Errorf("expected empty prefix for too-short plaintext; got %q", got)
+	}
+	if got := extractPrefix(""); got != "" {
+		t.Errorf("expected empty prefix for empty plaintext; got %q", got)
+	}
+}
+
 func TestHashAndVerifyAPIKeyRoundTrip(t *testing.T) {
 	plaintext, err := GenerateAPIKeyPlaintext()
 	if err != nil {

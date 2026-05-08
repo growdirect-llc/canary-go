@@ -296,13 +296,12 @@ CREATE INDEX idx_pay_invapp_invoice ON finance.payment_invoice_applications(invo
 -- finance.markup_envelope_tiers — platform-wide cost-plus markup defaults per
 -- merchant archetype. Per-tenant override path is
 -- app.tenants.attributes->>'markup_envelope_pct'; the pricing module
--- (Wave B) reads tenant override first, falls back to the active row
--- here for the tenant's archetype. Source: OQ Resolution Pack §A.1
--- OQ-2.1 (founder-approved 2026-05-03 per GRO-762).
+-- reads tenant override first, falls back to the active row here for
+-- the tenant's archetype.
 CREATE TABLE finance.markup_envelope_tiers (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   archetype       text NOT NULL,                              -- small | medium | large
-  markup_pct      numeric(5,2) NOT NULL,                      -- 50.00, 30.00, 15.00 per OQ-2.1
+  markup_pct      numeric(5,2) NOT NULL,                      -- 50.00 / 30.00 / 15.00 per archetype
   effective_at    timestamptz NOT NULL DEFAULT now(),
   expires_at      timestamptz,                                -- NULL = open-ended
   attributes      jsonb NOT NULL DEFAULT '{}',
@@ -319,3 +318,37 @@ CREATE TABLE finance.markup_envelope_tiers (
 CREATE UNIQUE INDEX uq_markup_envelope_active
   ON finance.markup_envelope_tiers(archetype)
   WHERE expires_at IS NULL;
+
+
+-- ─────────────────────────────────────────────────────────────────────
+-- Observed-price-rule ledger (GRO-880 P0 #6 / GRO-884)
+-- ─────────────────────────────────────────────────────────────────────
+-- Counterpoint exposes only PRC_1 + REG_PRC + LST_COST in REST IM_ITEM;
+-- the 10-layer pricing precedence (location-specific / special /
+-- contract / promotional / BOGO / mix-match / break / minimum /
+-- customer-tier) surfaces only as outputs in PS_DOC_LIN_PRICE per
+-- transaction line. Canary observes these here rather than replicating
+-- the pricing engine. Populated by transaction adapter, NOT catalog
+-- adapter.
+
+CREATE TABLE pricing.observed_price_rules (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id       uuid NOT NULL REFERENCES app.tenants(id),
+  item_id         uuid NOT NULL REFERENCES catalog.items(id) ON DELETE CASCADE,
+  -- nullable — class is derivable from customer.CATEG_COD when present
+  customer_class  text,
+  rule_code       text NOT NULL,                                   -- POS-emitted: REG | SPECIAL | CONTRACT | MIX_MATCH | BOGO | BREAK | MINIMUM | TIER (Counterpoint vocabulary; Square-source maps to similar)
+  observed_price  numeric(12,4) NOT NULL,
+  observed_qty    numeric(10,4) NOT NULL DEFAULT 1,
+  -- back-link to PS_DOC_LIN-equivalent transaction line; nullable
+  -- since some observations may come from non-transactional sources
+  transaction_id  uuid,
+  observed_at     timestamptz NOT NULL DEFAULT now(),
+  attributes      jsonb NOT NULL DEFAULT '{}',
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_observed_prices_tenant_item
+  ON pricing.observed_price_rules(tenant_id, item_id, observed_at DESC);
+CREATE INDEX idx_observed_prices_rule
+  ON pricing.observed_price_rules(rule_code, observed_at DESC);
