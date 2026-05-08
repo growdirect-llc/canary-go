@@ -22,9 +22,10 @@ func newRouter(t *testing.T) *chi.Mux {
 
 func TestServicePage_rendersShellForKnownService(t *testing.T) {
 	r := newRouter(t)
-	// catalog and api-docs use custom handlers (TestCatalog_* / TestApiDocs_*).
-	// This test exercises the generic six-zone shell for the rest.
-	for _, name := range []string{"manifest", "observability", "pipeline", "qa-agent"} {
+	// catalog, api-docs, and manifest use custom handlers (TestCatalog_* /
+	// TestApiDocs_* / TestManifest_*). This test exercises the generic
+	// six-zone shell for the rest.
+	for _, name := range []string{"observability", "pipeline", "qa-agent"} {
 		req := httptest.NewRequest(http.MethodGet, "/devops/"+name, nil)
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
@@ -364,5 +365,229 @@ func TestCatalog_setsNoStoreCacheControl(t *testing.T) {
 	r.ServeHTTP(rr, req)
 	if got := rr.Header().Get("Cache-Control"); got != "no-store" {
 		t.Errorf("Cache-Control: got %q, want no-store", got)
+	}
+}
+
+// _sampleDrift builds a Drift with realistic shape — used by manifest tests
+// when we want a fully-populated activity zone. Mirrors the Phase 1 Gate
+// PASS state we ship at HEAD.
+func _sampleDrift() *Drift {
+	return &Drift{
+		Loaded:            true,
+		ManifestEndpoints: 178,
+		MountedEndpoints:  0,
+		OpenAPIEndpoints:  330,
+		Matched:           0,
+		ManifestOnly:      176,
+		OpenAPIOnly:       328,
+		RoutesOnly:        0,
+		GatePass:          true,
+	}
+}
+
+// _sampleCatalogForManifest extends _sampleCatalog with priority diversity
+// so the manifest page's P0/P1/P2 sectioning has data in each section.
+func _sampleCatalogForManifest() *Catalog {
+	port := 9100
+	return &Catalog{
+		Axes:  []CatalogAxis{{Key: "B", Name: "Resource", Direction: "Canary → external"}},
+		Tiers: []string{"reference"},
+		Cells: []CatalogCell{},
+		Services: []CatalogSvc{
+			{Name: "catalog", Port: &port, Priority: "P0", Category: "cross-tenant infra", Cells: []string{"B×reference"}, EndpointCount: 3},
+			{Name: "wallet", Port: &port, Priority: "P0", Category: "cross-tenant infra", Cells: []string{"B×reference"}, EndpointCount: 1},
+			{Name: "vault", Port: &port, Priority: "P1", Category: "cross-tenant infra", Cells: []string{"B×reference"}, EndpointCount: 1},
+			{Name: "keys", Port: &port, Priority: "P2", Category: "cross-tenant infra", Cells: []string{"B×reference"}, EndpointCount: 1},
+		},
+		Totals: CatalogTotals{ServiceCount: 4, EndpointCount: 6},
+	}
+}
+
+func TestManifest_pageRendersSummaryAndServices(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	h.catalog = _sampleCatalogForManifest()
+	h.drift = _sampleDrift()
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/devops/manifest", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+
+	// Six-zone canonical layout
+	for _, zone := range []string{
+		"Capability",
+		"KPIs",
+		"Endpoints (Source files)",
+		"Services",
+		"Activity — Drift report",
+		"Linked",
+	} {
+		if !strings.Contains(body, zone) {
+			t.Errorf("manifest page missing zone %q", zone)
+		}
+	}
+
+	// KPI counts from the catalog
+	if !strings.Contains(body, ">4<") {
+		t.Errorf("KPI strip missing service count 4")
+	}
+	if !strings.Contains(body, ">6<") {
+		t.Errorf("KPI strip missing endpoint count 6")
+	}
+	// Phase 1 Gate PASS pill
+	if !strings.Contains(body, "PASS") {
+		t.Errorf("KPI strip missing Phase 1 Gate PASS")
+	}
+
+	// Drift counts from the activity zone
+	for _, want := range []string{
+		"Manifest endpoints",
+		">178<",
+		"Manifest-only",
+		">176<",
+		"OpenAPI-only",
+		">328<",
+		"Phase 1 Gate ≤ 10",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("activity zone missing %q", want)
+		}
+	}
+
+	// Services table has P0 and P1 sections + service-name links
+	for _, want := range []string{
+		"P0 — 2 services",
+		"P1 — 1 services",
+		"P2 — 1 services",
+		`href="/devops/wallet"`,
+		`href="/devops/vault"`,
+		`href="/devops/keys"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("services table missing %q", want)
+		}
+	}
+
+	// Linked cards point to consumer services
+	for _, want := range []string{
+		`href="/devops/catalog"`,
+		`href="/devops/api-docs"`,
+		`href="/devops/observability"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("linked zone missing %q", want)
+		}
+	}
+}
+
+func TestManifest_pageDegradesWhenCatalogMissing(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	h.catalog = nil
+	h.drift = _sampleDrift()
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/devops/manifest", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "devops-catalog.json not loaded") {
+		t.Errorf("missing-catalog placeholder absent")
+	}
+}
+
+func TestManifest_pageDegradesWhenDriftMissing(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	h.catalog = _sampleCatalogForManifest()
+	h.drift = &Drift{} // not loaded
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/devops/manifest", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "drift-report.txt not loaded") {
+		t.Errorf("missing-drift placeholder absent")
+	}
+	// Catalog section should still render even when drift is missing.
+	if !strings.Contains(body, "Services") {
+		t.Errorf("services zone should still render with catalog only")
+	}
+}
+
+func TestManifest_setsNoStoreCacheControl(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	h.catalog = _sampleCatalogForManifest()
+	h.drift = _sampleDrift()
+	r := chi.NewRouter()
+	h.Mount(r)
+	req := httptest.NewRequest(http.MethodGet, "/devops/manifest", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if got := rr.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control: got %q, want no-store", got)
+	}
+}
+
+func TestManifest_gateFailRendersFailPill(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	h.catalog = _sampleCatalogForManifest()
+	d := _sampleDrift()
+	d.GatePass = false
+	d.RoutesOnly = 42
+	h.drift = d
+	r := chi.NewRouter()
+	h.Mount(r)
+	req := httptest.NewRequest(http.MethodGet, "/devops/manifest", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+	if !strings.Contains(body, "FAIL") {
+		t.Errorf("KPI strip should render FAIL when gate fails")
+	}
+	if !strings.Contains(body, ">42<") {
+		t.Errorf("KPI strip should show unaccounted route count when non-zero")
+	}
+}
+
+func TestParseTrailingInt_extractsClean(t *testing.T) {
+	cases := map[string]int{
+		"manifest endpoints:   80":         80,
+		"manifest-only:                 78": 78,
+		"matched: 0":                       0,
+		"routes-only (UNACCOUNTED):     5": 5,
+		"some-line-without-number":         0,
+	}
+	for in, want := range cases {
+		if got := parseTrailingInt(in); got != want {
+			t.Errorf("parseTrailingInt(%q) = %d, want %d", in, got, want)
+		}
 	}
 }

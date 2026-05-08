@@ -20,16 +20,112 @@
 package devops
 
 import (
+	"bufio"
 	"embed"
 	"encoding/json"
 	"html/template"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 )
+
+// Drift is a parsed summary of services/canary-protocol/manifest/build/drift-report.txt.
+// The reconcile.py emitter writes a fixed-shape report; this struct captures
+// the counts that the manifest viewer surfaces. Empty Drift = report missing
+// (the page degrades to an explanatory placeholder).
+//
+// Field names match the reconcile.py "Counts" + "Categories" labels so the
+// template can render them without translation.
+type Drift struct {
+	Loaded            bool
+	ManifestEndpoints int
+	MountedEndpoints  int
+	OpenAPIEndpoints  int
+	Matched           int
+	ManifestOnly      int
+	OpenAPIOnly       int
+	RoutesOnly        int // unaccounted — Phase 1 Gate metric
+	GatePass          bool
+}
+
+// loadDrift parses build/drift-report.txt summary block. Tolerant of missing
+// file; returns zero-value Drift{Loaded: false} on any failure. The reconcile
+// emitter format is stable per spec §"reconcile.py" — see services/canary-
+// protocol/manifest/gen/reconcile.py.
+func loadDrift(logger *zap.Logger) *Drift {
+	candidates := []string{
+		"services/canary-protocol/manifest/build/drift-report.txt",
+		"../services/canary-protocol/manifest/build/drift-report.txt",
+		"../../services/canary-protocol/manifest/build/drift-report.txt",
+	}
+	for _, c := range candidates {
+		f, err := os.Open(c)
+		if err != nil {
+			continue
+		}
+		d := &Drift{Loaded: true}
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			switch {
+			case strings.HasPrefix(line, "manifest endpoints:"):
+				d.ManifestEndpoints = parseTrailingInt(line)
+			case strings.HasPrefix(line, "mounted endpoints:"):
+				d.MountedEndpoints = parseTrailingInt(line)
+			case strings.HasPrefix(line, "openapi endpoints:"):
+				d.OpenAPIEndpoints = parseTrailingInt(line)
+			case strings.HasPrefix(line, "matched:"):
+				d.Matched = parseTrailingInt(line)
+			case strings.HasPrefix(line, "manifest-only:"):
+				d.ManifestOnly = parseTrailingInt(line)
+			case strings.HasPrefix(line, "openapi-only:"):
+				d.OpenAPIOnly = parseTrailingInt(line)
+			case strings.HasPrefix(line, "routes-only (UNACCOUNTED):"):
+				d.RoutesOnly = parseTrailingInt(line)
+			case strings.Contains(line, "Phase 1 Gate"):
+				d.GatePass = strings.Contains(line, "PASS")
+			}
+		}
+		_ = f.Close()
+		abs, _ := filepath.Abs(c)
+		logger.Info("manifest: drift-report loaded",
+			zap.String("path", abs),
+			zap.Int("manifest_endpoints", d.ManifestEndpoints),
+			zap.Int("manifest_only", d.ManifestOnly),
+			zap.Int("openapi_only", d.OpenAPIOnly),
+			zap.Bool("gate_pass", d.GatePass),
+		)
+		return d
+	}
+	logger.Warn("manifest: drift-report.txt not found; manifest page Activity zone will degrade")
+	return &Drift{}
+}
+
+// parseTrailingInt extracts the trailing integer from lines like
+// "manifest endpoints:   80" or "manifest-only:                 78".
+// Returns 0 on parse failure (the field stays zero-valued — the template
+// renders 0, indistinguishable from a real zero count).
+func parseTrailingInt(line string) int {
+	fields := strings.Fields(line)
+	if len(fields) == 0 {
+		return 0
+	}
+	last := fields[len(fields)-1]
+	// Strip parens / commas if present (reconcile output is plain ints today,
+	// but be defensive against future format tweaks).
+	last = strings.TrimRight(last, ".,)")
+	last = strings.TrimLeft(last, "(")
+	n, err := strconv.Atoi(last)
+	if err != nil {
+		return 0
+	}
+	return n
+}
 
 // Catalog is the JSON shape emitted by parse_manifest.py's
 // build_catalog() — see services/canary-protocol/manifest/gen/.
@@ -181,6 +277,7 @@ type Handler struct {
 	index      map[string]*Service // name → metadata, built once at New()
 	openAPIRaw []byte              // openapi.yaml loaded once at boot for /devops/api-docs/openapi.yaml
 	catalog    *Catalog            // devops-catalog.json loaded once at boot for /devops/catalog
+	drift      *Drift              // build/drift-report.txt summary, loaded once at boot for /devops/manifest
 }
 
 // New constructs a Handler. Returns an error if templates fail to
@@ -198,6 +295,7 @@ func New(logger *zap.Logger) (*Handler, error) {
 		"templates/sidebar.html",
 		"templates/api_docs.html",
 		"templates/catalog.html",
+		"templates/manifest.html",
 	)
 	if err != nil {
 		return nil, err
@@ -212,6 +310,7 @@ func New(logger *zap.Logger) (*Handler, error) {
 	h := &Handler{tmpl: tmpl, logger: logger, index: idx}
 	h.openAPIRaw = loadOpenAPI(logger)
 	h.catalog = loadCatalog(logger)
+	h.drift = loadDrift(logger)
 	return h, nil
 }
 
@@ -291,9 +390,10 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/devops/api-docs", h.apiDocsPage)
 	r.Get("/devops/api-docs/openapi.yaml", h.apiDocsSpec)
 	r.Get("/devops/catalog", h.catalogPage)
+	r.Get("/devops/manifest", h.manifestPage)
 
 	for name := range h.index {
-		if name == "api-docs" || name == "catalog" {
+		if name == "api-docs" || name == "catalog" || name == "manifest" {
 			continue // mounted above with custom handlers
 		}
 		path := "/devops/" + name
@@ -409,6 +509,53 @@ func (h *Handler) catalogPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if err := h.tmpl.ExecuteTemplate(w, "catalog.html", view); err != nil {
 		h.logger.Error("catalog template", zap.Error(err))
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
+}
+
+// manifestPage renders the /devops/manifest viewer — the operator surface
+// for understanding current manifest state. Sources:
+//   - h.catalog (devops-catalog.json)         → service inventory + totals
+//   - h.drift   (build/drift-report.txt)      → reconciliation summary
+//
+// Six zones per spec §"Service-detail-page common shape":
+//   Header     — name + port + priority + scope (T2.0 pattern)
+//   Capability — owner + cells (T2.0 pattern)
+//   KPI strip  — services count · endpoints · gate status · drift
+//   Endpoints  — links to source files (canary-go-portal.md, SDDs)
+//   Body       — services table sorted by category (P0 first)
+//   Activity   — drift-report summary counts
+//   Linked     — catalog (consumes manifest), api-docs (consumes openapi)
+//
+// T3B.1 / GRO-879. Editor (write) and full git-log history viewer are
+// captured as out-of-scope follow-ons.
+func (h *Handler) manifestPage(w http.ResponseWriter, r *http.Request) {
+	svc := h.index["manifest"]
+	view := map[string]any{
+		"Service":    svc,
+		"Categories": Categories,
+		"Active":     "manifest",
+		"Tenant":     "all",
+		"Env":        "lab",
+		"Catalog":    h.catalog,
+		"CatalogLoaded": h.catalog != nil,
+		"Drift":      h.drift,
+		"DriftLoaded": h.drift != nil && h.drift.Loaded,
+	}
+	if h.catalog != nil {
+		// Group services by category for the body table. P0 first, then P1, P2.
+		byPriority := map[string][]CatalogSvc{}
+		for _, s := range h.catalog.Services {
+			byPriority[s.Priority] = append(byPriority[s.Priority], s)
+		}
+		view["P0Services"] = byPriority["P0"]
+		view["P1Services"] = byPriority["P1"]
+		view["P2Services"] = byPriority["P2"]
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := h.tmpl.ExecuteTemplate(w, "manifest.html", view); err != nil {
+		h.logger.Error("manifest template", zap.Error(err))
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
 }
