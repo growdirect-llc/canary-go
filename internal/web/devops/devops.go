@@ -265,6 +265,50 @@ var QAToolCatalog = []ToolCategory{
 	},
 }
 
+// PosLabMode is one mode of the /devops/pos-lab single-transaction
+// firing range. Pinned to chirp_lab.py docstring lines 1-15: Local Fire
+// (direct DB + Chirp eval) vs Live Fire (Square sandbox round-trip).
+//
+// T3B.9 / GRO-892.
+type PosLabMode struct {
+	Name    string
+	Latency string // human-readable latency target
+	Path    string // request path narrative
+	Tests   string // what this mode validates
+}
+
+var PosLabModes = []PosLabMode{
+	{
+		Name: "Local Fire",
+		Latency: "~50ms",
+		Path: "Direct INSERT into canary_sales → ChirpRuleEngine.evaluate_readonly() → write_alerts_to_session()",
+		Tests: "Chirp's brain — rule logic, threshold math, alert generation. No Square API calls.",
+	},
+	{
+		Name: "Live Fire",
+		Latency: "~3-5s",
+		Path: "Square Payments API → webhook receiver → TSP pipeline → Chirp evaluation → alerts",
+		Tests: "End-to-end pipe — Square integration, webhook signature, idempotency, full TSP flow.",
+	},
+}
+
+// PosLabTransactionTypes is the canonical transaction-type parameter
+// space — pinned to chirp_lab.py TRANSACTION_TYPES.
+var PosLabTransactionTypes = []string{
+	"SALE", "REFUND", "RETURN", "VOID", "POST_VOID",
+	"NO_SALE", "PAID_IN", "PAID_OUT", "EXCHANGE",
+}
+
+// PosLabEntryMethods — pinned to ENTRY_METHODS.
+var PosLabEntryMethods = []string{
+	"CHIP", "CONTACTLESS", "KEYED", "SWIPED", "MANUAL", "ON_FILE",
+}
+
+// PosLabCardBrands — pinned to CARD_BRANDS.
+var PosLabCardBrands = []string{
+	"VISA", "MASTERCARD", "AMEX", "DISCOVER", "JCB",
+}
+
 // Scenario is one scripted scenario in the /devops/scenarios catalog.
 // Pinned to Canary/canary/services/scenario_runner.py SCENARIOS dict —
 // keep field shape in lockstep when the catalog evolves.
@@ -763,6 +807,13 @@ var Categories = []Group{
 				Cells:    []string{"B × stream"},
 				Status: "Scripted scenario catalog (8 scenarios) + randomizer mode for stress + discovery testing. Wired in T3B.8.",
 			},
+			{
+				Name: "pos-lab", Port: 9334, Owner: "ALX",
+				Priority: "P0",
+				Scope: "cross-tenant", Category: "test & validation",
+				Cells:    []string{"B × stream"},
+				Status: "Single-transaction firing range — Local Fire (direct DB + Chirp) vs Live Fire (Square round-trip). Wired in T3B.9.",
+			},
 		},
 	},
 }
@@ -800,6 +851,7 @@ func New(logger *zap.Logger) (*Handler, error) {
 		"templates/wallet.html",
 		"templates/test_lab.html",
 		"templates/scenarios.html",
+		"templates/pos_lab.html",
 	)
 	if err != nil {
 		return nil, err
@@ -902,10 +954,11 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/devops/wallet", h.walletPage)
 	r.Get("/devops/test-lab", h.testLabPage)
 	r.Get("/devops/scenarios", h.scenariosPage)
+	r.Get("/devops/pos-lab", h.posLabPage)
 
 	for name := range h.index {
 		switch name {
-		case "api-docs", "catalog", "manifest", "observability", "pipeline", "qa-agent", "etl", "wallet", "test-lab", "scenarios":
+		case "api-docs", "catalog", "manifest", "observability", "pipeline", "qa-agent", "etl", "wallet", "test-lab", "scenarios", "pos-lab":
 			continue // mounted above with custom handlers
 		}
 		path := "/devops/" + name
@@ -1122,6 +1175,36 @@ func (h *Handler) observabilityPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if err := h.tmpl.ExecuteTemplate(w, "observability.html", view); err != nil {
 		h.logger.Error("observability template", zap.Error(err))
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
+}
+
+// posLabPage renders the /devops/pos-lab discovery surface — the
+// single-transaction firing range. Recovery target:
+// Canary/canary/services/health_check/chirp_lab.py (1,045 LOC).
+//
+// T3B.9 / GRO-892.
+func (h *Handler) posLabPage(w http.ResponseWriter, r *http.Request) {
+	svc := h.index["pos-lab"]
+	view := map[string]any{
+		"Service":          svc,
+		"Categories":       Categories,
+		"Active":           "pos-lab",
+		"Tenant":           "all",
+		"Env":              "lab",
+		"Modes":            PosLabModes,
+		"TransactionTypes": PosLabTransactionTypes,
+		"EntryMethods":     PosLabEntryMethods,
+		"CardBrands":       PosLabCardBrands,
+		"ModeCount":        len(PosLabModes),
+		"TxnTypeCount":     len(PosLabTransactionTypes),
+		"EntryMethodCount": len(PosLabEntryMethods),
+		"CardBrandCount":   len(PosLabCardBrands),
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := h.tmpl.ExecuteTemplate(w, "pos_lab.html", view); err != nil {
+		h.logger.Error("pos-lab template", zap.Error(err))
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
 }

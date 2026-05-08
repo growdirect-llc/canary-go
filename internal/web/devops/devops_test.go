@@ -122,7 +122,7 @@ func TestKnownServices_returnsAllSkeletons(t *testing.T) {
 		"pipeline": true, "qa-agent": true, "api-docs": true,
 		"evidence": true, "anchor": true, "mcp": true,
 		"etl": true, "wallet": true, "test-lab": true,
-		"scenarios": true,
+		"scenarios": true, "pos-lab": true,
 	}
 	if len(got) != len(want) {
 		t.Errorf("KnownServices count: got %d, want %d; got %v", len(got), len(want), got)
@@ -1686,5 +1686,139 @@ func TestScenariosCatalog_invariants(t *testing.T) {
 		if len(s.VerificationQs) == 0 {
 			t.Errorf("scenario %q has no verification queries", s.Key)
 		}
+	}
+}
+
+func TestPosLab_pageRendersTwoModes(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/pos-lab", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+
+	for _, zone := range []string{
+		"Capability",
+		"KPIs",
+		"Endpoints (Source files)",
+		"Fire modes",
+		"Parameter space",
+		"Activity — Fire history (planned)",
+		"Linked",
+	} {
+		if !strings.Contains(body, zone) {
+			t.Errorf("pos-lab page missing zone %q", zone)
+		}
+	}
+
+	// Both modes render with their data-mode attr
+	for _, mode := range []string{`data-mode="Local Fire"`, `data-mode="Live Fire"`} {
+		if !strings.Contains(body, mode) {
+			t.Errorf("pos-lab page missing mode attr %q", mode)
+		}
+	}
+
+	// Latency labels visible
+	for _, lat := range []string{"~50ms", "~3-5s"} {
+		if !strings.Contains(body, lat) {
+			t.Errorf("pos-lab page missing latency %q", lat)
+		}
+	}
+}
+
+func TestPosLab_pageListsParameterSpace(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/pos-lab", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+
+	// All 9 transaction types
+	for _, tt := range []string{"SALE", "REFUND", "RETURN", "VOID", "POST_VOID", "NO_SALE", "PAID_IN", "PAID_OUT", "EXCHANGE"} {
+		if !strings.Contains(body, tt) {
+			t.Errorf("transaction types missing %q", tt)
+		}
+	}
+	// Entry methods (6)
+	for _, em := range []string{"CHIP", "CONTACTLESS", "KEYED", "SWIPED", "MANUAL", "ON_FILE"} {
+		if !strings.Contains(body, em) {
+			t.Errorf("entry methods missing %q", em)
+		}
+	}
+	// Card brands (5)
+	for _, cb := range []string{"VISA", "MASTERCARD", "AMEX", "DISCOVER", "JCB"} {
+		if !strings.Contains(body, cb) {
+			t.Errorf("card brands missing %q", cb)
+		}
+	}
+
+	// KPI tile counts
+	if !strings.Contains(body, ">2<") {
+		t.Errorf("KPI tile should show 2 fire modes")
+	}
+	if !strings.Contains(body, ">9<") {
+		t.Errorf("KPI tile should show 9 transaction types")
+	}
+	if !strings.Contains(body, ">6<") {
+		t.Errorf("KPI tile should show 6 entry methods")
+	}
+	if !strings.Contains(body, ">5<") {
+		t.Errorf("KPI tile should show 5 card brands")
+	}
+}
+
+func TestPosLab_setsNoStoreCacheControl(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/pos-lab", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if got := rr.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control: got %q, want no-store", got)
+	}
+}
+
+func TestPosLab_includedInKnownServices(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	found := false
+	for _, n := range h.KnownServices() {
+		if n == "pos-lab" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("pos-lab not in KnownServices()")
+	}
+}
+
+func TestPosLabModes_invariants(t *testing.T) {
+	if len(PosLabModes) != 2 {
+		t.Errorf("PosLabModes should have exactly 2 modes, got %d", len(PosLabModes))
+	}
+	want := map[string]bool{"Local Fire": true, "Live Fire": true}
+	for _, m := range PosLabModes {
+		if !want[m.Name] {
+			t.Errorf("unexpected mode name %q", m.Name)
+		}
+		if m.Latency == "" || m.Path == "" || m.Tests == "" {
+			t.Errorf("mode %q has empty required field", m.Name)
+		}
+	}
+}
+
+func TestPosLabParameterSpaces_invariants(t *testing.T) {
+	if len(PosLabTransactionTypes) != 9 {
+		t.Errorf("PosLabTransactionTypes count = %d, want 9", len(PosLabTransactionTypes))
+	}
+	if len(PosLabEntryMethods) != 6 {
+		t.Errorf("PosLabEntryMethods count = %d, want 6", len(PosLabEntryMethods))
+	}
+	if len(PosLabCardBrands) != 5 {
+		t.Errorf("PosLabCardBrands count = %d, want 5", len(PosLabCardBrands))
 	}
 }
