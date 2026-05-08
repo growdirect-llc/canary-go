@@ -1,14 +1,21 @@
 {{template "base.html" .}}
 
-{{define "title"}}New item — Canary{{end}}
+{{define "title"}}{{if .Data.IsEdit}}Edit item{{else}}New item{{end}} — Canary{{end}}
 
 {{define "content"}}
 {{with .Data}}
 {{$csrf := $.CSRFField}}
 {{$form := .Form}}
+{{$action := .ActionURL}}
+{{$isEdit := .IsEdit}}
 <div class="page-header">
+  {{if $isEdit}}
+  <h1>Edit item</h1>
+  <p class="page-subtitle">Update fields and save. Required fields stay required.</p>
+  {{else}}
   <h1>New item</h1>
   <p class="page-subtitle">Manual entry — required fields only. Optional details land later.</p>
+  {{end}}
 </div>
 
 {{if .Flash}}
@@ -29,7 +36,7 @@
 </div>
 {{end}}
 
-<form method="POST" action="/items/new" class="ops-card" style="max-width:640px;">
+<form method="POST" action="{{$action}}" class="ops-card" style="max-width:640px;">
   {{$csrf}}
 
   <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:16px;">
@@ -179,7 +186,7 @@
 
   <div style="display:flex;gap:12px;align-items:center;margin-top:24px;padding-top:20px;border-top:1px solid var(--border-subtle);">
     <button type="submit" style="padding:10px 20px;background:var(--signal-yellow);color:#000;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
-      Save item
+      {{if $isEdit}}Save changes{{else}}Save item{{end}}
     </button>
     <a href="/items" style="padding:10px 16px;color:var(--text-muted);text-decoration:none;font-size:13px;">Cancel</a>
   </div>

@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
@@ -41,6 +42,8 @@ func (h *Handler) itemNewPage(w http.ResponseWriter, r *http.Request) {
 		"Vendors":    []map[string]any{},
 		"Flash":      r.URL.Query().Get("flash"),
 		"Form":       formStateFromQuery(r.URL.Query()),
+		"ActionURL":  "/items/new",
+		"IsEdit":     false,
 	}
 
 	if h.deps.ItemStore != nil {
@@ -275,4 +278,197 @@ func defaultIfEmpty(s, def string) string {
 		return def
 	}
 	return s
+}
+
+// itemEditPage renders the same form as itemNewPage, but pre-populates
+// from the existing item row. Action URL points to the per-item update
+// endpoint. GRO-886 follow-on.
+func (h *Handler) itemEditPage(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		h.render(w, r, "err404", "items", nil)
+		return
+	}
+
+	if h.deps.ItemStore == nil {
+		http.Redirect(w, r, "/items?flash=no_store", http.StatusSeeOther)
+		return
+	}
+
+	ctx := r.Context()
+	tenantID := tenantIDFromCtx(ctx)
+	existing, err := h.deps.ItemStore.GetByID(ctx, tenantID, id)
+	if err != nil {
+		if errors.Is(err, item.ErrNotFound) {
+			w.WriteHeader(http.StatusNotFound)
+			h.render(w, r, "err404", "items", nil)
+			return
+		}
+		h.logger.Error("itemEditPage: GetByID", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		h.render(w, r, "err500", "items", nil)
+		return
+	}
+
+	// Allow query-param overrides for flash-redirect state-preservation
+	// (same UX as create form).
+	form := formStateFromQuery(r.URL.Query())
+	if form["sku"] == "" {
+		form = formStateFromItem(existing)
+	}
+
+	view := map[string]any{
+		"Categories": []map[string]any{},
+		"Vendors":    []map[string]any{},
+		"Flash":      r.URL.Query().Get("flash"),
+		"Form":       form,
+		"ActionURL":  "/items/" + id.String() + "/edit",
+		"IsEdit":     true,
+		"ItemID":     id.String(),
+	}
+
+	if cats, err := h.deps.ItemStore.ListCategories(ctx, tenantID); err == nil {
+		view["Categories"] = categoryDropdownView(cats)
+	} else {
+		h.logger.Warn("itemEditPage: ListCategories", zap.Error(err))
+	}
+	if vendors, err := h.deps.ItemStore.ListVendors(ctx, tenantID); err == nil {
+		view["Vendors"] = vendorDropdownView(vendors)
+	} else {
+		h.logger.Warn("itemEditPage: ListVendors", zap.Error(err))
+	}
+
+	h.render(w, r, "items_new", "items", view)
+}
+
+// itemUpdateAction handles POST /items/{id}/edit. Builds an
+// item.PatchRequest from the form fields and calls ItemStore.Update.
+// On success, redirects to the item's detail page. Failure modes
+// match the create-action conventions.
+func (h *Handler) itemUpdateAction(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		h.render(w, r, "err404", "items", nil)
+		return
+	}
+
+	if h.deps.ItemStore == nil {
+		http.Redirect(w, r, "/items/"+idStr+"/edit?flash=no_store", http.StatusSeeOther)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		h.logger.Warn("itemUpdateAction: ParseForm", zap.Error(err))
+		http.Redirect(w, r, "/items/"+idStr+"/edit?flash=invalid_form", http.StatusSeeOther)
+		return
+	}
+
+	form := parseItemCreateForm(r)
+	if missing := form.firstMissingRequired(); missing != "" {
+		http.Redirect(w, r, "/items/"+idStr+"/edit?"+form.queryString("missing_"+missing), http.StatusSeeOther)
+		return
+	}
+
+	tenantID := tenantIDFromCtx(r.Context())
+
+	// PatchRequest semantics: a missing field in the request leaves the
+	// column alone; a present field updates it. The form always carries
+	// every field (no intermediate "leave blank" affordance today), so
+	// every field is sent on every PATCH. That's fine — the diff lands
+	// in the UPDATE statement either way.
+	//
+	// SKU is intentionally NOT in PatchRequest (immutable identity per
+	// item.go's domain model). The form posts SKU for display continuity
+	// but it's ignored on update — operators can't rename a SKU through
+	// this surface. (A separate "renumber items" admin tool can land
+	// later if Bart's stores need it.)
+	patch := item.PatchRequest{
+		Description: &form.Description,
+	}
+	if form.CategoryID != "" {
+		if catID, err := uuid.Parse(form.CategoryID); err == nil {
+			patch.CategoryID = &catID
+		}
+	}
+	if form.UnitOfMeasure != "" {
+		patch.UnitOfMeasure = &form.UnitOfMeasure
+	}
+	if form.UnitCost != "" {
+		patch.DefaultCost = &form.UnitCost
+	}
+	if form.SellingPrice != "" {
+		patch.DefaultPrice = &form.SellingPrice
+	}
+	if form.Status != "" {
+		patch.Status = &form.Status
+	}
+
+	if _, err := h.deps.ItemStore.Update(r.Context(), tenantID, id, patch); err != nil {
+		switch {
+		case errors.Is(err, item.ErrNotFound):
+			w.WriteHeader(http.StatusNotFound)
+			h.render(w, r, "err404", "items", nil)
+			return
+		case errors.Is(err, item.ErrConflict):
+			http.Redirect(w, r, "/items/"+idStr+"/edit?"+form.queryString("duplicate_sku"), http.StatusSeeOther)
+			return
+		case errors.Is(err, item.ErrValidation):
+			http.Redirect(w, r, "/items/"+idStr+"/edit?"+form.queryString("validation_failed"), http.StatusSeeOther)
+			return
+		default:
+			h.logger.Error("itemUpdateAction: Update", zap.Error(err))
+			http.Redirect(w, r, "/items/"+idStr+"/edit?"+form.queryString("update_failed"), http.StatusSeeOther)
+			return
+		}
+	}
+
+	http.Redirect(w, r, "/items/"+idStr+"?flash=updated", http.StatusSeeOther)
+}
+
+// formStateFromItem populates the form-state map from an existing
+// Item — used when rendering the edit form for the first time
+// (before any flash redirect has happened).
+func formStateFromItem(it *item.Item) map[string]string {
+	form := map[string]string{
+		"sku":             it.SKU,
+		"description":     it.Description,
+		"unit_of_measure": it.UnitOfMeasure,
+		"status":          it.Status,
+	}
+	if it.CategoryID != nil {
+		form["category_id"] = it.CategoryID.String()
+	}
+	if it.DefaultCost != nil {
+		form["unit_cost"] = *it.DefaultCost
+	}
+	if it.DefaultPrice != nil {
+		form["selling_price"] = *it.DefaultPrice
+	}
+	if len(it.Barcodes) > 0 {
+		form["barcode"] = it.Barcodes[0].Barcode
+	}
+	return form
+}
+
+// queryString builds just the query-string portion (no leading "?")
+// of the redirect URL. Variant of redirectTo for callers that already
+// have the path part.
+func (f itemCreateForm) queryString(flash string) string {
+	q := url.Values{}
+	q.Set("flash", flash)
+	q.Set("sku", f.SKU)
+	q.Set("description", f.Description)
+	q.Set("category_id", f.CategoryID)
+	q.Set("barcode", f.Barcode)
+	q.Set("vendor_id", f.VendorID)
+	q.Set("unit_of_measure", f.UnitOfMeasure)
+	q.Set("unit_cost", f.UnitCost)
+	q.Set("selling_price", f.SellingPrice)
+	q.Set("case_pack", f.CasePack)
+	q.Set("status", f.Status)
+	return q.Encode()
 }

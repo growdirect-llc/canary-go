@@ -363,10 +363,13 @@ func (h *Handler) Mount(r chi.Router) {
 
 		// Items + category report — wired W2c.
 		// Item-setup Flow C C1 (manual entry, minimal form) — GRO-886.
+		// Edit form (basic CRUD update path) — GRO-886 follow-on.
 		r.Get("/items", h.itemListPage)
 		r.Get("/items/new", h.itemNewPage)
 		r.Post("/items/new", h.itemCreateAction)
 		r.Get("/items/{id}", h.itemDetailPage)
+		r.Get("/items/{id}/edit", h.itemEditPage)
+		r.Post("/items/{id}/edit", h.itemUpdateAction)
 
 		// Finance + payments — wired W2e.
 		r.Get("/reports/finance", h.reportFinancePage)
