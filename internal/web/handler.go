@@ -289,6 +289,12 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/join", h.joinPage)
 	r.Get("/login", h.loginPage)
 	r.Get("/auth/logout", h.logoutHandler)
+	// /auth/connect is the legacy CTA target from templates/auth/join.html
+	// (line 128 "Connect your store"). Thin redirect to the provider
+	// picker so the marketing surface stays clickable.
+	r.Get("/auth/connect", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/login", http.StatusFound)
+	})
 	r.Get("/connect", h.page("connect", "connect", stubConnect))
 	r.Get("/welcome", h.page("welcome", "welcome", nil))
 
