@@ -107,10 +107,13 @@ func TestTenantSessionMiddleware_ResolverReturnsNilUUIDWithOK(t *testing.T) {
 	}
 }
 
-// TestRequireTenant_NilTenant_RedirectsToConnect verifies the
+// TestRequireTenant_NilTenant_RedirectsToLogin verifies the
 // per-handler nil-tenant gate: a request with no resolved tenant gets
-// 302 → /connect instead of executing the wrapped handler.
-func TestRequireTenant_NilTenant_RedirectsToConnect(t *testing.T) {
+// 302 → /login instead of executing the wrapped handler.
+//
+// Pre-fix this redirected to /connect (post-OAuth data-sync picker) —
+// confusing UX for unauthenticated users. /login is the public landing.
+func TestRequireTenant_NilTenant_RedirectsToLogin(t *testing.T) {
 	h := &Handler{}
 	wrappedCalled := false
 	wrapped := h.requireTenant(func(http.ResponseWriter, *http.Request) {
@@ -126,8 +129,8 @@ func TestRequireTenant_NilTenant_RedirectsToConnect(t *testing.T) {
 	if rec.Code != http.StatusFound {
 		t.Errorf("status: got %d, want 302", rec.Code)
 	}
-	if loc := rec.Header().Get("Location"); loc != "/connect" {
-		t.Errorf("redirect: got %q, want /connect", loc)
+	if loc := rec.Header().Get("Location"); loc != "/login" {
+		t.Errorf("redirect: got %q, want /login", loc)
 	}
 }
 
@@ -187,8 +190,10 @@ func TestMount_PublicRoutes_ReachableWithoutTenant(t *testing.T) {
 }
 
 // TestMount_ProtectedRoutes_RedirectWhenNoTenant verifies that a
-// representative tenant-scoped route gets redirected to /connect when
+// representative tenant-scoped route gets redirected to /login when
 // no session is resolved. This proves the Group-level gate is wired.
+//
+// Redirect target updated by the auth-flow fix: /connect → /login.
 func TestMount_ProtectedRoutes_RedirectWhenNoTenant(t *testing.T) {
 	h := New(Deps{}, nil)
 	r := chi.NewRouter()
@@ -201,8 +206,8 @@ func TestMount_ProtectedRoutes_RedirectWhenNoTenant(t *testing.T) {
 		if rec.Code != http.StatusFound {
 			t.Errorf("protected path %s: got %d, want 302", p, rec.Code)
 		}
-		if loc := rec.Header().Get("Location"); loc != "/connect" {
-			t.Errorf("protected path %s redirect: got %q, want /connect", p, loc)
+		if loc := rec.Header().Get("Location"); loc != "/login" {
+			t.Errorf("protected path %s redirect: got %q, want /login", p, loc)
 		}
 	}
 }

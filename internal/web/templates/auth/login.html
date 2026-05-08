@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign in | Canary</title>
+<meta name="description" content="Connect your POS to start watching for shrinkage, drawer variance, and refund fraud.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/web/static/themes/canary-dark.css">
+<link rel="stylesheet" href="/web/static/canary.css">
+<style>
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-ink);
+  color: var(--text-primary);
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.shell {
+  width: 100%;
+  max-width: 460px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 28px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+}
+.brand .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--signal-yellow, #FBBF24);
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.6);
+}
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  padding: 32px 28px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+}
+h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  letter-spacing: -0.01em;
+}
+.sub {
+  color: var(--text-muted, #8b949e);
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 28px;
+}
+.cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: 10px;
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 600;
+  background: linear-gradient(135deg, var(--signal-yellow, #FBBF24), var(--signal-amber, #F59E0B));
+  color: #0a0a0a;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.06s ease, box-shadow 0.2s ease;
+}
+.cta:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(251, 191, 36, 0.25); }
+.cta-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: 10px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 500;
+  margin-top: 10px;
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted, #8b949e);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 18px 0;
+}
+.divider::before, .divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+.error {
+  background: rgba(248, 81, 73, 0.12);
+  border: 1px solid rgba(248, 81, 73, 0.4);
+  color: #ff8b85;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+.foot {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 12px;
+  color: var(--text-muted, #8b949e);
+}
+.foot a { color: var(--accent-2, #58a6ff); text-decoration: none; }
+.foot a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="brand">
+    <span class="dot"></span>
+    <span>Canary</span>
+  </div>
+
+  <div class="card">
+    <h1>Connect your store</h1>
+    <p class="sub">Canary watches your POS for refund fraud, drawer variance, and the kinds of patterns that signal something's wrong. Connect your point-of-sale to get started.</p>
+
+    {{if .Error}}
+    <div class="error">{{.Error}}</div>
+    {{end}}
+
+    <a href="/auth/square" class="cta" id="connect-square">
+      <span>Connect Your Square</span>
+      <span aria-hidden="true">→</span>
+    </a>
+
+    <div class="divider">More integrations coming</div>
+
+    <span class="cta-secondary" title="NCR Counterpoint connector ships in a follow-on dispatch">
+      <span>Connect NCR Counterpoint</span>
+      <span aria-hidden="true">soon</span>
+    </span>
+
+    <div class="foot">
+      <p>New here? <a href="/join">Learn more about Canary</a></p>
+    </div>
+  </div>
+</main>
+</body>
+</html>
