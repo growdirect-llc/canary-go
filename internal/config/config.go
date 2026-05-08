@@ -24,6 +24,15 @@ type Config struct {
 	// §"Per-tier infrastructure" reference row "Long TTL (~60s hot)").
 	TierReferenceCache    bool
 	TierReferenceCacheTTL time.Duration
+
+	// Change-feed tier middleware (T3A.2 / GRO-899). Adds cursor +
+	// watermark + lag tracking to /v1/alerts/*, /v1/owl/*, /v1/chirp/detections.
+	// LagThreshold matches spec §"Per-tier infrastructure" change-feed
+	// row health semantics ("lag exceeded"). CacheTTL matches "Short TTL
+	// (~5 min)".
+	TierChangeFeed             bool
+	TierChangeFeedLagThreshold time.Duration
+	TierChangeFeedCacheTTL     time.Duration
 }
 
 // Load reads required environment variables and panics on missing ones.
@@ -40,6 +49,10 @@ func Load(serviceName string) *Config {
 		PublicURL:             getOr("PUBLIC_URL", ""),
 		TierReferenceCache:    getBool("TIER_REFERENCE_CACHE", false),
 		TierReferenceCacheTTL: getDuration("TIER_REFERENCE_CACHE_TTL", 60*time.Second),
+
+		TierChangeFeed:             getBool("TIER_CHANGE_FEED", false),
+		TierChangeFeedLagThreshold: getDuration("TIER_CHANGE_FEED_LAG_THRESHOLD", 5*time.Minute),
+		TierChangeFeedCacheTTL:     getDuration("TIER_CHANGE_FEED_CACHE_TTL", 5*time.Minute),
 	}
 	return cfg
 }
