@@ -8,26 +8,34 @@
 
 -- catalog.items — master record for everything sold; ARTS Item ODM (Item/SKU/Style consolidated)
 CREATE TABLE catalog.items (
-  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id           uuid NOT NULL REFERENCES app.tenants(id),
-  sku                 text NOT NULL,                                 -- merchant's primary SKU
-  description         text NOT NULL,                                 -- shelf-name (full-text indexed)
-  short_description   text,                                          -- receipt-name
-  item_type           text NOT NULL DEFAULT 'standard',              -- standard | service | giftcard | tare | pack | bundle
-  category_id         uuid,                                          -- FK to catalog.product_categories(id) added at end of file
-  unit_of_measure     text NOT NULL DEFAULT 'EA',                    -- EA | LB | KG | OZ | GAL | etc. (UN/ECE Recommendation 20)
-  uom_quantity        numeric(10,4) NOT NULL DEFAULT 1,              -- employee.g., 0.5 LB per unit
-  default_price       numeric(12,4),                                 -- catalog price; per-location overrides in pricing.item_prices
-  default_cost        numeric(12,4),                                 -- last-known cost; vendor-specific in catalog.item_vendors
-  default_currency    text NOT NULL DEFAULT 'USD',                   -- ISO 4217
-  tax_class           text,                                          -- tax classification key (lookup in pricing.tax_classes)
-  food_stamp_eligible boolean NOT NULL DEFAULT false,                -- US SNAP/EBT
-  age_restriction     int,                                           -- minimum buyer age (alcohol, tobacco, Rx)
-  weighable           boolean NOT NULL DEFAULT false,                -- requires scale at POS
-  attributes          jsonb NOT NULL DEFAULT '{}',                   -- style variants (color, size), vertical fields (Rx NDC, food calories), merchant-defined
-  status              text NOT NULL DEFAULT 'active',                -- active | discontinued | seasonal | hidden
-  created_at          timestamptz NOT NULL DEFAULT now(),
-  updated_at          timestamptz NOT NULL DEFAULT now(),
+  id                        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id                 uuid NOT NULL REFERENCES app.tenants(id),
+  sku                       text NOT NULL,                              -- merchant's primary SKU
+  description               text NOT NULL,                              -- shelf-name (full-text indexed)
+  short_description         text,                                       -- receipt-name
+  item_type                 text NOT NULL DEFAULT 'standard',           -- standard | service | giftcard | tare | pack | bundle
+  category_id               uuid,                                       -- FK to catalog.product_categories(id) added at end of file
+  unit_of_measure           text NOT NULL DEFAULT 'EA',                 -- EA | LB | KG | OZ | GAL | etc. (UN/ECE Recommendation 20)
+  preferred_unit_of_measure text,                                       -- display/order default UOM when ≠ stocking; GRO-880 P1 #10 (CP IM_ITEM.PREF_UNIT)
+  uom_quantity              numeric(10,4) NOT NULL DEFAULT 1,           -- employee.g., 0.5 LB per unit
+  qty_decimals              smallint NOT NULL DEFAULT 0,                -- POS qty decimals (0 whole-unit, 2-4 weighed); GRO-880 P0 #4
+  price_decimals            smallint NOT NULL DEFAULT 2,                -- POS price decimals; GRO-880 P0 #4
+  default_price             numeric(12,4),                              -- catalog price; per-location overrides in pricing.item_prices
+  default_cost              numeric(12,4),                              -- last-known cost; vendor-specific in catalog.item_vendors
+  default_currency          text NOT NULL DEFAULT 'USD',                -- ISO 4217
+  tax_class                 text,                                       -- tax classification key (lookup in pricing.tax_classes)
+  food_stamp_eligible       boolean NOT NULL DEFAULT false,             -- US SNAP/EBT
+  age_restriction           int,                                        -- minimum buyer age (alcohol, tobacco, Rx)
+  weighable                 boolean NOT NULL DEFAULT false,             -- requires scale at POS
+  is_discountable           boolean NOT NULL DEFAULT true,              -- discount-application flag; GRO-880 P1 #9
+  tracking_method           text NOT NULL DEFAULT 'none',               -- none | serial | lot — read path uses to decide whether to look at catalog.item_serials; GRO-880 P0 #3
+  mix_match_code            text,                                       -- mix-and-match group; items sharing this code qualify together for "buy any 3 for $10" deals; GRO-880 P1 #8
+  attributes                jsonb NOT NULL DEFAULT '{}',                -- style variants (color, size), vertical fields (Rx NDC, food calories), CP ATTR_COD_1/2 + ADDL_DESCR_1/2/3, merchant-defined
+  status                    text NOT NULL DEFAULT 'active',             -- active | discontinued | seasonal | hidden | draft | on_trial | phase_out | inactive — Canary lifecycle adds draft / on_trial / phase_out / inactive over the Counterpoint-source set; sync rounds Canary states to active/inactive at the boundary; GRO-880
+  status_changed_at         timestamptz,                                -- last status transition; GRO-880 P1 #13
+  last_received_at          timestamptz,                                -- last received-at-receiving; GRO-880 P1 #14
+  created_at                timestamptz NOT NULL DEFAULT now(),
+  updated_at                timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, sku)
 );
 
@@ -87,10 +95,11 @@ CREATE TABLE catalog.item_vendors (
   tenant_id           uuid NOT NULL REFERENCES app.tenants(id),
   item_id             uuid NOT NULL REFERENCES catalog.items(id) ON DELETE CASCADE,
   vendor_id           uuid NOT NULL REFERENCES catalog.vendors(id) ON DELETE RESTRICT,
-  vendor_sku          text,                              -- vendor's identifier for the item
-  vendor_description  text,                              -- vendor's catalog description
-  unit_cost           numeric(12,4),                     -- vendor's per-unit cost
-  case_pack_qty       int DEFAULT 1,                     -- units per case
+  vendor_sku             text,                              -- vendor's identifier for the item
+  vendor_description     text,                              -- vendor's catalog description
+  order_unit_of_measure  text,                              -- order UOM — drives PO unit conversions when ≠ item.unit_of_measure; GRO-880 P1 #11 (CP VendorItem.ORD_UNIT)
+  unit_cost              numeric(12,4),                     -- vendor's per-unit cost
+  case_pack_qty          int DEFAULT 1,                     -- units per case
   min_order_qty       int DEFAULT 1,
   lead_time_days      int,
   is_primary          boolean NOT NULL DEFAULT false,    -- the default vendor for this item
@@ -145,6 +154,57 @@ CREATE TABLE catalog.item_packs (
 CREATE INDEX idx_packs_tenant ON catalog.item_packs(tenant_id);
 CREATE INDEX idx_packs_pack ON catalog.item_packs(pack_item_id);
 CREATE INDEX idx_packs_component ON catalog.item_packs(component_item_id);
+
+
+-- catalog.item_serials — serial-tracked inventory units; backs Counterpoint SN_SER (GRO-880 P1 #7 / GRO-884)
+CREATE TABLE catalog.item_serials (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id   uuid NOT NULL REFERENCES app.tenants(id),
+  item_id     uuid NOT NULL REFERENCES catalog.items(id) ON DELETE CASCADE,
+  serial_no   text NOT NULL,
+  -- nullable: not all serials are location-bound at a given time
+  -- (e.g., in-transit between stores). FK to location.locations
+  -- kept loose to avoid forward-reference pattern across schema files.
+  location_id uuid,
+  status      text NOT NULL DEFAULT 'in_stock',                -- in_stock | sold | rma | warranty | reserved
+  received_at timestamptz,
+  sold_at     timestamptz,
+  cost        numeric(12,4),
+  attributes  jsonb NOT NULL DEFAULT '{}',
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, item_id, serial_no)
+);
+
+CREATE INDEX idx_item_serials_tenant_status ON catalog.item_serials(tenant_id, status);
+CREATE INDEX idx_item_serials_item ON catalog.item_serials(item_id);
+
+
+-- catalog.import_jobs — bulk-catalog-import lifecycle; backs Flow B per
+-- canary-item-setup-screen-decomp.md (GRO-877 OQ #2 / GRO-884).
+CREATE TABLE catalog.import_jobs (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id       uuid NOT NULL REFERENCES app.tenants(id),
+  -- nullable so generic imports without a specific vendor work
+  supplier_id     uuid,
+  status          text NOT NULL DEFAULT 'queued',                  -- queued | validating | ready | committing | finalized | cancelled
+  file_uri        text,                                            -- where the upload landed (S3/GCS/local-volume)
+  file_name       text,
+  column_mapping  jsonb NOT NULL DEFAULT '{}',                     -- file-column → Canary-field map (B2)
+  summary         jsonb NOT NULL DEFAULT '{}',                     -- per-row outcomes (B5)
+  row_count       int NOT NULL DEFAULT 0,
+  rows_imported   int NOT NULL DEFAULT 0,
+  rows_skipped    int NOT NULL DEFAULT 0,
+  started_by      uuid,                                            -- user who initiated
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  finalized_at    timestamptz
+);
+
+CREATE INDEX idx_import_jobs_tenant_status ON catalog.import_jobs(tenant_id, status);
+-- Hot path for the "resume in-flight job" UX on next visit to /suppliers/{id}/import.
+CREATE INDEX idx_import_jobs_active
+  ON catalog.import_jobs(tenant_id, created_at DESC)
+  WHERE status IN ('queued', 'validating', 'ready', 'committing');
 
 
 -- ─────────────────────────────────────────────────────────────────────

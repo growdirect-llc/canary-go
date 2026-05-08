@@ -318,3 +318,37 @@ CREATE TABLE finance.markup_envelope_tiers (
 CREATE UNIQUE INDEX uq_markup_envelope_active
   ON finance.markup_envelope_tiers(archetype)
   WHERE expires_at IS NULL;
+
+
+-- ─────────────────────────────────────────────────────────────────────
+-- Observed-price-rule ledger (GRO-880 P0 #6 / GRO-884)
+-- ─────────────────────────────────────────────────────────────────────
+-- Counterpoint exposes only PRC_1 + REG_PRC + LST_COST in REST IM_ITEM;
+-- the 10-layer pricing precedence (location-specific / special /
+-- contract / promotional / BOGO / mix-match / break / minimum /
+-- customer-tier) surfaces only as outputs in PS_DOC_LIN_PRICE per
+-- transaction line. Canary observes these here rather than replicating
+-- the pricing engine. Populated by transaction adapter, NOT catalog
+-- adapter.
+
+CREATE TABLE pricing.observed_price_rules (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id       uuid NOT NULL REFERENCES app.tenants(id),
+  item_id         uuid NOT NULL REFERENCES catalog.items(id) ON DELETE CASCADE,
+  -- nullable — class is derivable from customer.CATEG_COD when present
+  customer_class  text,
+  rule_code       text NOT NULL,                                   -- POS-emitted: REG | SPECIAL | CONTRACT | MIX_MATCH | BOGO | BREAK | MINIMUM | TIER (Counterpoint vocabulary; Square-source maps to similar)
+  observed_price  numeric(12,4) NOT NULL,
+  observed_qty    numeric(10,4) NOT NULL DEFAULT 1,
+  -- back-link to PS_DOC_LIN-equivalent transaction line; nullable
+  -- since some observations may come from non-transactional sources
+  transaction_id  uuid,
+  observed_at     timestamptz NOT NULL DEFAULT now(),
+  attributes      jsonb NOT NULL DEFAULT '{}',
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_observed_prices_tenant_item
+  ON pricing.observed_price_rules(tenant_id, item_id, observed_at DESC);
+CREATE INDEX idx_observed_prices_rule
+  ON pricing.observed_price_rules(rule_code, observed_at DESC);

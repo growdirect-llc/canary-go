@@ -153,6 +153,7 @@ func New(deps Deps, logger *zap.Logger) *Handler {
 	h.mustParse("report_distribution", "templates/reports/distribution.html")
 	h.mustParse("report_inventory", "templates/reports/inventory.html")
 	h.mustParse("items_list", "templates/items/list.html")
+	h.mustParse("items_new", "templates/items/new.html")
 	h.mustParse("items_detail", "templates/items/detail.html")
 	h.mustParse("report_category", "templates/reports/category.html")
 	h.mustParse("settings_devices", "templates/settings/devices.html")
@@ -361,8 +362,14 @@ func (h *Handler) Mount(r chi.Router) {
 		r.Get("/reports/category", h.reportCategoryPage)
 
 		// Items + category report — wired W2c.
+		// Item-setup Flow C C1 (manual entry, minimal form) — GRO-886.
+		// Edit form (basic CRUD update path) — GRO-886 follow-on.
 		r.Get("/items", h.itemListPage)
+		r.Get("/items/new", h.itemNewPage)
+		r.Post("/items/new", h.itemCreateAction)
 		r.Get("/items/{id}", h.itemDetailPage)
+		r.Get("/items/{id}/edit", h.itemEditPage)
+		r.Post("/items/{id}/edit", h.itemUpdateAction)
 
 		// Finance + payments — wired W2e.
 		r.Get("/reports/finance", h.reportFinancePage)
