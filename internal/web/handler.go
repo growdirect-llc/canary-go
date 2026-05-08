@@ -287,6 +287,8 @@ func (h *Handler) Mount(r chi.Router) {
 	})
 
 	r.Get("/join", h.joinPage)
+	r.Get("/login", h.loginPage)
+	r.Get("/auth/logout", h.logoutHandler)
 	r.Get("/connect", h.page("connect", "connect", stubConnect))
 	r.Get("/welcome", h.page("welcome", "welcome", nil))
 
@@ -546,6 +548,54 @@ func (h *Handler) joinPage(w http.ResponseWriter, r *http.Request) {
 	_ = tmpl.Execute(w, map[string]any{
 		"Error": r.URL.Query().Get("error"),
 	})
+}
+
+// loginPage serves the standalone public landing page for first-time
+// users. Standalone template — does NOT extend base.html, so the
+// merchant sidebar (full nav to /alerts, /chirps, /dashboard, etc.) is
+// not rendered for unauthenticated users.
+//
+// Hosts the primary OAuth call-to-action (Connect Your Square) plus a
+// placeholder for the NCR Counterpoint flow. After OAuth completes the
+// user lands on /connect (the data-sync picker) with a resolved
+// merchant.
+//
+// Bug context: pre-fix the gateway had no public login surface —
+// unauthenticated requests for protected routes redirected to /connect,
+// dumping users into the post-OAuth configuration page with no way to
+// actually log in. The `?error=` query string surfaces failures from
+// the Square OAuth callback.
+func (h *Handler) loginPage(w http.ResponseWriter, r *http.Request) {
+	tmpl, err := template.ParseFS(embedFS, "templates/auth/login.html")
+	if err != nil {
+		http.Error(w, "template error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = tmpl.Execute(w, map[string]any{
+		"Error": r.URL.Query().Get("error"),
+	})
+}
+
+// logoutHandler clears the demo_merchant session cookie and redirects
+// to /login. The sidebar in templates/partials/sidebar.html links here
+// (`<a href="/auth/logout">`) — pre-fix this 404'd because no GET
+// handler was mounted (squareauth only exposes POST /auth/square/disconnect).
+//
+// We mirror the cookie-clearing pattern from
+// squareauth.handleDisconnect: empty value + MaxAge=-1 + matching
+// Path/HttpOnly/Secure flags so the cookie is cleared cleanly.
+func (h *Handler) logoutHandler(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "demo_merchant",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+	http.Redirect(w, r, "/login", http.StatusFound)
 }
 
 func (h *Handler) owlPage(w http.ResponseWriter, r *http.Request) {

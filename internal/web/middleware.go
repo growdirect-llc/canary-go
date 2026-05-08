@@ -42,23 +42,27 @@ func tenantSessionMiddleware(resolver MerchantResolver) func(http.Handler) http.
 
 // requireTenant wraps a handler that needs an authenticated tenant.
 // When the request has no resolved tenant (uuid.Nil from
-// tenantIDFromCtx), it redirects to /connect — the Square OAuth start
-// page — instead of rendering a page with empty data, which is what
-// every tenant-scoped handler did pre-T-B.
+// tenantIDFromCtx), it redirects to /login — the public landing page
+// where first-time users start the OAuth flow.
+//
+// Pre-fix this redirected to /connect (the post-OAuth data-sync picker),
+// which dumped unauthenticated users into a merchant configuration UI
+// with the full sidebar — confusing and broken UX. /login is the
+// correct landing for users without a session.
 //
 // Usage:
 //
 //	r.Get("/dashboard", h.requireTenant(h.dashboardPage))
 //
-// Public routes (/, /connect, /welcome, /join, OAuth flow, static
-// assets) MUST NOT use this wrapper — they need to stay reachable
-// without a session.
+// Public routes (/, /login, /connect, /welcome, /join, OAuth flow,
+// static assets) MUST NOT use this wrapper — they need to stay
+// reachable without a session.
 //
-// T-B.
+// T-B (redirect target updated by the auth-flow fix).
 func (h *Handler) requireTenant(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if tenantIDFromCtx(r.Context()) == uuid.Nil {
-			http.Redirect(w, r, "/connect", http.StatusFound)
+			http.Redirect(w, r, "/login", http.StatusFound)
 			return
 		}
 		next(w, r)
@@ -70,11 +74,11 @@ func (h *Handler) requireTenant(next http.HandlerFunc) http.HandlerFunc {
 // gated. Public routes (registered outside the group) remain
 // reachable without a session.
 //
-// T-B.
+// T-B (redirect target updated by the auth-flow fix).
 func (h *Handler) requireTenantMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if tenantIDFromCtx(r.Context()) == uuid.Nil {
-			http.Redirect(w, r, "/connect", http.StatusFound)
+			http.Redirect(w, r, "/login", http.StatusFound)
 			return
 		}
 		next.ServeHTTP(w, r)
