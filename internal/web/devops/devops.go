@@ -265,6 +265,81 @@ var QAToolCatalog = []ToolCategory{
 	},
 }
 
+// ETLStage represents one stage of the metrics ETL pipeline. Pinned to
+// the structure documented in Canary/canary/services/etl_runner.py and
+// implemented across metrics_etl.py + period_aggregation.py.
+//
+// Order matches the run sequence in run_full_etl(): daily aggregation
+// must complete before period rollup. T3B.5 / GRO-888.
+type ETLStage struct {
+	Index int
+	Name  string
+	Role  string
+	Tables []string // fact tables this stage writes
+	Source string  // Python source file
+}
+
+// ETLTable describes one metrics fact table. Pinned to METRICS_TABLES in
+// etl_runner.py — keep in lockstep when the metrics schema evolves.
+type ETLTable struct {
+	Name      string // "daily_metrics"
+	Stage     int    // which ETL stage writes it (1=daily, 2=period)
+	Cadence   string // "Daily" | "Period (week/month/quarter)"
+	Role      string // one-sentence operator-facing description
+	GroupedBy string // grouping key tuple, e.g. "merchant × location × date"
+}
+
+// ETLPipeline is the 2-stage canonical flow.
+var ETLPipeline = []ETLStage{
+	{
+		Index: 1, Name: "Daily aggregation",
+		Role:   "Reads canary_sales transactions and rolls up into 4 daily fact tables. Idempotent — deletes existing rows for the date range before inserting.",
+		Tables: []string{"daily_metrics", "hourly_metrics", "employee_daily_metrics", "product_daily_metrics"},
+		Source: "Canary/canary/services/metrics_etl.py",
+	},
+	{
+		Index: 2, Name: "Period rollup",
+		Role:   "Aggregates daily facts into period facts (week / month / quarter / YTD). Reads daily_metrics + employee_daily_metrics; writes period_metrics + employee_period_metrics.",
+		Tables: []string{"period_metrics", "employee_period_metrics"},
+		Source: "Canary/canary/services/period_aggregation.py",
+	},
+}
+
+// ETLTableCatalog is the canonical 6-table set. Order matches stage order
+// (Stage 1 tables first, then Stage 2).
+var ETLTableCatalog = []ETLTable{
+	{
+		Name: "daily_metrics", Stage: 1, Cadence: "Daily",
+		Role:      "Per-location daily KPIs — gross/net sales, transactions, refunds, voids, comps.",
+		GroupedBy: "merchant × location × date",
+	},
+	{
+		Name: "hourly_metrics", Stage: 1, Cadence: "Daily",
+		Role:      "Hour-of-day distribution for staffing + traffic analysis.",
+		GroupedBy: "merchant × location × date × hour",
+	},
+	{
+		Name: "employee_daily_metrics", Stage: 1, Cadence: "Daily",
+		Role:      "Per-employee daily KPIs — sales-per-hour, void rate, comp rate, shift hours.",
+		GroupedBy: "merchant × location × employee × date",
+	},
+	{
+		Name: "product_daily_metrics", Stage: 1, Cadence: "Daily",
+		Role:      "Per-item daily KPIs — units sold, revenue, returns, on-hand snapshot.",
+		GroupedBy: "merchant × location × item × date",
+	},
+	{
+		Name: "period_metrics", Stage: 2, Cadence: "Period (week/month/quarter)",
+		Role:      "Period rollups for finance + planning surfaces. Each row covers a closed period.",
+		GroupedBy: "merchant × location × period",
+	},
+	{
+		Name: "employee_period_metrics", Stage: 2, Cadence: "Period (week/month/quarter)",
+		Role:      "Period rollups of employee performance — feeds the labor + scorecard surfaces.",
+		GroupedBy: "merchant × location × employee × period",
+	},
+}
+
 // PipelineFlow is the canonical TSP pipeline flow. Phase 3 / T3B.3 / GRO-885.
 // Order matches the documented data flow; do not reorder without updating
 // the Webhook Pipeline SDD.
@@ -456,6 +531,13 @@ var Categories = []Group{
 				Cells:    []string{"C × change-feed"},
 				Status: "MCP tool catalog + per-tenant usage rollup — Phase 3 builds drill-down.",
 			},
+			{
+				Name: "etl", Port: 9330, Owner: "ALX",
+				Priority: "P0",
+				Scope: "cross-tenant", Category: "cross-tenant infra",
+				Cells:    []string{"B × daily-batch"},
+				Status: "Daily-batch metrics ETL — 2 stages (daily + period), 6 fact tables. Wired in T3B.5.",
+			},
 		},
 	},
 }
@@ -489,6 +571,7 @@ func New(logger *zap.Logger) (*Handler, error) {
 		"templates/observability.html",
 		"templates/pipeline.html",
 		"templates/qa_agent.html",
+		"templates/etl.html",
 	)
 	if err != nil {
 		return nil, err
@@ -587,10 +670,11 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/devops/observability", h.observabilityPage)
 	r.Get("/devops/pipeline", h.pipelinePage)
 	r.Get("/devops/qa-agent", h.qaAgentPage)
+	r.Get("/devops/etl", h.etlPage)
 
 	for name := range h.index {
 		switch name {
-		case "api-docs", "catalog", "manifest", "observability", "pipeline", "qa-agent":
+		case "api-docs", "catalog", "manifest", "observability", "pipeline", "qa-agent", "etl":
 			continue // mounted above with custom handlers
 		}
 		path := "/devops/" + name
@@ -807,6 +891,35 @@ func (h *Handler) observabilityPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if err := h.tmpl.ExecuteTemplate(w, "observability.html", view); err != nil {
 		h.logger.Error("observability template", zap.Error(err))
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
+}
+
+// etlPage renders the /devops/etl daily-batch metrics pipeline discovery
+// surface. Recovery target: Canary/canary/services/metrics_etl.py +
+// etl_runner.py + period_aggregation.py (~1,500 LOC of Python). The
+// actual aggregation queries get ported to Go + sqlc in a separate
+// multi-ticket effort. This page makes the contract legible: 2 stages,
+// 6 fact tables, idempotent re-runs, daily-batch tier semantics.
+//
+// T3B.5 / GRO-888.
+func (h *Handler) etlPage(w http.ResponseWriter, r *http.Request) {
+	svc := h.index["etl"]
+	view := map[string]any{
+		"Service":     svc,
+		"Categories":  Categories,
+		"Active":      "etl",
+		"Tenant":      "all",
+		"Env":         "lab",
+		"Stages":      ETLPipeline,
+		"Tables":      ETLTableCatalog,
+		"StageCount":  len(ETLPipeline),
+		"TableCount":  len(ETLTableCatalog),
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := h.tmpl.ExecuteTemplate(w, "etl.html", view); err != nil {
+		h.logger.Error("etl template", zap.Error(err))
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
 }

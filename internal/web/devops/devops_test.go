@@ -121,6 +121,7 @@ func TestKnownServices_returnsAllSkeletons(t *testing.T) {
 		"catalog": true, "manifest": true, "observability": true,
 		"pipeline": true, "qa-agent": true, "api-docs": true,
 		"evidence": true, "anchor": true, "mcp": true,
+		"etl": true,
 	}
 	if len(got) != len(want) {
 		t.Errorf("KnownServices count: got %d, want %d; got %v", len(got), len(want), got)
@@ -1091,6 +1092,151 @@ func TestQAToolCatalog_invariants(t *testing.T) {
 		}
 		if len(c.Tools) == 0 {
 			t.Errorf("category %q declares no tools", c.Name)
+		}
+	}
+}
+
+func TestETL_pageRendersTwoStages(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/etl", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+
+	// Six-zone canonical layout
+	for _, zone := range []string{
+		"Capability",
+		"KPIs",
+		"Endpoints (Source files)",
+		"Pipeline stages",
+		"Fact tables",
+		"Activity — Run history (planned)",
+		"Linked",
+	} {
+		if !strings.Contains(body, zone) {
+			t.Errorf("etl page missing zone %q", zone)
+		}
+	}
+
+	// Both stages render
+	for _, stage := range []string{"Daily aggregation", "Period rollup"} {
+		if !strings.Contains(body, stage) {
+			t.Errorf("etl page missing stage %q", stage)
+		}
+	}
+	for i := 1; i <= 2; i++ {
+		want := "Stage " + strconv.Itoa(i)
+		if !strings.Contains(body, want) {
+			t.Errorf("etl page missing %q", want)
+		}
+	}
+}
+
+func TestETL_pageListsSixFactTables(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/etl", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+
+	// All 6 fact tables from etl_runner.py METRICS_TABLES render
+	for _, tbl := range []string{
+		"daily_metrics",
+		"hourly_metrics",
+		"employee_daily_metrics",
+		"product_daily_metrics",
+		"period_metrics",
+		"employee_period_metrics",
+	} {
+		if !strings.Contains(body, tbl) {
+			t.Errorf("etl page missing fact table %q", tbl)
+		}
+	}
+
+	// KPI tile counts: 2 stages, 6 tables
+	if !strings.Contains(body, ">2<") {
+		t.Errorf("KPI tile should show 2 stages")
+	}
+	if !strings.Contains(body, ">6<") {
+		t.Errorf("KPI tile should show 6 fact tables")
+	}
+}
+
+func TestETL_pageRendersSourceLinks(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/etl", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+	for _, want := range []string{
+		"Canary/canary/services/metrics_etl.py",
+		"Canary/canary/services/etl_runner.py",
+		"Canary/canary/services/period_aggregation.py",
+		"docs/sdds/go-handoff/data-model.md",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("source-files zone missing %q", want)
+		}
+	}
+}
+
+func TestETL_setsNoStoreCacheControl(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/etl", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if got := rr.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control: got %q, want no-store", got)
+	}
+}
+
+func TestETL_includedInKnownServices(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	found := false
+	for _, n := range h.KnownServices() {
+		if n == "etl" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("etl not in KnownServices()")
+	}
+}
+
+func TestETLPipeline_invariants(t *testing.T) {
+	if len(ETLPipeline) != 2 {
+		t.Errorf("ETLPipeline should have exactly 2 stages, got %d", len(ETLPipeline))
+	}
+	for i, s := range ETLPipeline {
+		if s.Index != i+1 {
+			t.Errorf("ETLPipeline[%d].Index = %d, want %d", i, s.Index, i+1)
+		}
+		if s.Name == "" || s.Role == "" || s.Source == "" {
+			t.Errorf("ETLPipeline[%d] has empty required field", i)
+		}
+		if len(s.Tables) == 0 {
+			t.Errorf("ETLPipeline[%d] (%s) declares no tables", i, s.Name)
+		}
+	}
+}
+
+func TestETLTableCatalog_invariants(t *testing.T) {
+	if len(ETLTableCatalog) != 6 {
+		t.Errorf("ETLTableCatalog should have exactly 6 fact tables, got %d", len(ETLTableCatalog))
+	}
+	for _, tbl := range ETLTableCatalog {
+		if tbl.Name == "" || tbl.Role == "" || tbl.Cadence == "" || tbl.GroupedBy == "" {
+			t.Errorf("table catalog row has empty field: %+v", tbl)
+		}
+		if tbl.Stage != 1 && tbl.Stage != 2 {
+			t.Errorf("table %q has invalid Stage %d (must be 1 or 2)", tbl.Name, tbl.Stage)
 		}
 	}
 }
