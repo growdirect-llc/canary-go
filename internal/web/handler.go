@@ -38,6 +38,7 @@ import (
 	"html/template"
 	"io/fs"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -589,8 +590,25 @@ func (h *Handler) loginPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	_ = tmpl.Execute(w, map[string]any{
-		"Error": r.URL.Query().Get("error"),
+		"Error":            r.URL.Query().Get("error"),
+		"SquareConfigured": squareConfigured(),
 	})
+}
+
+// squareConfigured mirrors the gate inside squareauth.handleAuthorize
+// (handler.go line 71): all three of SQUARE_APPLICATION_ID, SECRET, and
+// REDIRECT_URI must be present. When any is empty, /auth/square 503s,
+// so the login template renders a "not configured" notice instead of
+// a button that drives into a 503.
+//
+// We read env directly (rather than threading squareauth.Service through
+// web.Deps) so this stays a 1-line gate with no construction-order
+// coupling. If those env vars start being read elsewhere, refactor to a
+// shared config helper.
+func squareConfigured() bool {
+	return os.Getenv("SQUARE_APPLICATION_ID") != "" &&
+		os.Getenv("SQUARE_APPLICATION_SECRET") != "" &&
+		os.Getenv("SQUARE_REDIRECT_URI") != ""
 }
 
 // logoutHandler clears the demo_merchant session cookie and redirects

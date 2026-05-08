@@ -17,6 +17,13 @@ import (
 // users were dumped onto /connect (the data-sync picker) which renders the
 // merchant sidebar. The user reported "land on data sync picker no login".
 func TestLogin_PageRendersStandalone(t *testing.T) {
+	// Force Square OAuth env to look configured so the page renders the
+	// happy-path shell (button + working anchor). The unconfigured-state
+	// shell is exercised by TestLoginPage_HidesSquareButtonWhenNotConfigured.
+	t.Setenv("SQUARE_APPLICATION_ID", "sandbox-app-id")
+	t.Setenv("SQUARE_APPLICATION_SECRET", "sandbox-secret")
+	t.Setenv("SQUARE_REDIRECT_URI", "http://localhost:9080/auth/square/callback")
+
 	h := New(Deps{}, nil) // no auth resolver — login must be public
 	r := chi.NewRouter()
 	h.Mount(r)
@@ -138,6 +145,70 @@ func TestWelcome_RedirectsToLoginWhenUnauthenticated(t *testing.T) {
 	}
 	if loc := rr.Header().Get("Location"); loc != "/login" {
 		t.Errorf("/welcome unauthenticated redirect = %q, want /login", loc)
+	}
+}
+
+// TestLoginPage_HidesSquareButtonWhenNotConfigured guards the dev UX
+// against the 503 trap on /auth/square. When SQUARE_APPLICATION_ID /
+// SECRET / REDIRECT_URI aren't set in the gateway's env (the default
+// dev compose stack), the squareauth handler responds 503. Pre-fix the
+// login page rendered a working-looking "Connect Your Square" button
+// that drove visitors into a 503 — bad operator experience.
+//
+// With the env unset, the page should:
+//   1. NOT render the /auth/square anchor (no link to a 503)
+//   2. Render an explicit "not configured" notice so operators know
+//      what env vars to set
+func TestLoginPage_HidesSquareButtonWhenNotConfigured(t *testing.T) {
+	// Force all three Square OAuth env vars empty.
+	t.Setenv("SQUARE_APPLICATION_ID", "")
+	t.Setenv("SQUARE_APPLICATION_SECRET", "")
+	t.Setenv("SQUARE_REDIRECT_URI", "")
+
+	h := New(Deps{}, nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d", rr.Code)
+	}
+	body := rr.Body.String()
+
+	// Anchor to /auth/square must NOT appear when Square is unconfigured.
+	if strings.Contains(body, `href="/auth/square"`) {
+		t.Errorf("login page should hide /auth/square anchor when Square OAuth env is unset")
+	}
+	// Notice must appear so operators know what to do.
+	if !strings.Contains(body, "Square OAuth not configured") {
+		t.Errorf("login page should render a 'Square OAuth not configured' notice when env is unset")
+	}
+}
+
+// TestLoginPage_ShowsSquareButtonWhenConfigured — inverse of the above.
+// When all three env vars are set, the page renders the working anchor.
+func TestLoginPage_ShowsSquareButtonWhenConfigured(t *testing.T) {
+	t.Setenv("SQUARE_APPLICATION_ID", "sandbox-app-id")
+	t.Setenv("SQUARE_APPLICATION_SECRET", "sandbox-secret")
+	t.Setenv("SQUARE_REDIRECT_URI", "http://localhost:9080/auth/square/callback")
+
+	h := New(Deps{}, nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+
+	if !strings.Contains(body, `href="/auth/square"`) {
+		t.Errorf("login page should render /auth/square anchor when Square OAuth env is set")
+	}
+	if strings.Contains(body, "Square OAuth not configured") {
+		t.Errorf("login page should not render the 'not configured' notice when env is set")
 	}
 }
 
