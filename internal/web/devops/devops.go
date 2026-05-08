@@ -265,6 +265,37 @@ var QAToolCatalog = []ToolCategory{
 	},
 }
 
+// LiveFireAction is one action type in the /devops/live-fire scenario
+// step grammar. Pinned to scenario_fire.py header comment lines 27-38.
+//
+// T3B.10 / GRO-893.
+type LiveFireAction struct {
+	Name string
+	Role string
+	API  string // Square API used (or "internal seed")
+}
+
+// SquareAPISurface is one Square API surface the live-fire path consumes.
+type SquareAPISurface struct {
+	Name  string
+	Used  string // what live-fire calls it for
+}
+
+var LiveFireActions = []LiveFireAction{
+	{Name: "order", Role: "Full order with line items + payment via Orders + Payments APIs.", API: "Orders + Payments"},
+	{Name: "payment", Role: "Simple payment, no order envelope.", API: "Payments"},
+	{Name: "refund", Role: "Full refund of a previous step's payment.", API: "Refunds"},
+	{Name: "partial_refund", Role: "Partial refund of a previous step's payment (cents amount).", API: "Refunds"},
+	{Name: "cancel", Role: "Void / cancel a payment (COMPLETED → CANCELED).", API: "Payments (cancel)"},
+	{Name: "seed", Role: "DB seed via use-case factory — for cross-domain scenarios needing timecards, cash drawers, disputes, etc.", API: "internal seed"},
+}
+
+var SquareAPISurfaces = []SquareAPISurface{
+	{Name: "Orders API", Used: "Create orders with line items; pre-payment envelope."},
+	{Name: "Payments API", Used: "Create + cancel payments; backs `payment` and `cancel` actions."},
+	{Name: "Refunds API", Used: "Full + partial refunds against previous payments."},
+}
+
 // PosLabMode is one mode of the /devops/pos-lab single-transaction
 // firing range. Pinned to chirp_lab.py docstring lines 1-15: Local Fire
 // (direct DB + Chirp eval) vs Live Fire (Square sandbox round-trip).
@@ -814,6 +845,13 @@ var Categories = []Group{
 				Cells:    []string{"B × stream"},
 				Status: "Single-transaction firing range — Local Fire (direct DB + Chirp) vs Live Fire (Square round-trip). Wired in T3B.9.",
 			},
+			{
+				Name: "live-fire", Port: 9335, Owner: "ALX",
+				Priority: "P0",
+				Scope: "cross-tenant", Category: "test & validation",
+				Cells:    []string{"B × stream"},
+				Status: "Square sandbox round-trip executor — 6 actions × 20 scenarios over the real pipeline. Wired in T3B.10.",
+			},
 		},
 	},
 }
@@ -852,6 +890,7 @@ func New(logger *zap.Logger) (*Handler, error) {
 		"templates/test_lab.html",
 		"templates/scenarios.html",
 		"templates/pos_lab.html",
+		"templates/live_fire.html",
 	)
 	if err != nil {
 		return nil, err
@@ -955,10 +994,11 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/devops/test-lab", h.testLabPage)
 	r.Get("/devops/scenarios", h.scenariosPage)
 	r.Get("/devops/pos-lab", h.posLabPage)
+	r.Get("/devops/live-fire", h.liveFirePage)
 
 	for name := range h.index {
 		switch name {
-		case "api-docs", "catalog", "manifest", "observability", "pipeline", "qa-agent", "etl", "wallet", "test-lab", "scenarios", "pos-lab":
+		case "api-docs", "catalog", "manifest", "observability", "pipeline", "qa-agent", "etl", "wallet", "test-lab", "scenarios", "pos-lab", "live-fire":
 			continue // mounted above with custom handlers
 		}
 		path := "/devops/" + name
@@ -1175,6 +1215,39 @@ func (h *Handler) observabilityPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if err := h.tmpl.ExecuteTemplate(w, "observability.html", view); err != nil {
 		h.logger.Error("observability template", zap.Error(err))
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
+}
+
+// liveFirePage renders the /devops/live-fire discovery surface — the
+// Square SDK fire path that takes scenarios through the real pipeline
+// (vs pos-lab's Local Fire which short-circuits the SDK and writes
+// directly to canary_sales). Recovery target:
+// Canary/canary/services/scenario_fire.py (1,073 LOC).
+//
+// SDD-064 invariant: "The Lab does NOT generate synthetic data. Every
+// operation goes through Square's sandbox API and returns through
+// Canary's real pipeline." Surfaced verbatim in the Capability zone.
+//
+// T3B.10 / GRO-893.
+func (h *Handler) liveFirePage(w http.ResponseWriter, r *http.Request) {
+	svc := h.index["live-fire"]
+	view := map[string]any{
+		"Service":       svc,
+		"Categories":    Categories,
+		"Active":        "live-fire",
+		"Tenant":        "all",
+		"Env":           "lab",
+		"Actions":       LiveFireActions,
+		"APIs":          SquareAPISurfaces,
+		"ActionCount":   len(LiveFireActions),
+		"APICount":      len(SquareAPISurfaces),
+		"ScenarioCount": 20, // SCENARIO_REGISTRY size in scenario_fire.py
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := h.tmpl.ExecuteTemplate(w, "live_fire.html", view); err != nil {
+		h.logger.Error("live-fire template", zap.Error(err))
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
 }

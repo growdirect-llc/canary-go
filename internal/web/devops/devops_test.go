@@ -122,7 +122,7 @@ func TestKnownServices_returnsAllSkeletons(t *testing.T) {
 		"pipeline": true, "qa-agent": true, "api-docs": true,
 		"evidence": true, "anchor": true, "mcp": true,
 		"etl": true, "wallet": true, "test-lab": true,
-		"scenarios": true, "pos-lab": true,
+		"scenarios": true, "pos-lab": true, "live-fire": true,
 	}
 	if len(got) != len(want) {
 		t.Errorf("KnownServices count: got %d, want %d; got %v", len(got), len(want), got)
@@ -1820,5 +1820,141 @@ func TestPosLabParameterSpaces_invariants(t *testing.T) {
 	}
 	if len(PosLabCardBrands) != 5 {
 		t.Errorf("PosLabCardBrands count = %d, want 5", len(PosLabCardBrands))
+	}
+}
+
+func TestLiveFire_pageRendersActions(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/live-fire", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+
+	for _, zone := range []string{
+		"Capability",
+		"KPIs",
+		"Endpoints (Source files)",
+		"SDD-064 invariant",
+		"Action grammar",
+		"Square API surface",
+		"Activity — Fire history (planned)",
+		"Linked",
+	} {
+		if !strings.Contains(body, zone) {
+			t.Errorf("live-fire page missing zone %q", zone)
+		}
+	}
+
+	// All 6 action types render verbatim
+	for _, act := range []string{"order", "payment", "refund", "partial_refund", "cancel", "seed"} {
+		if !strings.Contains(body, act) {
+			t.Errorf("action grammar missing %q", act)
+		}
+	}
+}
+
+func TestLiveFire_pageRendersSquareAPISurface(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/live-fire", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+
+	for _, want := range []string{
+		"Orders API",
+		"Payments API",
+		"Refunds API",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Square API surface missing %q", want)
+		}
+	}
+
+	// KPI tile counts: 6 actions, 20 scenarios, 3 APIs
+	if !strings.Contains(body, ">6<") {
+		t.Errorf("KPI tile should show 6 action types")
+	}
+	if !strings.Contains(body, ">20<") {
+		t.Errorf("KPI tile should show 20 scenarios")
+	}
+	if !strings.Contains(body, ">3<") {
+		t.Errorf("KPI tile should show 3 Square APIs")
+	}
+}
+
+func TestLiveFire_pageRendersSDD064Invariant(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/live-fire", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+
+	for _, want := range []string{
+		"SDD-064 invariant",
+		"Real pipeline only",
+		"does NOT generate synthetic data",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("invariant box missing %q", want)
+		}
+	}
+}
+
+func TestLiveFire_setsNoStoreCacheControl(t *testing.T) {
+	r := newRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/devops/live-fire", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if got := rr.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control: got %q, want no-store", got)
+	}
+}
+
+func TestLiveFire_includedInKnownServices(t *testing.T) {
+	h, err := New(nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	found := false
+	for _, n := range h.KnownServices() {
+		if n == "live-fire" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("live-fire not in KnownServices()")
+	}
+}
+
+func TestLiveFireActions_invariants(t *testing.T) {
+	if len(LiveFireActions) != 6 {
+		t.Errorf("LiveFireActions count = %d, want 6", len(LiveFireActions))
+	}
+	want := map[string]bool{
+		"order": true, "payment": true, "refund": true,
+		"partial_refund": true, "cancel": true, "seed": true,
+	}
+	for _, a := range LiveFireActions {
+		if !want[a.Name] {
+			t.Errorf("unexpected action name %q", a.Name)
+		}
+		if a.Role == "" || a.API == "" {
+			t.Errorf("action %q has empty Role or API", a.Name)
+		}
+	}
+}
+
+func TestSquareAPISurfaces_invariants(t *testing.T) {
+	if len(SquareAPISurfaces) != 3 {
+		t.Errorf("SquareAPISurfaces count = %d, want 3", len(SquareAPISurfaces))
+	}
+	for _, api := range SquareAPISurfaces {
+		if api.Name == "" || api.Used == "" {
+			t.Errorf("API surface row has empty field: %+v", api)
+		}
 	}
 }
