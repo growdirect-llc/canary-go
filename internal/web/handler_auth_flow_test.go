@@ -92,6 +92,32 @@ func TestLogout_ClearsCookieAndRedirects(t *testing.T) {
 	}
 }
 
+// TestAuthConnect_RedirectsToLogin verifies the /auth/connect route
+// referenced by templates/auth/join.html (line 128 — the marketing CTA
+// "Connect your store") points at a real handler. Pre-fix it 404'd
+// because no route was mounted; first-time visitors clicking through
+// /join hit a dead end.
+//
+// /auth/connect is a thin redirect to /login (the provider picker)
+// rather than /auth/square because the long-term flow has multiple
+// providers — the picker page is the right disambiguation point.
+func TestAuthConnect_RedirectsToLogin(t *testing.T) {
+	h := New(Deps{}, nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/connect", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusFound && rr.Code != http.StatusSeeOther {
+		t.Fatalf("expected 302/303 got %d", rr.Code)
+	}
+	if loc := rr.Header().Get("Location"); loc != "/login" {
+		t.Errorf("/auth/connect redirect = %q, want /login", loc)
+	}
+}
+
 // TestRequireTenantMiddleware_RedirectsToLogin checks that when the
 // tenant gate fires (no merchant resolved), the redirect target is
 // /login (not /connect). /connect is the post-OAuth data-sync picker
