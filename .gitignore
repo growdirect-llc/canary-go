@@ -37,3 +37,7 @@ build/
 
 # macOS
 .DS_Store
+
+# Claude Code workspace — agent state, plugins cache, project memory,
+# and worktrees. Local development environment only; never commit.
+.claude/
