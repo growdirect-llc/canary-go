@@ -1,9 +1,44 @@
 # GRO-846 Neo4j MDM Adjunct — Assessment
 
 **Date:** 2026-05-07
+**Decided:** 2026-05-09 — **Declined.** See "Decision" section below.
 **Scope:** Whether to introduce a Neo4j read adjunct on the metrics / master-data side of canary.go for graph-shaped data currently flattened into Postgres recursive CTEs and self-referential FKs.
-**Status:** Assessment — not yet decided.
+**Status:** Closed — declined.
 **Linked filing:** [GRO-846](https://linear.app/growdirect/issue/GRO-846) — Architecture: Neo4j MDM read-adjunct.
+
+---
+
+## Decision (2026-05-09)
+
+**Declined.** canary.go does not adopt Neo4j as a read adjunct. Customer 360 dedup, product-variant trees, location hierarchies, employee reporting structures, and merchant org hierarchies remain on Postgres recursive CTEs and self-referential FKs.
+
+### Reasoning
+
+- **Operational cost vs current scale.** Running a Neo4j cluster monthly is not justified by current customer volume or query workload. The cost surface enumerated below (cluster ops, backup, monitoring, DR, engineering ramp on Cypher / neo4j-go-driver) does not amortize against the read-latency win at our scale.
+- **Postgres extension headroom.** `ltree` for hierarchies, recursive CTEs with proper indexing, `jsonb` + GIN for flexible attributes, and `pgvector` cover the traversal-shaped reads identified in this assessment. Apache AGE remains an in-database escape valve for Cypher-shaped queries if a workload genuinely needs it without leaving Postgres.
+- **Deployment simplification is a long-term play.** Single-store deployment is operationally cheaper, observability-cheaper, and engineering-cheaper. Multi-store complexity (CDC pipeline, dual-store soft-FKs, eventual consistency, dual-driver constructors) compounds over time even when each individual concern looks tractable.
+- **AtlasView reference precedent.** Per the 2026-05-09 Grok architectural review (`/Users/gclyle/Downloads/grok-thread-design-review.md`), the firm's working assumption is that AtlasView itself will drop Neo4j and consolidate on Postgres + extensions. Even if that decision goes the other way, canary.go's case at its own scale stands independently.
+
+### What this rules in
+
+- Future graph-shaped read pressure handled via PG extensions (`ltree`, `pgvector`, `pg_trgm`) before any cross-store consideration.
+- If a specific Cypher-shaped query lands a future ticket and CTEs cannot meet latency targets, evaluate Apache AGE in-database before considering an external graph store.
+
+### What this rules out
+
+- Neo4j cluster deployment.
+- CDC pipeline (Debezium / logical replication slot projection workers) feeding a graph projection store.
+- `neo4j-go-driver` dependency.
+- Dual-store soft-FK + eventual-consistency complexity.
+
+### Re-evaluation triggers
+
+Reconsider only if all three of the following hold:
+1. A specific traversal-shaped query latency target is unmet by Postgres CTEs / AGE / proper indexing.
+2. The query volume amortizes Neo4j operational cost (rough threshold: enterprise-tier customer with sustained graph-traversal workload).
+3. AtlasView has already adopted (or retained) Neo4j in production, providing a firm-wide skill base.
+
+---
 
 ---
 
