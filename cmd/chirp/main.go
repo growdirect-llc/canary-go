@@ -10,7 +10,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"net"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -18,6 +24,7 @@ import (
 
 	"github.com/ruptiv/canary/internal/chirp"
 	"github.com/ruptiv/canary/internal/chirp/rules"
+	"github.com/ruptiv/canary/internal/cmdutil"
 	"github.com/ruptiv/canary/internal/config"
 	"github.com/ruptiv/canary/internal/db"
 )
@@ -30,7 +37,8 @@ func main() {
 	logger, _ := zap.NewProduction()
 	defer func() { _ = logger.Sync() }()
 
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	pool, err := db.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {
@@ -53,13 +61,19 @@ func main() {
 	handler.Mount(r)
 
 	addr := ":" + cfg.Port
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		logger.Fatal("listen", zap.Error(err))
+	}
 	logger.Info("starting",
 		zap.String("service", serviceName),
-		zap.String("addr", addr),
+		zap.String("addr", ln.Addr().String()),
 		zap.Strings("rule_types", registry.RegisteredTypes()),
 	)
-	if err := http.ListenAndServe(addr, r); err != nil {
-		logger.Fatal("listen", zap.Error(err))
+	srv := &http.Server{Handler: r}
+	if err := cmdutil.RunServer(ctx, srv, ln, logger, 30*time.Second); err != nil &&
+		!errors.Is(err, http.ErrServerClosed) {
+		logger.Fatal("server", zap.Error(err))
 	}
 }
 

@@ -18,13 +18,20 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
+
+	"github.com/ruptiv/canary/internal/cmdutil"
 )
 
 func main() {
@@ -38,7 +45,13 @@ func main() {
 		log.Fatal("DATABASE_URL is not set")
 	}
 
-	pool, err := pgxpool.New(context.Background(), dbURL)
+	logger, _ := zap.NewProduction()
+	defer func() { _ = logger.Sync() }()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	pool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
 		log.Fatalf("create pool: %v", err)
 	}
@@ -48,7 +61,7 @@ func main() {
 	// Requires the connecting user to have CREATE privilege on the database.
 	// Receiving team will likely move this to a migration; for the drop zone
 	// smoke test, doing it inline keeps the moving parts to one place.
-	if _, err := pool.Exec(context.Background(), "CREATE EXTENSION IF NOT EXISTS vector"); err != nil {
+	if _, err := pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS vector"); err != nil {
 		log.Printf("WARN: could not ensure pgvector extension: %v (continuing)", err)
 	} else {
 		log.Println("pgvector extension ensured")
@@ -88,8 +101,14 @@ func main() {
 	})
 
 	addr := ":" + port
-	log.Printf("dbcheck starting on %s", addr)
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
 		log.Fatalf("listen: %v", err)
+	}
+	log.Printf("dbcheck starting on %s", ln.Addr().String())
+	srv := &http.Server{Handler: mux}
+	if err := cmdutil.RunServer(ctx, srv, ln, logger, 30*time.Second); err != nil &&
+		!errors.Is(err, http.ErrServerClosed) {
+		log.Fatalf("server: %v", err)
 	}
 }

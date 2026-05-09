@@ -2,11 +2,19 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"net"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/ruptiv/canary/internal/cmdutil"
 	"github.com/ruptiv/canary/internal/config"
 	"go.uber.org/zap"
 )
@@ -18,14 +26,26 @@ func main() {
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP, middleware.Logger, middleware.Recoverer)
 	r.Get("/health", healthHandler(cfg))
 
 	addr := ":" + cfg.Port
-	logger.Info("starting", zap.String("service", serviceName), zap.String("addr", addr))
-	if err := http.ListenAndServe(addr, r); err != nil {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
 		logger.Fatal("listen", zap.Error(err))
+	}
+	logger.Info("starting",
+		zap.String("service", serviceName),
+		zap.String("addr", ln.Addr().String()),
+	)
+	srv := &http.Server{Handler: r}
+	if err := cmdutil.RunServer(ctx, srv, ln, logger, 30*time.Second); err != nil &&
+		!errors.Is(err, http.ErrServerClosed) {
+		logger.Fatal("server", zap.Error(err))
 	}
 }
 

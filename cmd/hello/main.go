@@ -17,10 +17,20 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"go.uber.org/zap"
+
+	"github.com/ruptiv/canary/internal/cmdutil"
 )
 
 func main() {
@@ -28,6 +38,12 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
+
+	logger, _ := zap.NewProduction()
+	defer func() { _ = logger.Sync() }()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -40,9 +56,15 @@ func main() {
 	})
 
 	addr := ":" + port
-	log.Printf("hello starting on %s", addr)
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
 		log.Fatalf("listen: %v", err)
+	}
+	log.Printf("hello starting on %s", ln.Addr().String())
+	srv := &http.Server{Handler: mux}
+	if err := cmdutil.RunServer(ctx, srv, ln, logger, 30*time.Second); err != nil &&
+		!errors.Is(err, http.ErrServerClosed) {
+		log.Fatalf("server: %v", err)
 	}
 }
 // touch

@@ -3,11 +3,18 @@ package main
 
 import (
 	"context"
+	"errors"
+	"net"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
+	"github.com/ruptiv/canary/internal/cmdutil"
 	"github.com/ruptiv/canary/internal/config"
 	"github.com/ruptiv/canary/internal/db"
 )
@@ -23,17 +30,20 @@ func main() {
 			"(see Brain/wiki/cards/platform-identity-database-boundary.md)")
 	}
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	// Two pools: canary_gcp for legacy app.api_keys + app.signing_keys
 	// + app.refresh_token_families; canary_identity_gcp for
 	// public.persons + public.person_credentials. The dual-pool
 	// wiring is the bridge until Sprint 4 (GRO-895) consolidates.
-	pool, err := db.Connect(context.Background(), cfg.DatabaseURL)
+	pool, err := db.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {
 		logger.Fatal("db connect (canary_gcp)", zap.Error(err))
 	}
 	defer pool.Close()
 
-	identityPool, err := db.Connect(context.Background(), cfg.IdentityDatabaseURL)
+	identityPool, err := db.Connect(ctx, cfg.IdentityDatabaseURL)
 	if err != nil {
 		logger.Fatal("db connect (canary_identity_gcp)", zap.Error(err))
 	}
@@ -46,10 +56,16 @@ func main() {
 	rdb := redis.NewClient(opts)
 	defer rdb.Close()
 
-	srv := NewServer(pool, identityPool, rdb, cfg, logger)
+	handler := NewServer(pool, identityPool, rdb, cfg, logger)
 	addr := ":" + cfg.Port
-	logger.Info("starting", zap.String("service", cfg.ServiceName), zap.String("addr", addr))
-	if err := http.ListenAndServe(addr, srv); err != nil {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
 		logger.Fatal("listen", zap.Error(err))
+	}
+	logger.Info("starting", zap.String("service", cfg.ServiceName), zap.String("addr", ln.Addr().String()))
+	srv := &http.Server{Handler: handler}
+	if err := cmdutil.RunServer(ctx, srv, ln, logger, 30*time.Second); err != nil &&
+		!errors.Is(err, http.ErrServerClosed) {
+		logger.Fatal("server", zap.Error(err))
 	}
 }
