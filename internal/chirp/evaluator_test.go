@@ -543,7 +543,7 @@ func TestEngineEvaluateTransaction_DispatchesAndPersists(t *testing.T) {
 	registry.Register(rules.VoidThreshold{})
 
 	engine := chirp.NewEngine(store, registry, zap.NewNop())
-	got, err := engine.EvaluateTransaction(context.Background(), tx.ID)
+	got, err := engine.EvaluateTransaction(context.Background(), tx.TenantID, tx.ID)
 	if err != nil {
 		t.Fatalf("engine: %v", err)
 	}
@@ -576,7 +576,7 @@ func TestEngineEvaluateTransaction_UnknownRuleTypeSkipped(t *testing.T) {
 	registry := chirp.NewRegistry()
 
 	engine := chirp.NewEngine(store, registry, zap.NewNop())
-	got, err := engine.EvaluateTransaction(context.Background(), tx.ID)
+	got, err := engine.EvaluateTransaction(context.Background(), tx.TenantID, tx.ID)
 	if err != nil {
 		t.Fatalf("engine should swallow unknown rule type, got: %v", err)
 	}

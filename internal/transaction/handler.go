@@ -17,6 +17,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 // Handler is the chi-compatible handler factory.
@@ -47,6 +49,18 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Post("/v1/transactions/{id}/returns", h.makeReturn)
 }
 
+// requireTenant returns the authenticated tenant or writes 401 and
+// returns false. Every transaction endpoint is tenant-scoped — there
+// is no platform-scope read path.
+func requireTenant(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	c, ok := identity.ClaimsFromContext(r.Context())
+	if !ok || c.TenantID == uuid.Nil {
+		writeError(w, http.StatusUnauthorized, "unauthenticated", "missing tenant claim")
+		return uuid.Nil, false
+	}
+	return c.TenantID, true
+}
+
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err != nil {
@@ -58,6 +72,28 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "malformed_json", err.Error())
 		return
 	}
+	authTenant, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	// Body tenant_id is retained for wire compatibility — if set, it
+	// must match the authenticated tenant or the request is rejected
+	// with 403 tenant_mismatch. Defense in depth: overwrite the body
+	// tenant with the auth claim before persisting so the body value
+	// cannot escape into the store.
+	if req.TenantID != uuid.Nil {
+		if err := identity.AssertBodyTenantMatches(r.Context(), req.TenantID); err != nil {
+			if errors.Is(err, identity.ErrTenantMismatch) {
+				writeError(w, http.StatusForbidden, "tenant_mismatch",
+					"tenant_id does not match authenticated tenant")
+				return
+			}
+			h.Logger.Error("assert tenant", zap.Error(err))
+			writeError(w, http.StatusInternalServerError, "tenant_check_failed", "")
+			return
+		}
+	}
+	req.TenantID = authTenant
 	out, err := h.Store.Create(r.Context(), req)
 	if err != nil {
 		h.renderStoreErr(w, err, "create transaction")
@@ -72,7 +108,7 @@ func (h *Handler) getByID(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "malformed_id", err.Error())
 		return
 	}
-	tenantID, ok := tenantFromQuery(w, r)
+	tenantID, ok := requireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -85,7 +121,7 @@ func (h *Handler) getByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) byReceipt(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := tenantFromQuery(w, r)
+	tenantID, ok := requireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -112,7 +148,7 @@ func (h *Handler) byReceipt(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := tenantFromQuery(w, r)
+	tenantID, ok := requireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -183,7 +219,7 @@ func (h *Handler) void(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "malformed_id", err.Error())
 		return
 	}
-	tenantID, ok := tenantFromQuery(w, r)
+	tenantID, ok := requireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -215,7 +251,7 @@ func (h *Handler) makeReturn(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "malformed_id", err.Error())
 		return
 	}
-	tenantID, ok := tenantFromQuery(w, r)
+	tenantID, ok := requireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -242,24 +278,6 @@ func (h *Handler) makeReturn(w http.ResponseWriter, r *http.Request) {
 }
 
 // helpers
-
-func tenantFromQuery(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
-	v := r.URL.Query().Get("tenant_id")
-	if v == "" {
-		v = r.URL.Query().Get("merchant_id")
-	}
-	if v == "" {
-		writeError(w, http.StatusBadRequest, "missing_tenant",
-			"tenant_id (or merchant_id) query parameter is required")
-		return uuid.Nil, false
-	}
-	id, err := uuid.Parse(v)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "malformed_tenant", "tenant_id must be a UUID")
-		return uuid.Nil, false
-	}
-	return id, true
-}
 
 func (h *Handler) renderStoreErr(w http.ResponseWriter, err error, op string) {
 	switch {

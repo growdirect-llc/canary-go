@@ -72,7 +72,7 @@ func NewWorker(cfg WorkerConfig) *Worker {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	store := NewPgxStore(cfg.Pool)
+	store := NewPgxStore(cfg.Pool).WithLogger(log.With(zap.String("svc", "sub2-parse-route")))
 	dispatcher := NewDispatcher(cfg.Lookup, store)
 	return &Worker{
 		cfg:        cfg,

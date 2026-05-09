@@ -3,43 +3,16 @@ package owl
 import (
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 func TestNewDashboardHandlerNilLogger(t *testing.T) {
 	h := NewDashboardHandler(nil, nil)
 	if h == nil || h.Logger == nil {
 		t.Fatal("expected non-nil handler + logger fallback")
-	}
-}
-
-func TestTenantFromQueryAcceptsBothNames(t *testing.T) {
-	id := uuid.New()
-	for _, name := range []string{"tenant_id", "merchant_id"} {
-		req := httptest.NewRequest(http.MethodGet,
-			"/v1/owl/parties?"+name+"="+id.String(), nil)
-		w := httptest.NewRecorder()
-		got, ok := tenantFromQuery(w, req)
-		if !ok || got != id {
-			t.Errorf("query %s: got (%v, %v)", name, got, ok)
-		}
-	}
-}
-
-func TestTenantFromQueryRejectsMissing(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/v1/owl/parties", nil)
-	w := httptest.NewRecorder()
-	_, ok := tenantFromQuery(w, req)
-	if ok {
-		t.Fatal("expected missing tenant rejection")
-	}
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("status=%d want 400", w.Code)
 	}
 }
 

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 func TestRenderStoreErrMapping(t *testing.T) {
@@ -27,19 +26,6 @@ func TestRenderStoreErrMapping(t *testing.T) {
 		h.renderStoreErr(w, c.err, "test")
 		if w.Code != c.want {
 			t.Errorf("err=%v: got %d want %d", c.err, w.Code, c.want)
-		}
-	}
-}
-
-func TestTenantFromQueryAcceptsBothNames(t *testing.T) {
-	id := uuid.New()
-	for _, name := range []string{"tenant_id", "merchant_id"} {
-		req := httptest.NewRequest(http.MethodGet,
-			"/v1/cases?"+name+"="+id.String(), nil)
-		w := httptest.NewRecorder()
-		got, ok := tenantFromQuery(w, req)
-		if !ok || got != id {
-			t.Errorf("query %s: got (%v, %v)", name, got, ok)
 		}
 	}
 }

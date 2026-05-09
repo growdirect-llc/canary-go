@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/ruptiv/canary/internal/db/types"
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 // stubService is a fully in-memory implementation of fox.Service for
@@ -64,6 +65,22 @@ func (s *stubService) LoadDetection(_ context.Context, id uuid.UUID) (*types.Det
 func (s *stubService) LoadCase(_ context.Context, id uuid.UUID) (*types.Case, error) {
 	c, ok := s.cases[id]
 	if !ok {
+		return nil, ErrNotFound
+	}
+	return c, nil
+}
+
+func (s *stubService) LoadDetectionScoped(_ context.Context, tenantID, id uuid.UUID) (*types.Detection, error) {
+	d, ok := s.detections[id]
+	if !ok || d.TenantID != tenantID {
+		return nil, ErrNotFound
+	}
+	return d, nil
+}
+
+func (s *stubService) LoadCaseScoped(_ context.Context, tenantID, id uuid.UUID) (*types.Case, error) {
+	c, ok := s.cases[id]
+	if !ok || c.TenantID != tenantID {
 		return nil, ErrNotFound
 	}
 	return c, nil
@@ -159,7 +176,9 @@ func newTestRouter(svc Service) chi.Router {
 	return r
 }
 
-func doJSON(t *testing.T, r chi.Router, method, path string, body any) *httptest.ResponseRecorder {
+// doJSON sends a request as the given tenant. Pass uuid.Nil to send
+// without claims (used to assert the 401 path).
+func doJSON(t *testing.T, r chi.Router, tenantID uuid.UUID, method, path string, body any) *httptest.ResponseRecorder {
 	t.Helper()
 	var buf bytes.Buffer
 	if body != nil {
@@ -167,6 +186,13 @@ func doJSON(t *testing.T, r chi.Router, method, path string, body any) *httptest
 	}
 	req := httptest.NewRequest(method, path, &buf)
 	req.Header.Set("Content-Type", "application/json")
+	if tenantID != uuid.Nil {
+		req = req.WithContext(identity.InjectClaims(req.Context(), identity.Claims{
+			TenantID:   tenantID,
+			AgentName:  "test-agent",
+			AuthMethod: identity.AuthMethodAPIKey,
+		}))
+	}
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	return rec
@@ -189,7 +215,7 @@ func TestHandler_FromDetection_OpensNew(t *testing.T) {
 	svc.detections[det.ID] = det
 	r := newTestRouter(svc)
 
-	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases/from-detection",
+	rec := doJSON(t, r, tenantID, http.MethodPost, "/v1/fox/cases/from-detection",
 		map[string]string{"detection_id": det.ID.String()})
 
 	if rec.Code != http.StatusOK {
@@ -231,7 +257,7 @@ func TestHandler_FromDetection_AttachesToOpen(t *testing.T) {
 	svc.detections[det.ID] = det
 	r := newTestRouter(svc)
 
-	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases/from-detection",
+	rec := doJSON(t, r, tenantID, http.MethodPost, "/v1/fox/cases/from-detection",
 		map[string]string{"detection_id": det.ID.String()})
 
 	if rec.Code != http.StatusOK {
@@ -252,9 +278,10 @@ func TestHandler_FromDetection_AttachesToOpen(t *testing.T) {
 
 func TestHandler_FromDetection_NoActionLow(t *testing.T) {
 	svc := newStubService()
+	tenantID := uuid.New()
 	det := &types.Detection{
 		ID:       uuid.New(),
-		TenantID: uuid.New(),
+		TenantID: tenantID,
 		Severity: "low",
 		Status:   "new",
 		Evidence: json.RawMessage(`{}`),
@@ -262,7 +289,7 @@ func TestHandler_FromDetection_NoActionLow(t *testing.T) {
 	svc.detections[det.ID] = det
 	r := newTestRouter(svc)
 
-	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases/from-detection",
+	rec := doJSON(t, r, tenantID, http.MethodPost, "/v1/fox/cases/from-detection",
 		map[string]string{"detection_id": det.ID.String()})
 
 	if rec.Code != http.StatusOK {
@@ -281,7 +308,7 @@ func TestHandler_FromDetection_NoActionLow(t *testing.T) {
 func TestHandler_FromDetection_NotFound(t *testing.T) {
 	svc := newStubService()
 	r := newTestRouter(svc)
-	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases/from-detection",
+	rec := doJSON(t, r, uuid.New(), http.MethodPost, "/v1/fox/cases/from-detection",
 		map[string]string{"detection_id": uuid.New().String()})
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("status: got %d want 404", rec.Code)
@@ -291,7 +318,7 @@ func TestHandler_FromDetection_NotFound(t *testing.T) {
 func TestHandler_FromDetection_MalformedID(t *testing.T) {
 	svc := newStubService()
 	r := newTestRouter(svc)
-	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases/from-detection",
+	rec := doJSON(t, r, uuid.New(), http.MethodPost, "/v1/fox/cases/from-detection",
 		map[string]string{"detection_id": "not-a-uuid"})
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d want 400", rec.Code)
@@ -303,13 +330,14 @@ func TestHandler_CreateCase_Manual(t *testing.T) {
 	tenantID := uuid.New()
 	r := newTestRouter(svc)
 
+	// merchant_id in body matches the authenticated tenant — should pass.
 	body := map[string]any{
 		"merchant_id": tenantID.String(),
 		"severity":    "high",
 		"title":       "Investigator-opened",
 		"notes":       "Patterned drawer variance",
 	}
-	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases", body)
+	rec := doJSON(t, r, tenantID, http.MethodPost, "/v1/fox/cases", body)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -320,21 +348,76 @@ func TestHandler_CreateCase_Manual(t *testing.T) {
 
 func TestHandler_CreateCase_InvalidSeverity(t *testing.T) {
 	svc := newStubService()
+	tenantID := uuid.New()
 	r := newTestRouter(svc)
-	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases",
-		map[string]any{"merchant_id": uuid.New().String(), "severity": "extreme"})
+	rec := doJSON(t, r, tenantID, http.MethodPost, "/v1/fox/cases",
+		map[string]any{"merchant_id": tenantID.String(), "severity": "extreme"})
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d", rec.Code)
 	}
 }
 
+// TestHandler_CreateCase_BodyTenantMismatch verifies the
+// AssertBodyTenantMatches defense: a body whose merchant_id names a
+// different tenant than the authenticated one is rejected with 403.
+func TestHandler_CreateCase_BodyTenantMismatch(t *testing.T) {
+	svc := newStubService()
+	tenantA := uuid.New()
+	tenantB := uuid.New()
+	r := newTestRouter(svc)
+
+	body := map[string]any{
+		"merchant_id": tenantB.String(), // body says B
+		"severity":    "high",
+	}
+	rec := doJSON(t, r, tenantA, http.MethodPost, "/v1/fox/cases", body) // auth says A
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("status: got %d body=%s want 403", rec.Code, rec.Body.String())
+	}
+	if len(svc.cases) != 0 {
+		t.Errorf("expected no case to be created, got %d", len(svc.cases))
+	}
+}
+
+// TestHandler_Unauthenticated_401 verifies every protected endpoint
+// rejects requests with no claims attached.
+func TestHandler_Unauthenticated_401(t *testing.T) {
+	svc := newStubService()
+	r := newTestRouter(svc)
+
+	cases := []struct {
+		name, method, path string
+		body               any
+	}{
+		{"from-detection", http.MethodPost, "/v1/fox/cases/from-detection",
+			map[string]string{"detection_id": uuid.New().String()}},
+		{"createCase", http.MethodPost, "/v1/fox/cases",
+			map[string]any{"severity": "high"}},
+		{"listCases", http.MethodGet, "/v1/fox/cases", nil},
+		{"getCase", http.MethodGet, "/v1/fox/cases/" + uuid.New().String(), nil},
+		{"appendAction", http.MethodPost, "/v1/fox/cases/" + uuid.New().String() + "/actions",
+			map[string]any{"action_type": "note"}},
+		{"closeCase", http.MethodPost, "/v1/fox/cases/" + uuid.New().String() + "/close",
+			map[string]any{"resolution": "substantiated"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rec := doJSON(t, r, uuid.Nil, c.method, c.path, c.body)
+			if rec.Code != http.StatusUnauthorized {
+				t.Errorf("%s: got %d body=%s want 401", c.name, rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestHandler_GetCase(t *testing.T) {
 	svc := newStubService()
-	c := &types.Case{ID: uuid.New(), TenantID: uuid.New(), CaseNumber: "FOX-1", Severity: "high", Status: "open"}
+	tenantID := uuid.New()
+	c := &types.Case{ID: uuid.New(), TenantID: tenantID, CaseNumber: "FOX-1", Severity: "high", Status: "open"}
 	svc.cases[c.ID] = c
 	r := newTestRouter(svc)
 
-	rec := doJSON(t, r, http.MethodGet, "/v1/fox/cases/"+c.ID.String(), nil)
+	rec := doJSON(t, r, tenantID, http.MethodGet, "/v1/fox/cases/"+c.ID.String(), nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: got %d", rec.Code)
 	}
@@ -348,17 +431,8 @@ func TestHandler_GetCase(t *testing.T) {
 func TestHandler_GetCase_NotFound(t *testing.T) {
 	svc := newStubService()
 	r := newTestRouter(svc)
-	rec := doJSON(t, r, http.MethodGet, "/v1/fox/cases/"+uuid.New().String(), nil)
+	rec := doJSON(t, r, uuid.New(), http.MethodGet, "/v1/fox/cases/"+uuid.New().String(), nil)
 	if rec.Code != http.StatusNotFound {
-		t.Errorf("status: got %d", rec.Code)
-	}
-}
-
-func TestHandler_ListCases_RequiresMerchantID(t *testing.T) {
-	svc := newStubService()
-	r := newTestRouter(svc)
-	rec := doJSON(t, r, http.MethodGet, "/v1/fox/cases", nil)
-	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d", rec.Code)
 	}
 }
@@ -372,7 +446,8 @@ func TestHandler_ListCases_Filtered(t *testing.T) {
 	svc.cases[c2.ID] = c2
 	r := newTestRouter(svc)
 
-	rec := doJSON(t, r, http.MethodGet, "/v1/fox/cases?merchant_id="+tenantID.String()+"&status=open", nil)
+	// Tenant comes from claims, not the query string.
+	rec := doJSON(t, r, tenantID, http.MethodGet, "/v1/fox/cases?status=open", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -387,11 +462,12 @@ func TestHandler_ListCases_Filtered(t *testing.T) {
 
 func TestHandler_AppendAction(t *testing.T) {
 	svc := newStubService()
-	c := &types.Case{ID: uuid.New(), TenantID: uuid.New(), Status: "open"}
+	tenantID := uuid.New()
+	c := &types.Case{ID: uuid.New(), TenantID: tenantID, Status: "open"}
 	svc.cases[c.ID] = c
 	r := newTestRouter(svc)
 
-	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases/"+c.ID.String()+"/actions",
+	rec := doJSON(t, r, tenantID, http.MethodPost, "/v1/fox/cases/"+c.ID.String()+"/actions",
 		map[string]any{"action_type": "note", "notes": "follow-up tomorrow"})
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
@@ -403,11 +479,12 @@ func TestHandler_AppendAction(t *testing.T) {
 
 func TestHandler_AppendAction_RequiresActionType(t *testing.T) {
 	svc := newStubService()
-	c := &types.Case{ID: uuid.New(), TenantID: uuid.New(), Status: "open"}
+	tenantID := uuid.New()
+	c := &types.Case{ID: uuid.New(), TenantID: tenantID, Status: "open"}
 	svc.cases[c.ID] = c
 	r := newTestRouter(svc)
 
-	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases/"+c.ID.String()+"/actions",
+	rec := doJSON(t, r, tenantID, http.MethodPost, "/v1/fox/cases/"+c.ID.String()+"/actions",
 		map[string]any{"notes": "missing type"})
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d", rec.Code)
@@ -416,11 +493,12 @@ func TestHandler_AppendAction_RequiresActionType(t *testing.T) {
 
 func TestHandler_CloseCase(t *testing.T) {
 	svc := newStubService()
-	c := &types.Case{ID: uuid.New(), TenantID: uuid.New(), Status: "open"}
+	tenantID := uuid.New()
+	c := &types.Case{ID: uuid.New(), TenantID: tenantID, Status: "open"}
 	svc.cases[c.ID] = c
 	r := newTestRouter(svc)
 
-	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases/"+c.ID.String()+"/close",
+	rec := doJSON(t, r, tenantID, http.MethodPost, "/v1/fox/cases/"+c.ID.String()+"/close",
 		map[string]any{"resolution": "substantiated", "notes": "termination filed"})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status: got %d body=%s", rec.Code, rec.Body.String())
@@ -432,11 +510,12 @@ func TestHandler_CloseCase(t *testing.T) {
 
 func TestHandler_CloseCase_RequiresResolution(t *testing.T) {
 	svc := newStubService()
-	c := &types.Case{ID: uuid.New(), TenantID: uuid.New(), Status: "open"}
+	tenantID := uuid.New()
+	c := &types.Case{ID: uuid.New(), TenantID: tenantID, Status: "open"}
 	svc.cases[c.ID] = c
 	r := newTestRouter(svc)
 
-	rec := doJSON(t, r, http.MethodPost, "/v1/fox/cases/"+c.ID.String()+"/close",
+	rec := doJSON(t, r, tenantID, http.MethodPost, "/v1/fox/cases/"+c.ID.String()+"/close",
 		map[string]any{})
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d", rec.Code)

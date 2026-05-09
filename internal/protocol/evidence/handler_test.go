@@ -17,6 +17,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/ruptiv/canary/internal/testutil"
 )
 
 func skipIfNoIntegration(t *testing.T) string {
@@ -80,15 +82,17 @@ func TestIntegration_Evidence_LookupHit(t *testing.T) {
 	r := chi.NewRouter()
 	h.Mount(r)
 
-	// HIT
+	// HIT — owner caller (claims tenant matches the row's merchant) gets
+	// RecordFull with merchant_id + raw_payload.
 	req := httptest.NewRequest(http.MethodGet, "/v1/protocol/evidence/"+eventHash, nil)
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), merchantID))
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("hit: got %d want 200; body=%s", rec.Code, rec.Body.String())
 	}
 
-	var got Record
+	var got RecordFull
 	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}

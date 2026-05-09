@@ -91,18 +91,22 @@ func (e *Engine) SetAllowListStore(a AllowListLookup) {
 // transaction's tenant against the transaction. Returns the inserted
 // detections (with IDs assigned by the DB).
 //
-// SDD-vague: chirp.md describes evaluation as "fan-out to all enabled
-// rules" without specifying what "enabled" means relative to
-// evaluation_frequency. fires only on_event rules from
-// this entry point; hourly/daily/weekly are deferred to a scheduler
-// that lands in a later wave.
-func (e *Engine) EvaluateTransaction(ctx context.Context, transactionID uuid.UUID) ([]Detection, error) {
+// expectedTenantID guards against cross-tenant invocation: when a
+// loaded transaction's tenant_id differs from the caller's expected
+// tenant, ErrTransactionNotFound is returned (same shape as a genuine
+// miss, no existence leak). Pass uuid.Nil to skip the check on
+// trusted internal call sites where the tenant is already known by
+// construction (e.g. EvaluateBatch iterating tenant-scoped tx ids).
+func (e *Engine) EvaluateTransaction(ctx context.Context, expectedTenantID, transactionID uuid.UUID) ([]Detection, error) {
 	tx, err := e.store.LoadTransaction(ctx, transactionID)
 	if err != nil {
 		return nil, fmt.Errorf("chirp: load transaction %s: %w", transactionID, err)
 	}
 	if tx == nil {
-		return nil, fmt.Errorf("chirp: transaction %s not found", transactionID)
+		return nil, ErrTransactionNotFound
+	}
+	if expectedTenantID != uuid.Nil && tx.TenantID != expectedTenantID {
+		return nil, ErrTransactionNotFound
 	}
 
 	rules, err := e.store.LoadRules(ctx, tx.TenantID, "on_event")
@@ -178,7 +182,9 @@ func (e *Engine) EvaluateBatch(ctx context.Context, tenantID uuid.UUID, since ti
 		PerRuleCounts:   map[string]int{},
 	}
 	for _, txID := range txIDs {
-		dets, err := e.EvaluateTransaction(ctx, txID)
+		// Internal cascade: ListTransactionsSince already returns only
+		// tenant-scoped tx ids, so we skip the cross-tenant guard.
+		dets, err := e.EvaluateTransaction(ctx, uuid.Nil, txID)
 		if err != nil {
 			e.logger.Warn("batch: skip transaction",
 				zap.String("transaction_id", txID.String()),

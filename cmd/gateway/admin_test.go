@@ -25,18 +25,34 @@ type stubDLQ struct {
 	listResult []webhook.DLQRow
 }
 
-func (s *stubDLQ) Get(_ context.Context, id uuid.UUID) (*webhook.DLQRow, error) {
-	if r, ok := s.rows[id]; ok {
-		return r, nil
+func (s *stubDLQ) Get(_ context.Context, merchantID, id uuid.UUID) (*webhook.DLQRow, error) {
+	r, ok := s.rows[id]
+	if !ok {
+		return nil, webhook.ErrDLQNotFound
 	}
-	return nil, webhook.ErrDLQNotFound
+	// GRO-910: simulate the SQL-layer tenant filter — cross-tenant
+	// reads return ErrDLQNotFound (no existence leak).
+	if r.MerchantID != merchantID {
+		return nil, webhook.ErrDLQNotFound
+	}
+	return r, nil
 }
 func (s *stubDLQ) List(_ context.Context, f webhook.ListFilters) ([]webhook.DLQRow, error) {
 	s.listFilter = f
 	return s.listResult, nil
 }
-func (s *stubDLQ) MarkReplayed(_ context.Context, _ uuid.UUID) error { return nil }
-func (s *stubDLQ) MarkRetryFailed(_ context.Context, _ uuid.UUID, _ string) (*webhook.DLQRow, error) {
+func (s *stubDLQ) MarkReplayed(_ context.Context, merchantID, id uuid.UUID) error {
+	r, ok := s.rows[id]
+	if !ok || r.MerchantID != merchantID {
+		return webhook.ErrDLQNotFound
+	}
+	return nil
+}
+func (s *stubDLQ) MarkRetryFailed(_ context.Context, merchantID, id uuid.UUID, _ string) (*webhook.DLQRow, error) {
+	r, ok := s.rows[id]
+	if !ok || r.MerchantID != merchantID {
+		return nil, webhook.ErrDLQNotFound
+	}
 	return nil, nil
 }
 

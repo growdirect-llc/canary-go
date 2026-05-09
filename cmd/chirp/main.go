@@ -27,6 +27,7 @@ import (
 	"github.com/ruptiv/canary/internal/cmdutil"
 	"github.com/ruptiv/canary/internal/config"
 	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 const serviceName = "canary-chirp"
@@ -58,7 +59,16 @@ func main() {
 	r.Use(requestLogger(logger))
 
 	r.Get("/health", healthHandler(cfg, registry))
-	handler.Mount(r)
+
+	// Chirp routes require API-key auth — tenant is derived from the
+	// resolved claims, never from request body / query input.
+	r.Group(func(r chi.Router) {
+		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
+			Pool:     pool,
+			Required: true,
+		}))
+		handler.Mount(r)
+	})
 
 	addr := ":" + cfg.Port
 	ln, err := net.Listen("tcp", addr)

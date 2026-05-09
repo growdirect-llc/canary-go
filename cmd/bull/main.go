@@ -16,10 +16,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -81,10 +83,54 @@ func main() {
 	taskHandler := task.NewHandler(taskStore, logger)
 
 	// Background replenishment trigger: inventory:replenish → Min/Max → task.
+	//
+	// Per-message panics are caught inside Trigger.handleSafely (poison-pill
+	// stays unacked for redelivery). The wrapper below is a defensive belt-
+	// and-suspenders layer: if Run itself panics or returns a non-cancellation
+	// error, restart it after a short backoff. A sliding window caps restarts
+	// at 5 in 60s so a tight panic-loop can't burn CPU.
 	trigger := replenishment.NewTrigger(pool, taskStore, valkeyClient, logger)
 	go func() {
-		if err := trigger.Run(ctx); err != nil && err != context.Canceled {
-			logger.Error("replenishment trigger exited", zap.Error(err))
+		const (
+			backoff       = 1 * time.Second
+			maxRestarts   = 5
+			restartWindow = 60 * time.Second
+		)
+		var (
+			restarts    int
+			windowStart = time.Now()
+		)
+		for {
+			if ctx.Err() != nil {
+				return
+			}
+			if time.Since(windowStart) > restartWindow {
+				restarts = 0
+				windowStart = time.Now()
+			}
+			err := runTriggerWithRecover(ctx, trigger, logger)
+			if err == nil || errors.Is(err, context.Canceled) {
+				return
+			}
+			restarts++
+			if restarts > maxRestarts {
+				logger.Error("replenishment trigger: too many restarts in window — giving up",
+					zap.Int("restarts", restarts),
+					zap.Duration("window", restartWindow),
+					zap.Error(err),
+				)
+				return
+			}
+			logger.Warn("replenishment trigger crashed, restarting",
+				zap.Int("restarts", restarts),
+				zap.Duration("backoff", backoff),
+				zap.Error(err),
+			)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(backoff):
+			}
 		}
 	}()
 
@@ -116,6 +162,24 @@ func main() {
 		!errors.Is(err, http.ErrServerClosed) {
 		logger.Fatal("server", zap.Error(err))
 	}
+}
+
+// runTriggerWithRecover invokes trigger.Run, converting any escaping panic
+// into an error so the caller can apply backoff/restart logic. Per-message
+// panics are already caught one level down in Trigger.handleSafely; this
+// guards against a panic in Run itself (e.g. a future change to the
+// XREADGROUP/EnsureGroup path).
+func runTriggerWithRecover(ctx context.Context, t *replenishment.Trigger, log *zap.Logger) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error("replenishment trigger panic",
+				zap.Any("panic", r),
+				zap.ByteString("stack", debug.Stack()),
+			)
+			err = fmt.Errorf("replenishment: panic: %v", r)
+		}
+	}()
+	return t.Run(ctx)
 }
 
 func health(cfg *config.Config) http.HandlerFunc {

@@ -23,6 +23,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/ruptiv/canary/internal/testutil"
 )
 
 func skipIfNoDB(t *testing.T) string {
@@ -204,6 +206,7 @@ func TestIntegration_HandlerEndToEnd(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/v1/inventory/movements",
 		strings.NewReader(string(body)))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -213,7 +216,7 @@ func TestIntegration_HandlerEndToEnd(t *testing.T) {
 	// GET the position
 	req = httptest.NewRequest(http.MethodGet,
 		"/v1/inventory/positions/"+itemID.String()+"/"+locationID.String(), nil)
-	req.Header.Set(HeaderMerchant, tenantID.String())
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec = httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {

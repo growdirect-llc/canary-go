@@ -39,6 +39,32 @@ CREATE TABLE protocol.evidence (
 );
 CREATE INDEX evidence_merchant_chain_idx ON protocol.evidence (merchant_id, ingested_at DESC);
 
+-- protocol.anchors / protocol.evidence_anchors — Sub 3 Merkle anchoring.
+-- Lifted verbatim from migration 020_protocol_anchors.up.sql so a fresh
+-- make db-reset-test produces the same shape as a deployed DB after
+-- make migrate-up (CLAUDE.md two-tier rule).
+CREATE TABLE protocol.anchors (
+    anchor_id        UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    merkle_root      TEXT        NOT NULL,
+    inscription_id   TEXT,                              -- null until confirmed on-chain
+    btc_tx_id        TEXT,
+    btc_block_height BIGINT,
+    network          TEXT        NOT NULL DEFAULT 'signet',
+    event_count      INT         NOT NULL,
+    anchor_status    TEXT        NOT NULL DEFAULT 'pending'
+                     CHECK (anchor_status IN ('pending','inscribed','confirmed','failed')),
+    anchored_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE protocol.evidence_anchors (
+    event_hash   TEXT  NOT NULL REFERENCES protocol.evidence(event_hash),
+    anchor_id    UUID  NOT NULL REFERENCES protocol.anchors(anchor_id),
+    leaf_index   INT   NOT NULL,
+    merkle_proof JSONB NOT NULL,                          -- [{sibling_hash, position: "left"|"right"}, ...]
+    PRIMARY KEY (event_hash, anchor_id)
+);
+CREATE INDEX idx_evidence_anchors_event_hash ON protocol.evidence_anchors(event_hash);
+
 -- DB-level append-only enforcement (defense in depth)
 CREATE OR REPLACE FUNCTION protocol.evidence_block_mutation() RETURNS trigger AS $$
 BEGIN

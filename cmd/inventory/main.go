@@ -27,6 +27,7 @@ import (
 	"github.com/ruptiv/canary/internal/cmdutil"
 	"github.com/ruptiv/canary/internal/config"
 	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/identity"
 	"github.com/ruptiv/canary/internal/inventory"
 )
 
@@ -70,7 +71,19 @@ func main() {
 	r.Use(requestLogger(logger))
 
 	r.Get("/health", healthHandler(cfg))
-	handler.Mount(r)
+
+	// Inventory routes require API-key auth — tenant is derived from
+	// the resolved claims, never from request header / body input.
+	// The background SaleConsumer goroutine started above does NOT
+	// route through HTTP and is unaffected; its tenant comes from the
+	// polled transaction rows.
+	r.Group(func(r chi.Router) {
+		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
+			Pool:     pool,
+			Required: true,
+		}))
+		handler.Mount(r)
+	})
 
 	addr := ":" + cfg.Port
 	ln, err := net.Listen("tcp", addr)

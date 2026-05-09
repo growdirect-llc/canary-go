@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 )
 
 // ErrTenantUnknown is returned by Store.Persist when the merchant in
@@ -36,13 +37,34 @@ type Store interface {
 
 // PgxStore implements Store against a pgxpool.Pool. The pool is
 // owned by the caller; Close is not part of this interface.
+//
+// logger is the structured logger used for soft-failure paths
+// (currently: dropped tender rows when no default tender_type is
+// seeded). Defaults to zap.NewNop when not set so callers using the
+// existing NewPgxStore constructor don't break and tests don't have
+// to thread a logger when they don't care about the warn path.
 type PgxStore struct {
-	pool *pgxpool.Pool
+	pool   *pgxpool.Pool
+	logger *zap.Logger
 }
 
-// NewPgxStore wires a Store against the given pool.
+// NewPgxStore wires a Store against the given pool. The logger
+// defaults to zap.NewNop; use WithLogger to attach one for
+// observability of the soft-failure paths.
 func NewPgxStore(pool *pgxpool.Pool) *PgxStore {
-	return &PgxStore{pool: pool}
+	return &PgxStore{pool: pool, logger: zap.NewNop()}
+}
+
+// WithLogger returns the receiver with the given logger attached.
+// Safe to call with a nil logger (falls back to NewNop). Returning the
+// receiver lets callers keep the existing single-line construction,
+// e.g. store := NewPgxStore(pool).WithLogger(log).
+func (s *PgxStore) WithLogger(log *zap.Logger) *PgxStore {
+	if log == nil {
+		log = zap.NewNop()
+	}
+	s.logger = log
+	return s
 }
 
 // pgUniqueViolation is the SQLSTATE returned by Postgres for unique
@@ -78,15 +100,19 @@ func (s *PgxStore) Persist(ctx context.Context, evt *CanonicalEvent) error {
 	if evt.SourceCashierCode != "" {
 		id, lookupErr := s.lookupEmployee(ctx, tenantID, evt.SourceCashierCode)
 		if lookupErr != nil {
-			// Cashier lookup is best-effort — the canonical schema
-			// allows NULL on cashier_employee_id, and we'd rather
-			// persist the transaction with a missing cashier than
-			// dead-letter a real sale because someone forgot to seed
-			// the employee row. Log the miss via attributes and move on.
-			cashierID = nil
-		} else {
+			// DB error (not a missing row) — fail loud. The transaction
+			// can be redelivered; nulling the cashier from a real sale
+			// would be silent data loss. Per-row "not found" is handled
+			// inside lookupEmployee as (uuid.Nil, nil) and falls into
+			// the id == uuid.Nil branch below, leaving cashierID nil
+			// per the canonical schema's NULL allowance.
+			return fmt.Errorf("sub2: cashier lookup failed: %w", lookupErr)
+		}
+		if id != uuid.Nil {
 			cashierID = &id
 		}
+		// id == uuid.Nil here means "row genuinely missing" — leave
+		// cashierID nil per the canonical schema's NULL allowance.
 	}
 
 	// Stamp resolved FKs onto the canonical record.
@@ -152,6 +178,24 @@ func (s *PgxStore) Persist(ctx context.Context, evt *CanonicalEvent) error {
 		// signal; tenders are detail metadata.
 		if evt.Tenders[i].TenderTypeID == uuid.Nil {
 			if tenderResolveErr != nil {
+				// Soft data-loss path: the tender row gets dropped (the
+				// canonical header + line items are load-bearing; tenders
+				// are detail metadata). Warn with enough fields that an
+				// auditor can grep prod logs to reconstruct exactly what
+				// was dropped — tx id, source, the tender's index +
+				// internal ID, the amount, and the underlying lookup
+				// error.
+				s.logger.Warn("sub2: dropping tender — no default tender_type for (tenant, source)",
+					zap.String("tenant_id", tenantID.String()),
+					zap.String("source_code", evt.SourceCode),
+					zap.String("transaction_id", evt.Transaction.ID.String()),
+					zap.String("source_txn_id", evt.SourceTxnID),
+					zap.Int("tender_index", i),
+					zap.String("tender_id", evt.Tenders[i].ID.String()),
+					zap.String("amount", evt.Tenders[i].Amount),
+					zap.String("currency", evt.Tenders[i].Currency),
+					zap.Error(tenderResolveErr),
+				)
 				continue
 			}
 			evt.Tenders[i].TenderTypeID = defaultTenderTypeID
@@ -269,18 +313,23 @@ func (s *PgxStore) lookupLocation(ctx context.Context, tenantID uuid.UUID, locat
 	return id, nil
 }
 
-// lookupEmployee resolves a POS-native employee code to employee.employees.id.
-// Returns ErrLocationUnknown's spirit-cousin pgx.ErrNoRows when missing
-// (callers treat that as "leave cashier nil"). Errors other than
-// not-found propagate.
+// lookupEmployee resolves a POS-native employee code to
+// employee.employees.id. Returns (uuid.Nil, nil) when the row genuinely
+// doesn't exist — caller decides whether NULL cashier is acceptable.
+// Other DB errors (transient connection failures, schema mismatches)
+// propagate so the caller can fail loud rather than silently null the
+// field.
 func (s *PgxStore) lookupEmployee(ctx context.Context, tenantID uuid.UUID, employeeCode string) (uuid.UUID, error) {
 	var id uuid.UUID
 	err := s.pool.QueryRow(ctx,
 		`SELECT id FROM employee.employees WHERE tenant_id = $1 AND employee_code = $2`,
 		tenantID, employeeCode,
 	).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, nil
+	}
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, fmt.Errorf("sub2: lookup employee: %w", err)
 	}
 	return id, nil
 }

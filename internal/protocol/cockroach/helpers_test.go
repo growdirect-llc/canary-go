@@ -100,14 +100,19 @@ func anchorTestBatch(t *testing.T, pool *pgxpool.Pool, hashes []string) *sub3.An
 	store := sub3.NewStore(pool, "signet")
 	stub := &sub3.StubInscriber{}
 
-	result, err := store.WriteAnchor(ctx, stub, 1000, 1)
+	results, err := store.WriteAnchor(ctx, stub, 1000, 1)
 	if err != nil {
 		t.Fatalf("anchorTestBatch: WriteAnchor: %v", err)
 	}
-	if result == nil {
-		t.Fatal("anchorTestBatch: WriteAnchor returned nil — no unanchored events found")
+	// Cockroach scenarios use a single merchant (testMerchantID), so
+	// per-merchant batching always yields exactly one anchor here.
+	if len(results) == 0 {
+		t.Fatal("anchorTestBatch: WriteAnchor returned no anchors — no unanchored events found")
 	}
-	return result
+	if len(results) != 1 {
+		t.Fatalf("anchorTestBatch: expected 1 anchor (single test merchant), got %d", len(results))
+	}
+	return results[0]
 }
 
 // captureProofs reads the Merkle proof for each event_hash from

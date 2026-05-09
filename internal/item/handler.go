@@ -16,6 +16,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 // Handler binds the HTTP routes to the Store.
@@ -37,19 +39,21 @@ func New(store Store, logger *zap.Logger) *Handler {
 // Endpoint inventory:
 //
 //	GET    /v1/items/{id}            — by UUID
-//	GET    /v1/items?tenant_id=…&sku=…
-//	GET    /v1/items?tenant_id=…[&category_id=…&vendor_id=…&status=…&limit=…&offset=…]
-//	GET    /v1/items/by-barcode?tenant_id=…&barcode=…   ← keystone POS scan
+//	GET    /v1/items?sku=…
+//	GET    /v1/items[?category_id=…&vendor_id=…&status=…&limit=…&offset=…]
+//	GET    /v1/items/by-barcode?barcode=…   ← keystone POS scan
 //	POST   /v1/items                 — create
 //	PATCH  /v1/items/{id}            — partial update
 //	DELETE /v1/items/{id}            — soft delete
-//	GET    /v1/categories?tenant_id=…
-//	GET    /v1/vendors?tenant_id=…
+//	GET    /v1/categories
+//	GET    /v1/vendors
 //
-// Note: the dispatch brief used "merchant_id" on the wire. The schema's
-// m.* tables FK to app.tenants. We accept either query-string spelling
-// (tenant_id preferred) so callers built against either spec keep
-// working. Created items always echo tenant_id back.
+// Tenant is derived from the authenticated API-key claims on every
+// route — there is no caller-supplied tenant_id / merchant_id query
+// param. The body of POST /v1/items still accepts tenant_id for wire
+// compatibility, but the value is validated against the auth claim
+// (403 tenant_mismatch on mismatch) and overwritten with the auth
+// claim before persisting.
 func (h *Handler) Mount(r chi.Router) {
 	r.Get("/v1/items/by-barcode", h.getByBarcode) // most specific first
 	r.Get("/v1/items/{id}", h.getOrList)
@@ -59,6 +63,18 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Delete("/v1/items/{id}", h.delete)
 	r.Get("/v1/categories", h.listCategories)
 	r.Get("/v1/vendors", h.listVendors)
+}
+
+// requireTenant returns the authenticated tenant or writes 401 and
+// returns false. Every item-service endpoint is tenant-scoped — there
+// is no platform-scope read path.
+func requireTenant(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	c, ok := identity.ClaimsFromContext(r.Context())
+	if !ok || c.TenantID == uuid.Nil {
+		writeError(w, http.StatusUnauthorized, "unauthenticated", "missing tenant claim")
+		return uuid.Nil, false
+	}
+	return c.TenantID, true
 }
 
 // getOrList dispatches /v1/items: with {id} → GetByID, with sku query →
@@ -82,7 +98,7 @@ func (h *Handler) getByID(w http.ResponseWriter, r *http.Request, idParam string
 		writeError(w, http.StatusBadRequest, "malformed_id", "id must be a UUID")
 		return
 	}
-	tenantID, ok := tenantFromQuery(w, r)
+	tenantID, ok := requireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -96,7 +112,7 @@ func (h *Handler) getByID(w http.ResponseWriter, r *http.Request, idParam string
 }
 
 func (h *Handler) getBySKU(w http.ResponseWriter, r *http.Request, sku string) {
-	tenantID, ok := tenantFromQuery(w, r)
+	tenantID, ok := requireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -115,7 +131,7 @@ func (h *Handler) getByBarcode(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_barcode", "barcode query parameter is required")
 		return
 	}
-	tenantID, ok := tenantFromQuery(w, r)
+	tenantID, ok := requireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -129,7 +145,7 @@ func (h *Handler) getByBarcode(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := tenantFromQuery(w, r)
+	tenantID, ok := requireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -194,6 +210,10 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
+	authTenant, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "body_read_failed", err.Error())
@@ -204,6 +224,25 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "malformed_json", err.Error())
 		return
 	}
+	// tenant_id remains in the wire format for backward compat, but
+	// is no longer the source of truth for tenant. If the body sets
+	// it, it must match the authenticated tenant — otherwise reject.
+	if req.TenantID != uuid.Nil {
+		if err := identity.AssertBodyTenantMatches(r.Context(), req.TenantID); err != nil {
+			if errors.Is(err, identity.ErrTenantMismatch) {
+				writeError(w, http.StatusForbidden, "tenant_mismatch",
+					"tenant_id does not match authenticated tenant")
+				return
+			}
+			h.Logger.Error("assert tenant", zap.Error(err))
+			writeError(w, http.StatusInternalServerError, "tenant_check_failed", "")
+			return
+		}
+	}
+	// Defense in depth — overwrite the body's tenant with the auth
+	// claim so even if a future code path skips the check, the body's
+	// value cannot escape.
+	req.TenantID = authTenant
 	out, err := h.Store.Create(r.Context(), req)
 	if err != nil {
 		h.renderStoreError(w, err, "create item")
@@ -218,9 +257,7 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "malformed_id", "id must be a UUID")
 		return
 	}
-	// PATCH needs a tenant — for now from query. Auth middleware will
-	// inject it once item-service joins the JWT path.
-	tenantID, ok := tenantFromQuery(w, r)
+	tenantID, ok := requireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -250,7 +287,7 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "malformed_id", "id must be a UUID")
 		return
 	}
-	tenantID, ok := tenantFromQuery(w, r)
+	tenantID, ok := requireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -262,7 +299,7 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listCategories(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := tenantFromQuery(w, r)
+	tenantID, ok := requireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -275,7 +312,7 @@ func (h *Handler) listCategories(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listVendors(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := tenantFromQuery(w, r)
+	tenantID, ok := requireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -290,29 +327,6 @@ func (h *Handler) listVendors(w http.ResponseWriter, r *http.Request) {
 // ─────────────────────────────────────────────────────────────────────
 // Shared helpers
 // ─────────────────────────────────────────────────────────────────────
-
-// tenantFromQuery extracts and parses the tenant identifier. Accepts
-// either ?tenant_id= or ?merchant_id= (alias) for migration tolerance.
-// Returns (uuid, true) on success; writes a 400 and returns (_, false)
-// otherwise.
-func tenantFromQuery(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
-	v := r.URL.Query().Get("tenant_id")
-	if v == "" {
-		v = r.URL.Query().Get("merchant_id")
-	}
-	if v == "" {
-		writeError(w, http.StatusBadRequest, "missing_tenant",
-			"tenant_id (or merchant_id) query parameter is required")
-		return uuid.Nil, false
-	}
-	id, err := uuid.Parse(v)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "malformed_tenant",
-			"tenant_id must be a UUID")
-		return uuid.Nil, false
-	}
-	return id, true
-}
 
 // renderStoreError maps domain sentinels to HTTP status codes.
 func (h *Handler) renderStoreError(w http.ResponseWriter, err error, op string) {

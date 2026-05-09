@@ -10,6 +10,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+
+	"github.com/ruptiv/canary/internal/testutil"
 )
 
 // renderStoreErr → status code mapping. Pure logic; no DB.
@@ -34,33 +36,29 @@ func TestRenderStoreErrMapsErrors(t *testing.T) {
 	}
 }
 
-// tenantFromQuery accepts either ?tenant_id= or ?merchant_id=.
+// requireTenant derives tenant from API-key claims; with no claims
+// in the request context the helper returns 401.
 
-func TestTenantFromQueryAcceptsBothNames(t *testing.T) {
-	id := uuid.New()
-	cases := []string{
-		"?tenant_id=" + id.String(),
-		"?merchant_id=" + id.String(),
+func TestRequireTenantRejectsMissingClaims(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/v1/transactions", nil)
+	w := httptest.NewRecorder()
+	_, ok := requireTenant(w, req)
+	if ok {
+		t.Fatal("expected missing-claims rejection")
 	}
-	for _, qs := range cases {
-		req := httptest.NewRequest(http.MethodGet, "/v1/transactions"+qs, nil)
-		w := httptest.NewRecorder()
-		got, ok := tenantFromQuery(w, req)
-		if !ok || got != id {
-			t.Errorf("query %q: got (%v, %v), want (%v, true)", qs, got, ok, id)
-		}
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("status=%d want 401", w.Code)
 	}
 }
 
-func TestTenantFromQueryRejectsMissing(t *testing.T) {
+func TestRequireTenantAcceptsClaims(t *testing.T) {
+	tenantID := uuid.New()
 	req := httptest.NewRequest(http.MethodGet, "/v1/transactions", nil)
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	w := httptest.NewRecorder()
-	_, ok := tenantFromQuery(w, req)
-	if ok {
-		t.Fatal("expected missing tenant rejection")
-	}
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("status=%d want 400", w.Code)
+	got, ok := requireTenant(w, req)
+	if !ok || got != tenantID {
+		t.Errorf("got (%v, %v), want (%v, true)", got, ok, tenantID)
 	}
 }
 

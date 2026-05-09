@@ -16,6 +16,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+
+	"github.com/ruptiv/canary/internal/testutil"
 )
 
 // stubStore implements both PositionReader and MovementWriter.
@@ -78,7 +80,7 @@ func TestGetPosition_Success(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet,
 		"/v1/inventory/positions/"+itemID.String()+"/"+locationID.String(), nil)
-	req.Header.Set(HeaderMerchant, tenantID.String())
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
 
@@ -103,7 +105,7 @@ func TestGetPosition_NotFound(t *testing.T) {
 	srv := mountHandler(stub)
 	req := httptest.NewRequest(http.MethodGet,
 		"/v1/inventory/positions/"+uuid.NewString()+"/"+uuid.NewString(), nil)
-	req.Header.Set(HeaderMerchant, uuid.NewString())
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), uuid.New()))
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
 	if rec.Code != http.StatusNotFound {
@@ -111,14 +113,17 @@ func TestGetPosition_NotFound(t *testing.T) {
 	}
 }
 
-func TestGetPosition_MissingMerchantHeader(t *testing.T) {
+// TestGetPosition_MissingClaims verifies that a request without
+// API-key claims is rejected with 401 — the handler no longer reads
+// X-Canary-Merchant.
+func TestGetPosition_MissingClaims(t *testing.T) {
 	srv := mountHandler(&stubStore{})
 	req := httptest.NewRequest(http.MethodGet,
 		"/v1/inventory/positions/"+uuid.NewString()+"/"+uuid.NewString(), nil)
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status: got %d", rec.Code)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d, want 401", rec.Code)
 	}
 }
 
@@ -138,7 +143,7 @@ func TestListPositions_HappyPath(t *testing.T) {
 	}
 	srv := mountHandler(stub)
 	req := httptest.NewRequest(http.MethodGet, "/v1/inventory/positions", nil)
-	req.Header.Set(HeaderMerchant, tenantID.String())
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -191,6 +196,7 @@ func TestAppendMovement_HappyPath(t *testing.T) {
 	}
 	srv := mountHandler(stub)
 	req := httptest.NewRequest(http.MethodPost, "/v1/inventory/movements", bytes.NewReader(bodyJSON))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -209,8 +215,9 @@ func TestAppendMovement_HappyPath(t *testing.T) {
 }
 
 func TestAppendMovement_RejectsInvalidType(t *testing.T) {
+	tenantID := uuid.New()
 	body := AppendMovementRequest{
-		MerchantID:   uuid.New(),
+		MerchantID:   tenantID,
 		ItemID:       uuid.New(),
 		LocationID:   uuid.New(),
 		MovementType: "teleportation",
@@ -219,6 +226,7 @@ func TestAppendMovement_RejectsInvalidType(t *testing.T) {
 	bodyJSON, _ := json.Marshal(body)
 	srv := mountHandler(&stubStore{})
 	req := httptest.NewRequest(http.MethodPost, "/v1/inventory/movements", bytes.NewReader(bodyJSON))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
@@ -230,8 +238,9 @@ func TestAppendMovement_RejectsInvalidType(t *testing.T) {
 }
 
 func TestAppendMovement_RejectsZeroDelta(t *testing.T) {
+	tenantID := uuid.New()
 	body := AppendMovementRequest{
-		MerchantID:   uuid.New(),
+		MerchantID:   tenantID,
 		ItemID:       uuid.New(),
 		LocationID:   uuid.New(),
 		MovementType: "sale",
@@ -240,6 +249,7 @@ func TestAppendMovement_RejectsZeroDelta(t *testing.T) {
 	bodyJSON, _ := json.Marshal(body)
 	srv := mountHandler(&stubStore{})
 	req := httptest.NewRequest(http.MethodPost, "/v1/inventory/movements", bytes.NewReader(bodyJSON))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
@@ -251,6 +261,9 @@ func TestAppendMovement_RejectsMissingFields(t *testing.T) {
 	bodyJSON := []byte(`{"movement_type":"sale","quantity":"1"}`)
 	srv := mountHandler(&stubStore{})
 	req := httptest.NewRequest(http.MethodPost, "/v1/inventory/movements", bytes.NewReader(bodyJSON))
+	// Body has no merchant_id; auth claim provides tenant. Validation
+	// then fails on item_id / location_id (still uuid.Nil).
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), uuid.New()))
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
@@ -281,7 +294,7 @@ func TestListMovements_HappyPath(t *testing.T) {
 	srv := mountHandler(stub)
 	url := "/v1/inventory/movements?item_id=" + itemID.String() + "&location_id=" + locationID.String()
 	req := httptest.NewRequest(http.MethodGet, url, nil)
-	req.Header.Set(HeaderMerchant, tenantID.String())
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -316,7 +329,7 @@ func TestListMovements_TimeFilters(t *testing.T) {
 		"&location_id=" + locationID.String() +
 		"&from=2026-05-01T00:00:00Z&to=2026-05-02T00:00:00Z"
 	req := httptest.NewRequest(http.MethodGet, url, nil)
-	req.Header.Set(HeaderMerchant, tenantID.String())
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -393,6 +406,7 @@ func TestAppendAdjustment_HappyPath(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/v1/inventory/adjustments", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), merchantID))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 

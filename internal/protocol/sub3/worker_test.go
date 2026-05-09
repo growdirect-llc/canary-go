@@ -8,45 +8,65 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
 // ─── Stub store ──────────────────────────────────────────────────────────────
 
 // stubStore implements AnchorStorer for unit tests. It simulates the
-// WriteAnchor behavior without a real database: it calls the inscriber only
-// when rowCount >= minBatch, mirroring the real Store contract.
+// WriteAnchor behavior without a real database: it calls the inscriber
+// once per simulated merchant when rowCount >= minBatch, mirroring the
+// real Store contract (one anchor per merchant per cycle, GRO-907).
+//
+// merchantCount controls how many distinct merchants the stub
+// pretends to have rows for. Each merchant is treated as having
+// rowCount rows. merchantCount=0 is normalized to 1 to keep the
+// pre-GRO-907 single-merchant test cases working.
 type stubStore struct {
-	rowCount  int // number of rows the stub pretends to have fetched
-	inscriber Inscriber
+	rowCount      int // rows per merchant
+	merchantCount int // number of distinct merchants; 0 → 1
+	inscriber     Inscriber
 }
 
-func (s *stubStore) WriteAnchor(ctx context.Context, inscriber Inscriber, batchSize, minBatch int) (*AnchorResult, error) {
+func (s *stubStore) WriteAnchor(ctx context.Context, inscriber Inscriber, batchSize, minBatch int) ([]*AnchorResult, error) {
 	if s.rowCount < minBatch {
 		// Below threshold — no-op, same as real Store.
 		return nil, nil
 	}
-	// Build a minimal Merkle tree over fake leaves.
-	leaves := make([]string, s.rowCount)
-	for i := range leaves {
-		h := sha256.Sum256([]byte(fmt.Sprintf("fake-chain-hash-%d", i)))
-		leaves[i] = hex.EncodeToString(h[:])
+	merchants := s.merchantCount
+	if merchants == 0 {
+		merchants = 1
 	}
-	mr, err := BuildMerkleTree(leaves)
-	if err != nil {
-		return nil, err
+	results := make([]*AnchorResult, 0, merchants)
+	for m := 0; m < merchants; m++ {
+		// Build a per-merchant Merkle tree over fake leaves. Vary the
+		// leaf seed by merchant index so each merchant gets a distinct
+		// root — matching the real Store's per-merchant separation.
+		leaves := make([]string, s.rowCount)
+		for i := range leaves {
+			h := sha256.Sum256([]byte(fmt.Sprintf("fake-chain-hash-m%d-%d", m, i)))
+			leaves[i] = hex.EncodeToString(h[:])
+		}
+		mr, err := BuildMerkleTree(leaves)
+		if err != nil {
+			return nil, err
+		}
+		ir, err := inscriber.Inscribe(ctx, mr.Root, "signet")
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, &AnchorResult{
+			AnchorID:      uuid.New(),
+			MerchantID:    uuid.New(),
+			MerkleRoot:    mr.Root,
+			InscriptionID: ir.InscriptionID,
+			EventCount:    s.rowCount,
+			AnchorStatus:  "inscribed",
+			AnchoredAt:    testTime(),
+		})
 	}
-	ir, err := inscriber.Inscribe(ctx, mr.Root, "signet")
-	if err != nil {
-		return nil, err
-	}
-	return &AnchorResult{
-		MerkleRoot:    mr.Root,
-		InscriptionID: ir.InscriptionID,
-		EventCount:    s.rowCount,
-		AnchorStatus:  "inscribed",
-		AnchoredAt:    testTime(),
-	}, nil
+	return results, nil
 }
 
 func testTime() time.Time {
@@ -176,6 +196,30 @@ func TestWorker_AboveMinBatch_CallsInscriber(t *testing.T) {
 	}
 	if stub.calls != 1 {
 		t.Fatalf("Inscribe called %d times, want 1", stub.calls)
+	}
+}
+
+// TestWorker_MultiMerchant_OneInscribeEach verifies that when the stub
+// reports multiple merchants over MinBatch the worker calls Inscribe
+// once per merchant — the per-tenant verifiability invariant from
+// GRO-907.
+func TestWorker_MultiMerchant_OneInscribeEach(t *testing.T) {
+	stub := &countingInscriber{}
+	store := &stubStore{rowCount: 3, merchantCount: 3, inscriber: stub}
+
+	w := newWorkerWithStore(WorkerConfig{
+		Inscriber: stub,
+		MinBatch:  2,
+		BatchSize: 50,
+		Logger:    zap.NewNop(),
+	}, store)
+
+	ctx := context.Background()
+	if err := w.Tick(ctx); err != nil {
+		t.Fatalf("Tick returned unexpected error: %v", err)
+	}
+	if stub.calls != 3 {
+		t.Fatalf("Inscribe called %d times, want 3 (one per merchant)", stub.calls)
 	}
 }
 

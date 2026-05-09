@@ -21,7 +21,21 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+
+	"github.com/ruptiv/canary/internal/identity"
 )
+
+// requireTenant returns the authenticated tenant or writes 401 and
+// returns false. Every inventory-service endpoint is tenant-scoped —
+// there is no platform-scope read path.
+func requireTenant(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	c, ok := identity.ClaimsFromContext(r.Context())
+	if !ok || c.TenantID == uuid.Nil {
+		writeError(w, http.StatusUnauthorized, "unauthenticated", "missing tenant claim")
+		return uuid.Nil, false
+	}
+	return c.TenantID, true
+}
 
 const (
 	// defaultPageSize matches the dispatch (50/page default).
@@ -62,12 +76,11 @@ func (h *Handler) Mount(r chi.Router) {
 }
 
 // getPosition handles GET /v1/inventory/positions/{item_id}/{location_id}.
-// The merchant_id (tenant_id) comes from the X-Canary-Merchant header, the
-// same convention used by the protocol gateway.
+// Tenant is derived from the authenticated API-key claims — the
+// X-Canary-Merchant header is no longer accepted.
 func (h *Handler) getPosition(w http.ResponseWriter, r *http.Request) {
-	tenantID, err := tenantFromHeader(r)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "missing_merchant", err.Error())
+	tenantID, ok := requireTenant(w, r)
+	if !ok {
 		return
 	}
 
@@ -98,9 +111,8 @@ func (h *Handler) getPosition(w http.ResponseWriter, r *http.Request) {
 // listPositions handles GET /v1/inventory/positions with optional
 // location_id and item_id filters. Pagination is page (1-based) + size.
 func (h *Handler) listPositions(w http.ResponseWriter, r *http.Request) {
-	tenantID, err := tenantFromHeader(r)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "missing_merchant", err.Error())
+	tenantID, ok := requireTenant(w, r)
+	if !ok {
 		return
 	}
 
@@ -148,6 +160,29 @@ func (h *Handler) appendMovement(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	authTenant, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	// merchant_id is kept on the wire for backward compat. If the
+	// caller sets it, it must match the authenticated tenant.
+	if req.MerchantID != uuid.Nil {
+		if err := identity.AssertBodyTenantMatches(r.Context(), req.MerchantID); err != nil {
+			if errors.Is(err, identity.ErrTenantMismatch) {
+				writeError(w, http.StatusForbidden, "tenant_mismatch",
+					"merchant_id does not match authenticated tenant")
+				return
+			}
+			h.Logger.Error("assert tenant", zap.Error(err))
+			writeError(w, http.StatusInternalServerError, "tenant_check_failed", "")
+			return
+		}
+	}
+	// Defense in depth — overwrite the body's tenant with the auth
+	// claim so even if a future code path skips the check, the body's
+	// value cannot escape.
+	req.MerchantID = authTenant
+
 	clean, err := ValidateAppendRequest(req)
 	if err != nil {
 		switch {
@@ -178,9 +213,8 @@ func (h *Handler) appendMovement(w http.ResponseWriter, r *http.Request) {
 // listMovements handles GET /v1/inventory/movements with required
 // item_id + location_id, optional from/to (RFC3339), and pagination.
 func (h *Handler) listMovements(w http.ResponseWriter, r *http.Request) {
-	tenantID, err := tenantFromHeader(r)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "missing_merchant", err.Error())
+	tenantID, ok := requireTenant(w, r)
+	if !ok {
 		return
 	}
 
@@ -252,6 +286,24 @@ func (h *Handler) appendAdjustment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	authTenant, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	if req.MerchantID != uuid.Nil {
+		if err := identity.AssertBodyTenantMatches(r.Context(), req.MerchantID); err != nil {
+			if errors.Is(err, identity.ErrTenantMismatch) {
+				writeError(w, http.StatusForbidden, "tenant_mismatch",
+					"merchant_id does not match authenticated tenant")
+				return
+			}
+			h.Logger.Error("assert tenant", zap.Error(err))
+			writeError(w, http.StatusInternalServerError, "tenant_check_failed", "")
+			return
+		}
+	}
+	req.MerchantID = authTenant
+
 	movReq := AppendMovementRequest{
 		MerchantID:   req.MerchantID,
 		ItemID:       req.ItemID,
@@ -284,22 +336,6 @@ func (h *Handler) appendAdjustment(w http.ResponseWriter, r *http.Request) {
 		Movement: *mov,
 		Position: *pos,
 	})
-}
-
-// HeaderMerchant carries the tenant scope on read endpoints. Kept
-// consistent with the protocol gateway (internal/protocol/webhook).
-const HeaderMerchant = "X-Canary-Merchant"
-
-func tenantFromHeader(r *http.Request) (uuid.UUID, error) {
-	v := r.Header.Get(HeaderMerchant)
-	if v == "" {
-		return uuid.Nil, errors.New("X-Canary-Merchant header is required")
-	}
-	id, err := uuid.Parse(v)
-	if err != nil {
-		return uuid.Nil, errors.New("X-Canary-Merchant must be a UUID")
-	}
-	return id, nil
 }
 
 // pageSize parses ?page=N&size=M with safe defaults.

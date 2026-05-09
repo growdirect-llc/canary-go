@@ -41,11 +41,14 @@ var ErrDuplicateEvent = errors.New("sub1: duplicate event_hash — already seale
 const pgUniqueViolation = "23505"
 
 // DB is the minimal Postgres surface Sub 1 needs. Using an interface
-// keeps the seal package unit-testable with a stub. *pgxpool.Pool
-// satisfies it; so does a single transaction.
+// keeps the seal package unit-testable with a stub. *pgxpool.Pool,
+// *pgx.Conn, and pgx.Tx all satisfy it — pgx.Tx's Begin opens a
+// nested savepoint, which is fine for our purposes (the inner WriteEvidence
+// transaction can ride on top of an outer one if a caller ever wraps).
 type DB interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
 // ComputeChainHash computes the per-merchant chain hash:
@@ -92,20 +95,42 @@ func LookupPrevChainHash(ctx context.Context, db DB, merchantID uuid.UUID) (stri
 }
 
 // WriteEvidence seals one canonical event. It computes the chain_hash
-// from the merchant's most recent prev_chain_hash and inserts the
-// row into protocol.evidence. Returns ErrDuplicateEvent if the
-// event_hash is already present (idempotent retry path).
+// from the merchant's most recent prev_chain_hash and inserts the row
+// into protocol.evidence. Returns ErrDuplicateEvent if the event_hash
+// is already present (idempotent retry path).
 //
-// The compute-then-insert sequence is intentionally not transactional
-// against the lookup. Two workers racing on the same merchant could
-// both read the same prev and produce sibling chain_hashes — but the
-// UNIQUE constraint on event_hash means only one row per event ever
-// survives, and chain ordering by ingested_at remains consistent.
-// In a single-worker deployment (the v1 stance) the race doesn't
-// occur. Multi-worker hardening is a downstream concern (advisory
-// locks per merchant).
+// The lookup-then-insert sequence is wrapped in a transaction that
+// first takes a Postgres advisory transaction lock keyed on the
+// merchant_id. Without it, two workers (or two retries) processing
+// different events for the same merchant could both read the same
+// prev_chain_hash, compute valid-but-divergent chain_hash values, and
+// both insert — producing a fork in what the patent (Application
+// 63/991,596, FIG. 4) requires to be a linear per-merchant chain.
+//
+// Same merchant_id → same hashtext → same lock; concurrent sealers
+// for one merchant serialize. Different merchants run fully parallel.
+// pg_advisory_xact_lock releases automatically on commit/rollback.
+//
+// The event_hash UNIQUE constraint still fires inside the transaction,
+// so an idempotent retry of an already-sealed event surfaces as
+// ErrDuplicateEvent before the commit — the duplicate row is rolled
+// back, and chain integrity is unaffected.
 func WriteEvidence(ctx context.Context, db DB, evt publisher.Event) (sealedChainHash string, err error) {
-	prev, err := LookupPrevChainHash(ctx, db, evt.MerchantID)
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		return "", fmt.Errorf("sub1: begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Per-merchant advisory lock. Released on commit/rollback.
+	if _, err := tx.Exec(ctx,
+		`SELECT pg_advisory_xact_lock(hashtext($1::text))`,
+		evt.MerchantID.String(),
+	); err != nil {
+		return "", fmt.Errorf("sub1: advisory lock: %w", err)
+	}
+
+	prev, err := LookupPrevChainHash(ctx, tx, evt.MerchantID)
 	if err != nil {
 		return "", err
 	}
@@ -124,7 +149,7 @@ func WriteEvidence(ctx context.Context, db DB, evt publisher.Event) (sealedChain
 			 source_code, merchant_id, raw_payload, ingested_at)
 		VALUES ($1, $2, $3, NULLIF($4, ''), $5, $6, $7, $8)
 	`
-	_, err = db.Exec(ctx, insert,
+	if _, err = tx.Exec(ctx, insert,
 		evt.EventID,
 		evt.EventHash,
 		chainHash,
@@ -133,13 +158,16 @@ func WriteEvidence(ctx context.Context, db DB, evt publisher.Event) (sealedChain
 		evt.MerchantID,
 		[]byte(evt.Payload),
 		ts,
-	)
-	if err != nil {
+	); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
 			return chainHash, ErrDuplicateEvent
 		}
 		return "", fmt.Errorf("sub1: insert evidence: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return "", fmt.Errorf("sub1: commit: %w", err)
 	}
 	return chainHash, nil
 }

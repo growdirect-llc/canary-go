@@ -14,11 +14,16 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 // DashboardHandler binds the Wave C analytics endpoints onto a chi
 // router. Auth: caller carries an API key with scope analytics:read
 // (party RFM) or analytics:admin (refresh / LP-rate aggregations).
+// Tenant scope is derived from the API-key claims (see
+// identity.APIKeyMiddleware in cmd/owl/main.go) — callers no longer
+// pass tenant_id / merchant_id as a query parameter.
 type DashboardHandler struct {
 	Store  *DashboardStore
 	Logger *zap.Logger
@@ -38,8 +43,21 @@ func (h *DashboardHandler) Mount(r chi.Router) {
 	r.Get("/v1/owl/lp-rate", h.lpRate)
 }
 
+// requireTenant returns the authenticated tenant or writes 401 and
+// returns false. Every owl dashboard endpoint is tenant-scoped — there
+// is no platform-scope read path. CK2 (GRO-919) cleanup: replaces the
+// caller-supplied ?tenant_id= pattern with claims-derived tenant.
+func requireTenant(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	c, ok := identity.ClaimsFromContext(r.Context())
+	if !ok || c.TenantID == uuid.Nil {
+		writeDashErr(w, http.StatusUnauthorized, "unauthenticated", "missing tenant claim")
+		return uuid.Nil, false
+	}
+	return c.TenantID, true
+}
+
 func (h *DashboardHandler) getPartyRFM(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := tenantFromQuery(w, r)
+	tenantID, ok := requireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -62,7 +80,7 @@ func (h *DashboardHandler) getPartyRFM(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DashboardHandler) listParties(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := tenantFromQuery(w, r)
+	tenantID, ok := requireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -91,7 +109,7 @@ func (h *DashboardHandler) refreshDecisioningFacts(w http.ResponseWriter, r *htt
 }
 
 func (h *DashboardHandler) lpRate(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := tenantFromQuery(w, r)
+	tenantID, ok := requireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -118,24 +136,6 @@ func (h *DashboardHandler) lpRate(w http.ResponseWriter, r *http.Request) {
 }
 
 // helpers
-
-func tenantFromQuery(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
-	v := r.URL.Query().Get("tenant_id")
-	if v == "" {
-		v = r.URL.Query().Get("merchant_id")
-	}
-	if v == "" {
-		writeDashErr(w, http.StatusBadRequest, "missing_tenant",
-			"tenant_id (or merchant_id) query parameter is required")
-		return uuid.Nil, false
-	}
-	id, err := uuid.Parse(v)
-	if err != nil {
-		writeDashErr(w, http.StatusBadRequest, "malformed_tenant", "tenant_id must be a UUID")
-		return uuid.Nil, false
-	}
-	return id, true
-}
 
 func writeDashErr(w http.ResponseWriter, status int, code, msg string) {
 	w.Header().Set("Content-Type", "application/json")

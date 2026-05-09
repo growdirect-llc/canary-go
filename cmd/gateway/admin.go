@@ -29,10 +29,10 @@ import (
 // touch. Held as an interface so handler tests can stub it without
 // pulling in a real Postgres pool.
 type dlqStore interface {
-	Get(ctx context.Context, id uuid.UUID) (*webhook.DLQRow, error)
+	Get(ctx context.Context, merchantID, id uuid.UUID) (*webhook.DLQRow, error)
 	List(ctx context.Context, f webhook.ListFilters) ([]webhook.DLQRow, error)
-	MarkReplayed(ctx context.Context, id uuid.UUID) error
-	MarkRetryFailed(ctx context.Context, id uuid.UUID, lastErr string) (*webhook.DLQRow, error)
+	MarkReplayed(ctx context.Context, merchantID, id uuid.UUID) error
+	MarkRetryFailed(ctx context.Context, merchantID, id uuid.UUID, lastErr string) (*webhook.DLQRow, error)
 }
 
 // adminHandlers binds the DLQ + replay endpoints to the gateway's
@@ -118,7 +118,17 @@ func (h *adminHandlers) get(w http.ResponseWriter, r *http.Request) {
 		writeAdminErr(w, http.StatusBadRequest, "malformed_id", err.Error())
 		return
 	}
-	row, err := h.dlq.Get(r.Context(), id)
+	// GRO-910: tenant scoping is enforced at the SQL layer via
+	// merchantID. The single-row admin endpoints require a tenant
+	// claim — platform-scope keys (TenantID == uuid.Nil) cannot
+	// fetch arbitrary rows here. List remains the cross-tenant
+	// surface for platform scopes.
+	claims, _ := identity.ClaimsFromContext(r.Context())
+	if claims.TenantID == uuid.Nil {
+		writeAdminErr(w, http.StatusUnauthorized, "unauthenticated", "missing tenant claim")
+		return
+	}
+	row, err := h.dlq.Get(r.Context(), claims.TenantID, id)
 	if err != nil {
 		if errors.Is(err, webhook.ErrDLQNotFound) {
 			writeAdminErr(w, http.StatusNotFound, "not_found", "")
@@ -127,11 +137,11 @@ func (h *adminHandlers) get(w http.ResponseWriter, r *http.Request) {
 		writeAdminErr(w, http.StatusInternalServerError, "get_failed", err.Error())
 		return
 	}
-	// T-H: tenant-scoped key fetching another tenant's row
-	// gets 404 (not 403) — same response shape as a true miss to
-	// avoid leaking row existence across tenants.
-	claims, _ := identity.ClaimsFromContext(r.Context())
-	if claims.TenantID != uuid.Nil && row.MerchantID != claims.TenantID {
+	// Belt-and-suspenders: SQL-layer scoping above already enforces
+	// tenant. This post-load comparison is redundant once both layers
+	// agree, but kept to make the file's safety story easy to audit
+	// (GRO-910).
+	if row.MerchantID != claims.TenantID {
 		writeAdminErr(w, http.StatusNotFound, "not_found", "")
 		return
 	}
@@ -163,7 +173,16 @@ func (h *adminHandlers) replay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	row, err := h.dlq.Get(r.Context(), id)
+	// GRO-910: replay requires a tenant claim — platform-scope keys
+	// cannot replay an arbitrary row. Tenant scoping is enforced at
+	// the SQL layer for Get / MarkReplayed / MarkRetryFailed.
+	claims, _ := identity.ClaimsFromContext(r.Context())
+	if claims.TenantID == uuid.Nil {
+		writeAdminErr(w, http.StatusUnauthorized, "unauthenticated", "missing tenant claim")
+		return
+	}
+
+	row, err := h.dlq.Get(r.Context(), claims.TenantID, id)
 	if err != nil {
 		if errors.Is(err, webhook.ErrDLQNotFound) {
 			writeAdminErr(w, http.StatusNotFound, "not_found", "")
@@ -172,11 +191,12 @@ func (h *adminHandlers) replay(w http.ResponseWriter, r *http.Request) {
 		writeAdminErr(w, http.StatusInternalServerError, "get_failed", err.Error())
 		return
 	}
-	// T-H: tenant-scoped key replaying another tenant's
-	// row — return 404 to avoid existence leak. Replay would also
-	// re-publish under row.MerchantID, which is the foreign tenant.
-	claims, _ := identity.ClaimsFromContext(r.Context())
-	if claims.TenantID != uuid.Nil && row.MerchantID != claims.TenantID {
+	// Belt-and-suspenders: SQL-layer scoping above already enforces
+	// tenant. This post-load comparison is redundant once both layers
+	// agree, but kept to make the file's safety story easy to audit
+	// (GRO-910). Replay also re-publishes under row.MerchantID — must
+	// match the caller's tenant.
+	if row.MerchantID != claims.TenantID {
 		writeAdminErr(w, http.StatusNotFound, "not_found", "")
 		return
 	}
@@ -202,11 +222,11 @@ func (h *adminHandlers) replay(w http.ResponseWriter, r *http.Request) {
 	if err := h.publisher.Publish(pubCtx, evt); err != nil {
 		// Record the failed attempt; surface a 502 to the caller so
 		// they know to retry or escalate.
-		_, _ = h.dlq.MarkRetryFailed(r.Context(), id, err.Error())
+		_, _ = h.dlq.MarkRetryFailed(r.Context(), claims.TenantID, id, err.Error())
 		writeAdminErr(w, http.StatusBadGateway, "republish_failed", err.Error())
 		return
 	}
-	if err := h.dlq.MarkReplayed(r.Context(), id); err != nil {
+	if err := h.dlq.MarkReplayed(r.Context(), claims.TenantID, id); err != nil {
 		writeAdminErr(w, http.StatusInternalServerError, "mark_replayed_failed", err.Error())
 		return
 	}

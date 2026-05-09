@@ -25,6 +25,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/ruptiv/canary/internal/db/types"
+	"github.com/ruptiv/canary/internal/testutil"
 )
 
 func skipIfNoIntegration(t *testing.T) string {
@@ -112,6 +113,7 @@ func TestIntegration_FromDetection_OpensCase(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost,
 		"/v1/fox/cases/from-detection", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
@@ -172,6 +174,7 @@ func TestIntegration_AppendAction(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost,
 		"/v1/fox/cases/from-detection", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -189,6 +192,7 @@ func TestIntegration_AppendAction(t *testing.T) {
 	req = httptest.NewRequest(http.MethodPost,
 		"/v1/fox/cases/"+caseID.String()+"/actions", bytes.NewReader(actionBody))
 	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec = httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusCreated {
@@ -227,6 +231,7 @@ func TestIntegration_CloseCase_TerminalState(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost,
 		"/v1/fox/cases/from-detection", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	var openResp fromDetectionResp
@@ -240,6 +245,7 @@ func TestIntegration_CloseCase_TerminalState(t *testing.T) {
 	req = httptest.NewRequest(http.MethodPost,
 		"/v1/fox/cases/"+caseID.String()+"/close", bytes.NewReader(closeBody))
 	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec = httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {

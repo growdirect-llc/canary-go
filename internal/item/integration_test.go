@@ -25,6 +25,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/ruptiv/canary/internal/testutil"
 )
 
 const (
@@ -159,10 +161,23 @@ func TestIntegration_FullCRUDPath(t *testing.T) {
 
 	r := newRouter(t, pool)
 
+	// authReq builds a request with API-key claims for tenantID
+	// already injected — the handler now derives tenant from claims,
+	// not from URL query params.
+	authReq := func(method, target, body string) *http.Request {
+		var req *http.Request
+		if body == "" {
+			req = httptest.NewRequest(method, target, nil)
+		} else {
+			req = httptest.NewRequest(method, target, strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+		}
+		return req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
+	}
+
 	// 1. GET by ID
 	t.Run("GET by id", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet,
-			"/v1/items/"+itemID.String()+"?tenant_id="+tenantID.String(), nil)
+		req := authReq(http.MethodGet, "/v1/items/"+itemID.String(), "")
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
@@ -178,8 +193,7 @@ func TestIntegration_FullCRUDPath(t *testing.T) {
 
 	// 2. GET by SKU
 	t.Run("GET by sku", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet,
-			"/v1/items?tenant_id="+tenantID.String()+"&sku=INT-SKU-001", nil)
+		req := authReq(http.MethodGet, "/v1/items?sku=INT-SKU-001", "")
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
@@ -189,8 +203,7 @@ func TestIntegration_FullCRUDPath(t *testing.T) {
 
 	// 3. GET by barcode (UPC primary)
 	t.Run("GET by barcode UPC", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet,
-			"/v1/items/by-barcode?tenant_id="+tenantID.String()+"&barcode="+upcBarcode, nil)
+		req := authReq(http.MethodGet, "/v1/items/by-barcode?barcode="+upcBarcode, "")
 		rec := httptest.NewRecorder()
 		start := time.Now()
 		r.ServeHTTP(rec, req)
@@ -203,8 +216,7 @@ func TestIntegration_FullCRUDPath(t *testing.T) {
 
 	// 4. GET by barcode (EAN secondary) — must resolve to same item
 	t.Run("GET by barcode EAN", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet,
-			"/v1/items/by-barcode?tenant_id="+tenantID.String()+"&barcode="+eanBarcode, nil)
+		req := authReq(http.MethodGet, "/v1/items/by-barcode?barcode="+eanBarcode, "")
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
@@ -226,9 +238,7 @@ func TestIntegration_FullCRUDPath(t *testing.T) {
 			"default_price": "12.50",
 			"barcodes": [{"value": "999000000001", "type": "INTERNAL", "is_primary": true}]
 		}`
-		req := httptest.NewRequest(http.MethodPost, "/v1/items",
-			strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
+		req := authReq(http.MethodPost, "/v1/items", body)
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
 		if rec.Code != http.StatusCreated {
@@ -255,10 +265,7 @@ func TestIntegration_FullCRUDPath(t *testing.T) {
 	// 6. PATCH — update the description on the originally-seeded item
 	t.Run("PATCH update", func(t *testing.T) {
 		body := `{"description": "PATCHED Description"}`
-		req := httptest.NewRequest(http.MethodPatch,
-			"/v1/items/"+itemID.String()+"?tenant_id="+tenantID.String(),
-			strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
+		req := authReq(http.MethodPatch, "/v1/items/"+itemID.String(), body)
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
@@ -271,8 +278,7 @@ func TestIntegration_FullCRUDPath(t *testing.T) {
 
 	// 7. List with category filter
 	t.Run("GET list with category filter", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet,
-			"/v1/items?tenant_id="+tenantID.String()+"&category_id="+categoryID.String(), nil)
+		req := authReq(http.MethodGet, "/v1/items?category_id="+categoryID.String(), "")
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
@@ -286,8 +292,7 @@ func TestIntegration_FullCRUDPath(t *testing.T) {
 
 	// 8. List with vendor filter (only seeded item is linked to vendor)
 	t.Run("GET list with vendor filter", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet,
-			"/v1/items?tenant_id="+tenantID.String()+"&vendor_id="+vendorID.String(), nil)
+		req := authReq(http.MethodGet, "/v1/items?vendor_id="+vendorID.String(), "")
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
@@ -300,8 +305,7 @@ func TestIntegration_FullCRUDPath(t *testing.T) {
 
 	// 9. List categories
 	t.Run("GET list categories", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet,
-			"/v1/categories?tenant_id="+tenantID.String(), nil)
+		req := authReq(http.MethodGet, "/v1/categories", "")
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
@@ -314,8 +318,7 @@ func TestIntegration_FullCRUDPath(t *testing.T) {
 
 	// 10. List vendors
 	t.Run("GET list vendors", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet,
-			"/v1/vendors?tenant_id="+tenantID.String(), nil)
+		req := authReq(http.MethodGet, "/v1/vendors", "")
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
@@ -328,8 +331,7 @@ func TestIntegration_FullCRUDPath(t *testing.T) {
 
 	// 11. DELETE — soft-delete the seeded item
 	t.Run("DELETE soft", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodDelete,
-			"/v1/items/"+itemID.String()+"?tenant_id="+tenantID.String(), nil)
+		req := authReq(http.MethodDelete, "/v1/items/"+itemID.String(), "")
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
 		if rec.Code != http.StatusNoContent {

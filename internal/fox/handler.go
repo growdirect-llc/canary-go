@@ -13,17 +13,25 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ruptiv/canary/internal/db/types"
+	"github.com/ruptiv/canary/internal/identity"
 	"github.com/ruptiv/canary/internal/pagination"
 	"github.com/ruptiv/canary/internal/party"
 )
 
 // Service is the slim interface the Handler depends on. Store
 // satisfies it; tests can stub it for the unit-test pass.
+//
+// LoadDetection / LoadCase are retained for internal callers
+// (escalation pipeline) that already operate with trusted tenant
+// context. Request-driven handler paths use the *Scoped variants so
+// every read by id is filtered by the authenticated tenant.
 type Service interface {
 	EscalationStore
 	SubjectResolver
 	LoadDetection(ctx context.Context, id uuid.UUID) (*types.Detection, error)
 	LoadCase(ctx context.Context, id uuid.UUID) (*types.Case, error)
+	LoadDetectionScoped(ctx context.Context, tenantID, id uuid.UUID) (*types.Detection, error)
+	LoadCaseScoped(ctx context.Context, tenantID, id uuid.UUID) (*types.Case, error)
 	OpenCase(ctx context.Context, c *types.Case, linkDetection *uuid.UUID) (uuid.UUID, error)
 	AppendEvidence(ctx context.Context, e *types.CaseEvidence) error
 	AppendAction(ctx context.Context, a *types.CaseAction) error
@@ -87,6 +95,18 @@ func (h *Handler) Mount(r chi.Router) {
 	})
 }
 
+// requireTenant returns the authenticated tenant or writes 401 and
+// returns false. Every fox case-management endpoint is tenant-scoped
+// — there is no platform-scope read path.
+func requireTenant(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	c, ok := identity.ClaimsFromContext(r.Context())
+	if !ok || c.TenantID == uuid.Nil {
+		writeError(w, http.StatusUnauthorized, "unauthenticated", "missing tenant claim")
+		return uuid.Nil, false
+	}
+	return c.TenantID, true
+}
+
 // ───────────────────────── request bodies ─────────────────────────
 
 type fromDetectionReq struct {
@@ -136,6 +156,10 @@ type caseDetailResp struct {
 // id; fox decides whether to open a case, attach it to an open one,
 // or do nothing.
 func (h *Handler) fromDetection(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
 	var body fromDetectionReq
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "malformed_body", err.Error())
@@ -147,7 +171,7 @@ func (h *Handler) fromDetection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	det, err := h.svc.LoadDetection(r.Context(), detID)
+	det, err := h.svc.LoadDetectionScoped(r.Context(), tenantID, detID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			writeError(w, http.StatusNotFound, "detection_not_found", "")
@@ -234,15 +258,34 @@ func (h *Handler) fromDetection(w http.ResponseWriter, r *http.Request) {
 // optional subject, optional list of detections to seed evidence from,
 // severity, title, notes.
 func (h *Handler) createCase(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
 	var body createCaseReq
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "malformed_body", err.Error())
 		return
 	}
-	tenantID, err := uuid.Parse(body.MerchantID)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "malformed_merchant_id", err.Error())
-		return
+	// merchant_id remains in the wire format for backward compat, but
+	// is no longer the source of truth for tenant. If the body sets
+	// it, it must match the authenticated tenant — otherwise reject.
+	if body.MerchantID != "" {
+		bodyTenant, err := uuid.Parse(body.MerchantID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "malformed_merchant_id", err.Error())
+			return
+		}
+		if err := identity.AssertBodyTenantMatches(r.Context(), bodyTenant); err != nil {
+			if errors.Is(err, identity.ErrTenantMismatch) {
+				writeError(w, http.StatusForbidden, "tenant_mismatch",
+					"merchant_id does not match authenticated tenant")
+				return
+			}
+			h.logger.Error("assert tenant", zap.Error(err))
+			writeError(w, http.StatusInternalServerError, "tenant_check_failed", "")
+			return
+		}
 	}
 	sev := Severity(body.Severity)
 	if !sev.IsValid() {
@@ -314,7 +357,7 @@ func (h *Handler) createCase(w http.ResponseWriter, r *http.Request) {
 			h.logger.Warn("skip malformed detection id", zap.String("id", idStr))
 			continue
 		}
-		det, err := h.svc.LoadDetection(r.Context(), detID)
+		det, err := h.svc.LoadDetectionScoped(r.Context(), tenantID, detID)
 		if err != nil {
 			h.logger.Warn("skip missing detection", zap.String("id", idStr), zap.Error(err))
 			continue
@@ -343,12 +386,16 @@ func (h *Handler) createCase(w http.ResponseWriter, r *http.Request) {
 
 // getCase returns the case + its evidence + actions in one round trip.
 func (h *Handler) getCase(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
 	caseID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "malformed_id", err.Error())
 		return
 	}
-	c, err := h.svc.LoadCase(r.Context(), caseID)
+	c, err := h.svc.LoadCaseScoped(r.Context(), tenantID, caseID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			writeError(w, http.StatusNotFound, "case_not_found", "")
@@ -373,16 +420,12 @@ func (h *Handler) getCase(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, caseDetailResp{Case: c, Evidence: evs, Actions: acts})
 }
 
-// listCases is the paginated index. merchant_id is required.
+// listCases is the paginated index. Tenant is derived from the
+// authenticated claim — query-string merchant_id is no longer
+// honored as the source of truth (was an IDOR vector pre-GRO-904).
 func (h *Handler) listCases(w http.ResponseWriter, r *http.Request) {
-	tenantStr := r.URL.Query().Get("merchant_id")
-	if tenantStr == "" {
-		writeError(w, http.StatusBadRequest, "missing_merchant_id", "merchant_id query param is required")
-		return
-	}
-	tenantID, err := uuid.Parse(tenantStr)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "malformed_merchant_id", err.Error())
+	tenantID, ok := requireTenant(w, r)
+	if !ok {
 		return
 	}
 	filter := CaseFilter{Status: r.URL.Query().Get("status")}
@@ -417,8 +460,12 @@ func (h *Handler) listCases(w http.ResponseWriter, r *http.Request) {
 }
 
 // appendAction is the investigator log endpoint. Tenant is derived
-// from the case so callers don't need to pass it.
+// from the authenticated claim and the case lookup is scoped to it.
 func (h *Handler) appendAction(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
 	caseID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "malformed_id", err.Error())
@@ -433,7 +480,7 @@ func (h *Handler) appendAction(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_action_type", "")
 		return
 	}
-	c, err := h.svc.LoadCase(r.Context(), caseID)
+	c, err := h.svc.LoadCaseScoped(r.Context(), tenantID, caseID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			writeError(w, http.StatusNotFound, "case_not_found", "")
@@ -480,6 +527,10 @@ func (h *Handler) appendAction(w http.ResponseWriter, r *http.Request) {
 // closeCase transitions the case to status='closed' and records the
 // resolution.
 func (h *Handler) closeCase(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
 	caseID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "malformed_id", err.Error())
@@ -494,7 +545,7 @@ func (h *Handler) closeCase(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_resolution", "resolution is required")
 		return
 	}
-	c, err := h.svc.LoadCase(r.Context(), caseID)
+	c, err := h.svc.LoadCaseScoped(r.Context(), tenantID, caseID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			writeError(w, http.StatusNotFound, "case_not_found", "")

@@ -95,6 +95,66 @@ func (s *Store) LoadCase(ctx context.Context, id uuid.UUID) (*types.Case, error)
 	return &c, nil
 }
 
+// LoadDetectionScoped is the tenant-aware variant of LoadDetection.
+// Returns ErrNotFound when the detection does not exist OR exists
+// under a different tenant — the same error shape, intentionally, so
+// cross-tenant probes cannot infer existence.
+func (s *Store) LoadDetectionScoped(ctx context.Context, tenantID, id uuid.UUID) (*types.Detection, error) {
+	const q = `
+		SELECT id, tenant_id, rule_id, detected_at, source_entity_type,
+		       source_entity_id, location_id, cashier_employee_id, customer_id,
+		       severity, signal_strength, evidence, case_id, status,
+		       acknowledged_at, acknowledged_by, attributes, created_at
+		  FROM detection.detections
+		 WHERE id = $1 AND tenant_id = $2`
+	row := s.pool.QueryRow(ctx, q, id, tenantID)
+	var d types.Detection
+	err := row.Scan(
+		&d.ID, &d.TenantID, &d.RuleID, &d.DetectedAt, &d.SourceEntityType,
+		&d.SourceEntityID, &d.LocationID, &d.CashierEmployeeID, &d.CustomerID,
+		&d.Severity, &d.SignalStrength, &d.Evidence, &d.CaseID, &d.Status,
+		&d.AcknowledgedAt, &d.AcknowledgedBy, &d.Attributes, &d.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("fox.LoadDetectionScoped: %w", err)
+	}
+	return &d, nil
+}
+
+// LoadCaseScoped is the tenant-aware variant of LoadCase. Returns
+// ErrNotFound when the case does not exist OR exists under a
+// different tenant — the same shape, intentionally, so cross-tenant
+// probes cannot infer existence.
+func (s *Store) LoadCaseScoped(ctx context.Context, tenantID, id uuid.UUID) (*types.Case, error) {
+	const q = `
+		SELECT id, tenant_id, case_number, case_type, title, description,
+		       severity, status, primary_subject_id, primary_location_id,
+		       assigned_to, opened_at, resolved_at, resolution_type,
+		       loss_amount_estimated, loss_amount_recovered, attributes,
+		       created_at, updated_at
+		  FROM detection.cases
+		 WHERE id = $1 AND tenant_id = $2`
+	row := s.pool.QueryRow(ctx, q, id, tenantID)
+	var c types.Case
+	err := row.Scan(
+		&c.ID, &c.TenantID, &c.CaseNumber, &c.CaseType, &c.Title, &c.Description,
+		&c.Severity, &c.Status, &c.PrimarySubjectID, &c.PrimaryLocationID,
+		&c.AssignedTo, &c.OpenedAt, &c.ResolvedAt, &c.ResolutionType,
+		&c.LossAmountEstimated, &c.LossAmountRecovered, &c.Attributes,
+		&c.CreatedAt, &c.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("fox.LoadCaseScoped: %w", err)
+	}
+	return &c, nil
+}
+
 // FindOpenCaseBySubject returns the most-recently-opened non-terminal
 // case for the given (tenant, subject) pair. Returns nil + nil when no
 // match exists (a soft miss is not an error).

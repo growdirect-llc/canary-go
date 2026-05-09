@@ -24,6 +24,12 @@ var ErrDetectionNotFound = errors.New("chirp: detection not found")
 // ErrRuleNotFound is returned by GetRuleByID when no matching rule exists.
 var ErrRuleNotFound = errors.New("chirp: rule not found")
 
+// ErrTransactionNotFound is returned by EvaluateTransaction when the
+// transaction id is unknown OR exists under a different tenant — the
+// same shape, intentionally, so cross-tenant probes cannot infer
+// existence.
+var ErrTransactionNotFound = errors.New("chirp: transaction not found")
+
 type Store interface {
 	LoadRules(ctx context.Context, tenantID uuid.UUID, frequency string) ([]Rule, error)
 	LoadTransaction(ctx context.Context, transactionID uuid.UUID) (*Transaction, error)

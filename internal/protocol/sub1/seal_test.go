@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -57,7 +58,12 @@ func (s *stubDB) QueryRow(_ context.Context, _ string, args ...any) pgx.Row {
 	return stubRow{noRows: true}
 }
 
-func (s *stubDB) Exec(_ context.Context, _ string, args ...any) (pgconn.CommandTag, error) {
+func (s *stubDB) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	// Advisory locks are no-ops in the stub — concurrency is exercised
+	// in the integration test (fork_race_test.go), not here.
+	if strings.Contains(sql, "pg_advisory_xact_lock") {
+		return pgconn.CommandTag{}, nil
+	}
 	if s.forceErr != nil {
 		return pgconn.CommandTag{}, s.forceErr
 	}
@@ -79,6 +85,35 @@ func (s *stubDB) Exec(_ context.Context, _ string, args ...any) (pgconn.CommandT
 	s.seen[row.eventHash] = struct{}{}
 	s.rows = append(s.rows, row)
 	return pgconn.CommandTag{}, nil
+}
+
+// Begin returns a thin stubTx whose QueryRow/Exec delegate back to
+// the parent stubDB. WriteEvidence's tx wrapper expects this.
+func (s *stubDB) Begin(_ context.Context) (pgx.Tx, error) {
+	return &stubTx{db: s}, nil
+}
+
+// stubTx implements pgx.Tx. Only QueryRow, Exec, Commit, Rollback are
+// exercised by WriteEvidence; the rest panic to flag any unexpected
+// caller. We embed pgx.Tx as a nil field so the type signature is
+// satisfied without re-listing every method.
+type stubTx struct {
+	pgx.Tx
+	db *stubDB
+}
+
+func (t *stubTx) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	return t.db.QueryRow(ctx, sql, args...)
+}
+
+func (t *stubTx) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	return t.db.Exec(ctx, sql, args...)
+}
+
+func (t *stubTx) Commit(_ context.Context) error   { return nil }
+func (t *stubTx) Rollback(_ context.Context) error { return nil }
+func (t *stubTx) Begin(_ context.Context) (pgx.Tx, error) {
+	return &stubTx{db: t.db}, nil
 }
 
 type stubRow struct {

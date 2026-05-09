@@ -117,36 +117,45 @@ func (w *Worker) Tick(ctx context.Context) error {
 }
 
 // tick is one anchor cycle. It delegates the fetch → inscribe → write
-// sequence to store.WriteAnchor, which uses two transactions:
+// sequence to store.WriteAnchor, which now produces one Merkle tree +
+// one inscribe call + one anchor per merchant per cycle (GRO-907).
 //
 //   - Tx 1: lock and fetch unanchored rows → commit (lock released)
+//   - For each merchant whose group ≥ minBatch:
 //   - External: Inscribe (network call, outside any transaction)
 //   - Tx 2: write anchor + evidence_anchors → commit
 //
 // Failed inscriptions are recorded in protocol.anchors with
 // anchor_status = 'failed' for audit; evidence_anchors rows are not
 // written so those events remain available for the next retry cycle.
+// Per-merchant failures are isolated — they do not abort the cycle.
 //
-// Returns nil when the batch is below minBatch (no-op).
+// Returns nil when no merchant met minBatch (no-op).
 func (w *Worker) tick(ctx context.Context) error {
-	result, err := w.store.WriteAnchor(ctx, w.cfg.Inscriber, w.cfg.BatchSize, w.cfg.MinBatch)
+	results, err := w.store.WriteAnchor(ctx, w.cfg.Inscriber, w.cfg.BatchSize, w.cfg.MinBatch)
 	if err != nil {
 		w.log.Warn("anchor cycle failed", zap.Error(err))
 		return err
 	}
 
-	if result == nil {
-		// Below minBatch or no unanchored events — clean no-op.
-		w.log.Debug("below minBatch threshold or no unanchored events — skipping")
+	if len(results) == 0 {
+		// No merchant met minBatch threshold, or no unanchored events.
+		w.log.Debug("no merchant met minBatch — skipping")
 		return nil
 	}
 
-	w.log.Info("anchor written",
-		zap.String("anchor_id", result.AnchorID.String()),
-		zap.String("merkle_root", result.MerkleRoot),
-		zap.String("inscription_id", result.InscriptionID),
-		zap.String("status", result.AnchorStatus),
-		zap.Int("events", result.EventCount),
+	for _, result := range results {
+		w.log.Info("anchor written",
+			zap.String("merchant_id", result.MerchantID.String()),
+			zap.String("anchor_id", result.AnchorID.String()),
+			zap.String("merkle_root", result.MerkleRoot),
+			zap.String("inscription_id", result.InscriptionID),
+			zap.String("status", result.AnchorStatus),
+			zap.Int("events", result.EventCount),
+		)
+	}
+	w.log.Info("anchor cycle complete",
+		zap.Int("merchants_anchored", len(results)),
 	)
 	return nil
 }

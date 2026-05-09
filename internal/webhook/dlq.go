@@ -122,8 +122,11 @@ func (q *DLQ) Enqueue(ctx context.Context, p EnqueueParams) (*DLQRow, error) {
 	return scanDLQ(row)
 }
 
-// Get returns the row by id. ErrDLQNotFound if absent.
-func (q *DLQ) Get(ctx context.Context, id uuid.UUID) (*DLQRow, error) {
+// Get returns the row by id, scoped to the caller's tenant.
+// ErrDLQNotFound if absent OR if the row exists but belongs to a
+// different tenant — same response shape avoids cross-tenant
+// existence leak (GRO-910).
+func (q *DLQ) Get(ctx context.Context, merchantID, id uuid.UUID) (*DLQRow, error) {
 	const sql = `
 		SELECT id, merchant_id, source_code, source_event_id, event_id,
 		       payload, headers, failure_reason, error_message,
@@ -131,8 +134,8 @@ func (q *DLQ) Get(ctx context.Context, id uuid.UUID) (*DLQRow, error) {
 		       last_replay_at, last_replay_outcome, attributes,
 		       created_at, updated_at
 		  FROM protocol.dlq
-		 WHERE id = $1`
-	row := q.pool.QueryRow(ctx, sql, id)
+		 WHERE id = $1 AND merchant_id = $2`
+	row := q.pool.QueryRow(ctx, sql, id, merchantID)
 	out, err := scanDLQ(row)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -200,9 +203,11 @@ func (q *DLQ) List(ctx context.Context, f ListFilters) ([]DLQRow, error) {
 	return out, rows.Err()
 }
 
-// MarkReplayed records a successful replay. status → 'replayed';
-// next_retry_at cleared. last_replay_outcome = 'success'.
-func (q *DLQ) MarkReplayed(ctx context.Context, id uuid.UUID) error {
+// MarkReplayed records a successful replay, scoped to the caller's
+// tenant. status → 'replayed'; next_retry_at cleared.
+// last_replay_outcome = 'success'. ErrDLQNotFound if the row is absent
+// OR belongs to a different tenant — no existence leak (GRO-910).
+func (q *DLQ) MarkReplayed(ctx context.Context, merchantID, id uuid.UUID) error {
 	const sql = `
 		UPDATE protocol.dlq
 		   SET status = 'replayed',
@@ -210,8 +215,8 @@ func (q *DLQ) MarkReplayed(ctx context.Context, id uuid.UUID) error {
 		       last_replay_at = now(),
 		       last_replay_outcome = 'success',
 		       updated_at = now()
-		 WHERE id = $1`
-	tag, err := q.pool.Exec(ctx, sql, id)
+		 WHERE id = $1 AND merchant_id = $2`
+	tag, err := q.pool.Exec(ctx, sql, id, merchantID)
 	if err != nil {
 		return fmt.Errorf("webhook: dlq mark replayed: %w", err)
 	}
@@ -221,18 +226,20 @@ func (q *DLQ) MarkReplayed(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// MarkRetryFailed records a failed replay attempt. retry_count is
-// incremented; next_retry_at is bumped to the next backoff entry.
-// When retry_count exceeds MaxAutoRetries, status flips to
-// 'abandoned' and next_retry_at is cleared.
-func (q *DLQ) MarkRetryFailed(ctx context.Context, id uuid.UUID, errorMessage string) (*DLQRow, error) {
+// MarkRetryFailed records a failed replay attempt, scoped to the
+// caller's tenant. retry_count is incremented; next_retry_at is bumped
+// to the next backoff entry. When retry_count exceeds MaxAutoRetries,
+// status flips to 'abandoned' and next_retry_at is cleared.
+// ErrDLQNotFound if the row is absent OR belongs to a different tenant
+// — no existence leak (GRO-910).
+func (q *DLQ) MarkRetryFailed(ctx context.Context, merchantID, id uuid.UUID, errorMessage string) (*DLQRow, error) {
 	tx, err := q.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
 		return nil, fmt.Errorf("webhook: dlq retry failed begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	cur, err := q.txGet(ctx, tx, id)
+	cur, err := q.txGet(ctx, tx, merchantID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +269,7 @@ func (q *DLQ) MarkRetryFailed(ctx context.Context, id uuid.UUID, errorMessage st
 		       last_replay_at = $6,
 		       last_replay_outcome = $7,
 		       updated_at = now()
-		 WHERE id = $1
+		 WHERE id = $1 AND merchant_id = $8
 		RETURNING id, merchant_id, source_code, source_event_id, event_id,
 		          payload, headers, failure_reason, error_message,
 		          retry_count, next_retry_at, status,
@@ -271,6 +278,7 @@ func (q *DLQ) MarkRetryFailed(ctx context.Context, id uuid.UUID, errorMessage st
 	row := tx.QueryRow(ctx, sql,
 		id, cur.RetryCount, cur.NextRetryAt, cur.Status,
 		cur.ErrorMessage, cur.LastReplayAt, cur.LastReplayOutcome,
+		merchantID,
 	)
 	out, err := scanDLQ(row)
 	if err != nil {
@@ -282,8 +290,9 @@ func (q *DLQ) MarkRetryFailed(ctx context.Context, id uuid.UUID, errorMessage st
 	return out, nil
 }
 
-// txGet fetches a row inside an open transaction with FOR UPDATE.
-func (q *DLQ) txGet(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*DLQRow, error) {
+// txGet fetches a row inside an open transaction with FOR UPDATE,
+// scoped to the caller's tenant.
+func (q *DLQ) txGet(ctx context.Context, tx pgx.Tx, merchantID, id uuid.UUID) (*DLQRow, error) {
 	const sql = `
 		SELECT id, merchant_id, source_code, source_event_id, event_id,
 		       payload, headers, failure_reason, error_message,
@@ -291,9 +300,9 @@ func (q *DLQ) txGet(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*DLQRow, erro
 		       last_replay_at, last_replay_outcome, attributes,
 		       created_at, updated_at
 		  FROM protocol.dlq
-		 WHERE id = $1
+		 WHERE id = $1 AND merchant_id = $2
 		   FOR UPDATE`
-	row := tx.QueryRow(ctx, sql, id)
+	row := tx.QueryRow(ctx, sql, id, merchantID)
 	out, err := scanDLQ(row)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

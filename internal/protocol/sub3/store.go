@@ -14,27 +14,37 @@ import (
 // EvidenceRow is a minimal projection of protocol.evidence used by
 // the Sub 3 batch loop.
 type EvidenceRow struct {
-	EventHash string
-	ChainHash string
+	EventHash  string
+	ChainHash  string
+	MerchantID uuid.UUID
 }
 
-// AnchorResult is the outcome of a successful WriteAnchor call.
+// AnchorResult is the outcome of a successful WriteAnchor call for a
+// single merchant. WriteAnchor returns one AnchorResult per merchant
+// inscribed in the cycle.
 type AnchorResult struct {
-	AnchorID      uuid.UUID
-	MerkleRoot    string
-	InscriptionID string
-	BtcTxID       string
+	AnchorID       uuid.UUID
+	MerchantID     uuid.UUID
+	MerkleRoot     string
+	InscriptionID  string
+	BtcTxID        string
 	BtcBlockHeight int64
-	Network       string
-	EventCount    int
-	AnchorStatus  string
-	AnchoredAt    time.Time
+	Network        string
+	EventCount     int
+	AnchorStatus   string
+	AnchoredAt     time.Time
 }
 
 // AnchorStorer is the interface the Worker uses for DB operations.
 // The real implementation is *Store; tests may inject a stub.
+//
+// WriteAnchor groups unanchored evidence by merchant_id and produces
+// one Merkle tree + inscribe call + anchor row per merchant per cycle
+// — the per-tenant verifiability guarantee (GRO-907). The returned
+// slice has one entry per merchant successfully inscribed; an empty
+// slice means no merchant met minBatch.
 type AnchorStorer interface {
-	WriteAnchor(ctx context.Context, inscriber Inscriber, batchSize, minBatch int) (*AnchorResult, error)
+	WriteAnchor(ctx context.Context, inscriber Inscriber, batchSize, minBatch int) ([]*AnchorResult, error)
 }
 
 // Store wraps a pgxpool and provides the Sub 3 DB operations.
@@ -53,18 +63,24 @@ func NewStore(pool *pgxpool.Pool, network string) *Store {
 // SELECT FOR UPDATE SKIP LOCKED so concurrent workers skip rows another
 // worker has already locked.
 //
+// Rows are ordered by (merchant_id, ingested_at) so per-merchant groups
+// land contiguously and preserve per-merchant ingest order — required
+// for the per-tenant Merkle batching in WriteAnchor (GRO-907). The
+// FOR UPDATE SKIP LOCKED semantics still hold: a worker locks the rows
+// it scans, regardless of grouping.
+//
 // Must be called inside an open transaction — the lock is held for the
 // lifetime of tx. The caller is responsible for committing or rolling back.
 func lockAndFetchUnanchored(ctx context.Context, tx pgx.Tx, batchSize int) ([]EvidenceRow, error) {
 	const q = `
-		SELECT e.event_hash, e.chain_hash
+		SELECT e.event_hash, e.chain_hash, e.merchant_id
 		FROM protocol.evidence e
 		WHERE NOT EXISTS (
 			SELECT 1
 			FROM protocol.evidence_anchors ea
 			WHERE ea.event_hash = e.event_hash
 		)
-		ORDER BY e.ingested_at
+		ORDER BY e.merchant_id, e.ingested_at
 		LIMIT $1
 		FOR UPDATE SKIP LOCKED
 	`
@@ -77,7 +93,7 @@ func lockAndFetchUnanchored(ctx context.Context, tx pgx.Tx, batchSize int) ([]Ev
 	var result []EvidenceRow
 	for rows.Next() {
 		var r EvidenceRow
-		if err := rows.Scan(&r.EventHash, &r.ChainHash); err != nil {
+		if err := rows.Scan(&r.EventHash, &r.ChainHash, &r.MerchantID); err != nil {
 			return nil, fmt.Errorf("sub3: scan evidence row: %w", err)
 		}
 		result = append(result, r)
@@ -88,22 +104,33 @@ func lockAndFetchUnanchored(ctx context.Context, tx pgx.Tx, batchSize int) ([]Ev
 	return result, nil
 }
 
-// WriteAnchor drives the full fetch → inscribe → write cycle in two
-// transactions to avoid holding a long-lived transaction across the
-// external Inscribe HTTP call:
+// WriteAnchor drives the full fetch → inscribe → write cycle. Per
+// GRO-907 it produces one Merkle tree + one inscribe call + one anchor
+// per merchant per cycle, preserving the patent's per-tenant
+// verifiability guarantee (a tenant's proof must reference only sibling
+// hashes from the same tenant — never from other tenants).
 //
 //   - Tx 1: lockAndFetchUnanchored → collect rows in memory → commit
-//     (lock released, rows captured)
-//   - External: Inscribe (network call, outside any transaction)
-//   - Tx 2: INSERT into protocol.anchors + protocol.evidence_anchors → commit
+//     (lock released, rows captured; ordered by (merchant_id, ingested_at))
+//   - Group rows by merchant_id; merchants with < minBatch rows are
+//     skipped (their rows are released for next cycle).
+//   - For each merchant whose group meets minBatch:
+//   - Build a Merkle tree over that merchant's chain_hash leaves only
+//   - Inscribe the per-merchant root (network call, outside any tx)
+//   - Tx 2: INSERT one protocol.anchors row + one row per leaf in
+//     protocol.evidence_anchors → commit
+//   - Per-merchant inscribe failures are isolated: WriteFailed records
+//     the attempt and the loop continues with the remaining merchants.
+//     The fetch tx has already committed, so partial progress is the
+//     natural shape — better than aborting good work for one bad merchant.
 //
-// Returns (nil, nil) when the batch is below minBatch — no-op signal for
-// the caller. Returns (*AnchorResult, nil) on success.
+// Returns an empty slice when no merchant meets minBatch. Returns one
+// *AnchorResult per merchant successfully inscribed.
 func (s *Store) WriteAnchor(
 	ctx context.Context,
 	inscriber Inscriber,
 	batchSize, minBatch int,
-) (*AnchorResult, error) {
+) ([]*AnchorResult, error) {
 	// ── Tx 1: fetch under lock, commit immediately ────────────────────────
 	tx1, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -117,8 +144,8 @@ func (s *Store) WriteAnchor(
 		return nil, err
 	}
 
-	if len(rows) < minBatch {
-		// Roll back — nothing to anchor yet. This is the clean no-op path.
+	if len(rows) == 0 {
+		// Nothing to anchor at all. Clean no-op path.
 		_ = tx1.Rollback(ctx)
 		return nil, nil
 	}
@@ -130,7 +157,62 @@ func (s *Store) WriteAnchor(
 		return nil, fmt.Errorf("sub3: commit fetch tx: %w", err)
 	}
 
-	// ── Build Merkle tree ─────────────────────────────────────────────────
+	// ── Group by merchant_id (preserve per-merchant ingested_at order) ────
+	//
+	// The ORDER BY in lockAndFetchUnanchored guarantees per-merchant rows
+	// are contiguous and in ingest order. Iterating in input order and
+	// appending preserves both properties — the Merkle leaf order for
+	// merchant M matches the order events were ingested for M.
+	groups := make(map[uuid.UUID][]EvidenceRow)
+	merchantOrder := make([]uuid.UUID, 0)
+	for _, r := range rows {
+		if _, seen := groups[r.MerchantID]; !seen {
+			merchantOrder = append(merchantOrder, r.MerchantID)
+		}
+		groups[r.MerchantID] = append(groups[r.MerchantID], r)
+	}
+
+	// ── Per-merchant inscribe + write ─────────────────────────────────────
+	results := make([]*AnchorResult, 0, len(merchantOrder))
+	for _, merchantID := range merchantOrder {
+		merchantRows := groups[merchantID]
+		if len(merchantRows) < minBatch {
+			// Skip — the next cycle will pick these rows up. They were
+			// locked under tx1 but tx1 has committed (or rolled back via
+			// the defer in the no-op case); either way the lock is gone.
+			continue
+		}
+
+		result, err := s.inscribeAndWriteForMerchant(ctx, inscriber, merchantID, merchantRows)
+		if err != nil {
+			// Per-merchant failures are isolated. The error has already
+			// been logged via WriteFailed inside inscribeAndWriteForMerchant
+			// when the failure was at inscribe time. We do NOT abort the
+			// cycle — the remaining merchants still get their anchors.
+			//
+			// We can't return the error to the caller without losing the
+			// partial successes, so we swallow it here. The caller logs
+			// per-merchant outcomes via the result slice; failures show
+			// up as a missing entry plus a 'failed' row in protocol.anchors.
+			continue
+		}
+		results = append(results, result)
+	}
+
+	return results, nil
+}
+
+// inscribeAndWriteForMerchant builds a Merkle tree for one merchant's
+// rows, inscribes the root, and writes the anchor + evidence_anchor
+// rows. Failures at inscribe time call WriteFailed (best-effort audit
+// trail) and surface an error so WriteAnchor can skip and continue.
+func (s *Store) inscribeAndWriteForMerchant(
+	ctx context.Context,
+	inscriber Inscriber,
+	merchantID uuid.UUID,
+	rows []EvidenceRow,
+) (*AnchorResult, error) {
+	// ── Build Merkle tree (this merchant's leaves only) ───────────────────
 	leaves := make([]string, len(rows))
 	for i, r := range rows {
 		leaves[i] = r.ChainHash
@@ -146,11 +228,9 @@ func (s *Store) WriteAnchor(
 		// Record the failed attempt for the evidentiary audit trail.
 		// evidence_anchors rows are NOT written — the events must remain
 		// available for the next successful retry cycle.
-		// WriteFailed is best-effort: if it fails the primary inscription
-		// error is still returned to the caller. The next retry cycle will
-		// produce another failed anchor record if needed.
+		// WriteFailed is best-effort.
 		_ = s.WriteFailed(ctx, merkleResult.Root, len(rows))
-		return nil, fmt.Errorf("sub3: inscribe: %w", err)
+		return nil, fmt.Errorf("sub3: inscribe (merchant=%s): %w", merchantID, err)
 	}
 
 	// ── Tx 2: write anchor + evidence_anchors ─────────────────────────────
@@ -158,6 +238,7 @@ func (s *Store) WriteAnchor(
 	if err != nil {
 		return nil, err
 	}
+	result.MerchantID = merchantID
 	return result, nil
 }
 

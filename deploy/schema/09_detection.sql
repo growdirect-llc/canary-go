@@ -144,3 +144,44 @@ CREATE TABLE detection.case_actions (
 CREATE INDEX idx_qact_tenant ON detection.case_actions(tenant_id);
 CREATE INDEX idx_qact_case   ON detection.case_actions(case_id, performed_at);
 CREATE INDEX idx_qact_type   ON detection.case_actions(action_type);
+
+-- detection.lp_substrate — event-ingestion staging for the LP pipeline.
+-- Columns mirror migration 024_detection_schema.up.sql; lifted here so
+-- a fresh `make db-reset-test` produces the same shape as a deployed
+-- DB after `make migrate-up` (CLAUDE.md two-tier rule: schema and
+-- migrations must agree at HEAD).
+CREATE TABLE detection.lp_substrate (
+    id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id    UUID        NOT NULL,
+    entity_type  TEXT        NOT NULL,
+    entity_id    UUID        NOT NULL,
+    location_id  UUID,
+    payload      JSONB       NOT NULL,
+    received_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    processed_at TIMESTAMPTZ,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_lp_substrate_tenant_id   ON detection.lp_substrate(tenant_id);
+CREATE INDEX idx_lp_substrate_entity      ON detection.lp_substrate(entity_type, entity_id);
+CREATE INDEX idx_lp_substrate_location_id ON detection.lp_substrate(location_id);
+CREATE INDEX idx_lp_substrate_received_at ON detection.lp_substrate(received_at DESC);
+
+-- detection.allow_list — tenant-scoped suppression entries backing the
+-- 10 settings-page surfaces in W1. pattern jsonb carries a type+kind
+-- discriminator; see internal/lp/substrate.go for the application
+-- semantics.
+CREATE TABLE detection.allow_list (
+    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id  UUID        NOT NULL,
+    rule_id    UUID        REFERENCES detection.detection_rules(id),
+    pattern    JSONB       NOT NULL,
+    reason     TEXT,
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_by UUID,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_by UUID
+);
+CREATE INDEX idx_allow_list_tenant_id  ON detection.allow_list(tenant_id);
+CREATE INDEX idx_allow_list_rule_id    ON detection.allow_list(rule_id);
+CREATE INDEX idx_allow_list_expires_at ON detection.allow_list(expires_at);

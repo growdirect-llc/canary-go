@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -39,10 +40,18 @@ const (
 	defaultDisplayMin = "1"
 )
 
+// taskCreator is the subset of *task.Store the trigger depends on. Kept as an
+// interface so unit tests can inject a stub (panicking, error-returning, etc.)
+// without spinning up Postgres. *task.Store satisfies this interface.
+type taskCreator interface {
+	Create(ctx context.Context, req task.CreateTaskRequest) (*task.TaskDTO, error)
+	OpenReplenishmentExists(ctx context.Context, tenantID, itemID, locationID uuid.UUID) (bool, error)
+}
+
 // Trigger subscribes to inventory:replenish and generates replenishment tasks.
 type Trigger struct {
 	pool      *pgxpool.Pool
-	taskStore *task.Store
+	taskStore taskCreator
 	rdb       *redis.Client
 	consumer  string
 	logger    *zap.Logger
@@ -119,10 +128,32 @@ func (t *Trigger) processBatch(ctx context.Context) error {
 	}
 	for _, stream := range res {
 		for _, msg := range stream.Messages {
-			t.handle(ctx, msg)
+			t.handleSafely(ctx, msg, t.handle)
 		}
 	}
 	return nil
+}
+
+// handleSafely runs fn inside a defer/recover so a single poison-pill
+// message can't take down the trigger goroutine. On panic the message is
+// intentionally NOT acked: Valkey Streams will redeliver it on the next
+// XREADGROUP poll. If it panics again, it's a genuine poison pill and
+// operators can investigate via XPENDING.
+//
+// fn is normally t.handle, but is passed as a parameter so unit tests can
+// inject a fake without needing a real Postgres/Valkey to drive a panic.
+func (t *Trigger) handleSafely(ctx context.Context, msg redis.XMessage, fn func(context.Context, redis.XMessage)) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.logger.Error("replenishment handle panicked — message left unacked for retry",
+				zap.String("msg_id", msg.ID),
+				zap.Any("msg_values", msg.Values),
+				zap.Any("panic", r),
+				zap.ByteString("stack", debug.Stack()),
+			)
+		}
+	}()
+	fn(ctx, msg)
 }
 
 func (t *Trigger) handle(ctx context.Context, msg redis.XMessage) {

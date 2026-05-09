@@ -20,6 +20,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+
+	"github.com/ruptiv/canary/internal/testutil"
 )
 
 // stubStore is a hand-written test double — keeps the handler tests
@@ -115,8 +117,8 @@ func TestHandler_GetByID_OK(t *testing.T) {
 	}
 	r := newTestRouter(stub)
 
-	req := httptest.NewRequest(http.MethodGet,
-		"/v1/items/"+itemID.String()+"?tenant_id="+tenantID.String(), nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/items/"+itemID.String(), nil)
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
@@ -141,8 +143,8 @@ func TestHandler_GetByID_NotFound(t *testing.T) {
 	}
 	r := newTestRouter(stub)
 
-	req := httptest.NewRequest(http.MethodGet,
-		"/v1/items/"+uuid.NewString()+"?tenant_id="+uuid.NewString(), nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/items/"+uuid.NewString(), nil)
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), uuid.New()))
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
@@ -155,7 +157,8 @@ func TestHandler_GetByID_MalformedUUID(t *testing.T) {
 	stub := &stubStore{}
 	r := newTestRouter(stub)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/items/not-a-uuid?tenant_id="+uuid.NewString(), nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/items/not-a-uuid", nil)
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), uuid.New()))
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
@@ -164,7 +167,13 @@ func TestHandler_GetByID_MalformedUUID(t *testing.T) {
 	}
 }
 
-func TestHandler_GetByID_MissingTenant(t *testing.T) {
+// TestHandler_GetByID_MissingClaims verifies that requests without
+// API-key claims in context get 401 (the handler refuses to proceed
+// without an authenticated tenant). In production, the
+// identity.APIKeyMiddleware in cmd/item/main.go enforces this before
+// reaching the handler — this test exercises the handler-internal
+// requireTenant guard directly.
+func TestHandler_GetByID_MissingClaims(t *testing.T) {
 	stub := &stubStore{}
 	r := newTestRouter(stub)
 
@@ -172,8 +181,8 @@ func TestHandler_GetByID_MissingTenant(t *testing.T) {
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("status: got %d want 400", rec.Code)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status: got %d want 401", rec.Code)
 	}
 }
 
@@ -193,8 +202,8 @@ func TestHandler_GetBySKU_OK(t *testing.T) {
 	}
 	r := newTestRouter(stub)
 
-	req := httptest.NewRequest(http.MethodGet,
-		"/v1/items?tenant_id="+tenantID.String()+"&sku=SKU-001", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/items?sku=SKU-001", nil)
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
@@ -220,7 +229,8 @@ func TestHandler_GetByBarcode_OK(t *testing.T) {
 	r := newTestRouter(stub)
 
 	req := httptest.NewRequest(http.MethodGet,
-		"/v1/items/by-barcode?tenant_id="+tenantID.String()+"&barcode=012345678905", nil)
+		"/v1/items/by-barcode?barcode=012345678905", nil)
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
@@ -235,33 +245,12 @@ func TestHandler_GetByBarcode_OK(t *testing.T) {
 func TestHandler_GetByBarcode_MissingBarcode(t *testing.T) {
 	stub := &stubStore{}
 	r := newTestRouter(stub)
-	req := httptest.NewRequest(http.MethodGet,
-		"/v1/items/by-barcode?tenant_id="+uuid.NewString(), nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/items/by-barcode", nil)
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), uuid.New()))
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d want 400", rec.Code)
-	}
-}
-
-func TestHandler_GetByBarcode_AcceptsMerchantIDAlias(t *testing.T) {
-	tenantID := uuid.New()
-	want := sampleItem(tenantID, uuid.New())
-	stub := &stubStore{
-		getByBarcodeFn: func(_ context.Context, gotTenant uuid.UUID, _ string) (*Item, error) {
-			if gotTenant != tenantID {
-				t.Errorf("tenantID mismatch")
-			}
-			return want, nil
-		},
-	}
-	r := newTestRouter(stub)
-	req := httptest.NewRequest(http.MethodGet,
-		"/v1/items/by-barcode?merchant_id="+tenantID.String()+"&barcode=X", nil)
-	rec := httptest.NewRecorder()
-	r.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Errorf("status: got %d want 200; body=%s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -294,6 +283,73 @@ func TestHandler_Create_OK(t *testing.T) {
 		},
 	})
 	req := httptest.NewRequest(http.MethodPost, "/v1/items", bytes.NewReader(body))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status: got %d want 201; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestHandler_Create_BodyTenantMismatch verifies that a body whose
+// tenant_id contradicts the authenticated tenant is rejected with
+// 403 tenant_mismatch (rather than silently overwriting).
+func TestHandler_Create_BodyTenantMismatch(t *testing.T) {
+	authTenant := uuid.New()
+	bodyTenant := uuid.New() // different
+	storeCalled := false
+	stub := &stubStore{
+		createFn: func(_ context.Context, _ CreateRequest) (*Item, error) {
+			storeCalled = true
+			return nil, nil
+		},
+	}
+	r := newTestRouter(stub)
+
+	body, _ := json.Marshal(CreateRequest{
+		TenantID: bodyTenant, SKU: "X", Description: "Y",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/v1/items", bytes.NewReader(body))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), authTenant))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("status: got %d want 403; body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "tenant_mismatch") {
+		t.Errorf("body missing tenant_mismatch code: %s", rec.Body.String())
+	}
+	if storeCalled {
+		t.Error("store.Create must not be called on tenant_mismatch")
+	}
+}
+
+// TestHandler_Create_BodyTenantOverwritten verifies the defense-in-depth
+// behavior: even when the body's tenant_id matches the auth claim, the
+// handler overwrites it with the auth claim before persisting. Use a
+// body with tenant_id=Nil to confirm the auth claim is what reaches
+// the store.
+func TestHandler_Create_BodyTenantOverwritten(t *testing.T) {
+	authTenant := uuid.New()
+	stub := &stubStore{
+		createFn: func(_ context.Context, req CreateRequest) (*Item, error) {
+			if req.TenantID != authTenant {
+				t.Errorf("store.Create got tenantID=%v, want auth tenant %v",
+					req.TenantID, authTenant)
+			}
+			return sampleItem(authTenant, uuid.New()), nil
+		},
+	}
+	r := newTestRouter(stub)
+
+	// Body has tenant_id=Nil; auth claim must be the source of truth.
+	body, _ := json.Marshal(CreateRequest{SKU: "X", Description: "Y"})
+	req := httptest.NewRequest(http.MethodPost, "/v1/items", bytes.NewReader(body))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), authTenant))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -304,6 +360,7 @@ func TestHandler_Create_OK(t *testing.T) {
 }
 
 func TestHandler_Create_ValidationError(t *testing.T) {
+	tenantID := uuid.New()
 	stub := &stubStore{
 		createFn: func(_ context.Context, req CreateRequest) (*Item, error) {
 			return nil, req.Validate()
@@ -311,8 +368,9 @@ func TestHandler_Create_ValidationError(t *testing.T) {
 	}
 	r := newTestRouter(stub)
 
-	body, _ := json.Marshal(CreateRequest{TenantID: uuid.New()}) // missing sku & description
+	body, _ := json.Marshal(CreateRequest{TenantID: tenantID}) // missing sku & description
 	req := httptest.NewRequest(http.MethodPost, "/v1/items", bytes.NewReader(body))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
@@ -322,6 +380,7 @@ func TestHandler_Create_ValidationError(t *testing.T) {
 }
 
 func TestHandler_Create_Conflict(t *testing.T) {
+	tenantID := uuid.New()
 	stub := &stubStore{
 		createFn: func(_ context.Context, _ CreateRequest) (*Item, error) {
 			return nil, ErrConflict
@@ -330,9 +389,10 @@ func TestHandler_Create_Conflict(t *testing.T) {
 	r := newTestRouter(stub)
 
 	body, _ := json.Marshal(CreateRequest{
-		TenantID: uuid.New(), SKU: "X", Description: "X",
+		TenantID: tenantID, SKU: "X", Description: "X",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/v1/items", bytes.NewReader(body))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
@@ -361,8 +421,9 @@ func TestHandler_Update_OK(t *testing.T) {
 
 	body, _ := json.Marshal(PatchRequest{Description: ptr("Updated")})
 	req := httptest.NewRequest(http.MethodPatch,
-		"/v1/items/"+itemID.String()+"?tenant_id="+tenantID.String(),
+		"/v1/items/"+itemID.String(),
 		bytes.NewReader(body))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
@@ -377,8 +438,8 @@ func TestHandler_Delete_OK(t *testing.T) {
 	}
 	r := newTestRouter(stub)
 
-	req := httptest.NewRequest(http.MethodDelete,
-		"/v1/items/"+uuid.NewString()+"?tenant_id="+uuid.NewString(), nil)
+	req := httptest.NewRequest(http.MethodDelete, "/v1/items/"+uuid.NewString(), nil)
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), uuid.New()))
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
@@ -409,10 +470,9 @@ func TestHandler_List_WithFilters(t *testing.T) {
 	}
 	r := newTestRouter(stub)
 
-	url := "/v1/items?tenant_id=" + tenantID.String() +
-		"&category_id=" + categoryID.String() +
-		"&page=3&size=10"
+	url := "/v1/items?category_id=" + categoryID.String() + "&page=3&size=10"
 	req := httptest.NewRequest(http.MethodGet, url, nil)
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
@@ -444,8 +504,8 @@ func TestHandler_ListCategories_OK(t *testing.T) {
 	}
 	r := newTestRouter(stub)
 
-	req := httptest.NewRequest(http.MethodGet,
-		"/v1/categories?tenant_id="+tenantID.String(), nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/categories", nil)
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
@@ -468,8 +528,8 @@ func TestHandler_ListVendors_OK(t *testing.T) {
 	}
 	r := newTestRouter(stub)
 
-	req := httptest.NewRequest(http.MethodGet,
-		"/v1/vendors?tenant_id="+tenantID.String(), nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/vendors", nil)
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tenantID))
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 

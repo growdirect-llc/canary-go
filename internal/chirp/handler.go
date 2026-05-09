@@ -2,6 +2,7 @@ package chirp
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -9,6 +10,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 // Handler is the HTTP surface for the chirp service.
@@ -35,12 +38,29 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/v1/chirp/detections", h.ListDetections)
 }
 
+// requireTenant returns the authenticated tenant or writes 401 and
+// returns false. Every chirp tenant-scoped endpoint derives the
+// tenant from the resolved API-key claims — there is no caller-
+// supplied tenant_id input on these paths.
+func requireTenant(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	c, ok := identity.ClaimsFromContext(r.Context())
+	if !ok || c.TenantID == uuid.Nil {
+		writeError(w, http.StatusUnauthorized, "unauthenticated", "missing tenant claim")
+		return uuid.Nil, false
+	}
+	return c.TenantID, true
+}
+
 type evaluateRequest struct {
 	TransactionID string `json:"transaction_id"`
 }
 
 // Evaluate handles POST /v1/chirp/evaluate.
 func (h *Handler) Evaluate(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
 	var req evaluateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "malformed_request", err.Error())
@@ -51,8 +71,12 @@ func (h *Handler) Evaluate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "malformed_transaction_id", err.Error())
 		return
 	}
-	dets, err := h.engine.EvaluateTransaction(r.Context(), txID)
+	dets, err := h.engine.EvaluateTransaction(r.Context(), tenantID, txID)
 	if err != nil {
+		if errors.Is(err, ErrTransactionNotFound) {
+			writeError(w, http.StatusNotFound, "transaction_not_found", "")
+			return
+		}
 		h.logger.Error("evaluate failed", zap.Error(err), zap.String("transaction_id", txID.String()))
 		writeError(w, http.StatusInternalServerError, "evaluate_failed", err.Error())
 		return
@@ -71,20 +95,36 @@ type evaluateBatchRequest struct {
 
 // EvaluateBatch handles POST /v1/chirp/evaluate-batch.
 //
-// SDD-conflict: dispatch uses "merchant_id" as the request key; the
-// canonical schema treats tenant_id as the multi-tenant boundary.
-// The mapping is 1:1 (app.merchants.tenant_id), so we accept
-// merchant_id in the request and pass it through as tenant_id.
+// Tenant is derived from the authenticated API-key claims. The body
+// merchant_id field is retained for wire compatibility — if set, it
+// must match the authenticated tenant or the request is rejected with
+// 403 tenant_mismatch.
 func (h *Handler) EvaluateBatch(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
 	var req evaluateBatchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "malformed_request", err.Error())
 		return
 	}
-	tenantID, err := uuid.Parse(req.MerchantID)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "malformed_merchant_id", err.Error())
-		return
+	if req.MerchantID != "" {
+		bodyTenant, err := uuid.Parse(req.MerchantID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "malformed_merchant_id", err.Error())
+			return
+		}
+		if err := identity.AssertBodyTenantMatches(r.Context(), bodyTenant); err != nil {
+			if errors.Is(err, identity.ErrTenantMismatch) {
+				writeError(w, http.StatusForbidden, "tenant_mismatch",
+					"merchant_id does not match authenticated tenant")
+				return
+			}
+			h.logger.Error("assert tenant", zap.Error(err))
+			writeError(w, http.StatusInternalServerError, "tenant_check_failed", "")
+			return
+		}
 	}
 	since, err := time.Parse(time.RFC3339, req.Since)
 	if err != nil {
@@ -100,16 +140,12 @@ func (h *Handler) EvaluateBatch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res)
 }
 
-// ListRules handles GET /v1/chirp/rules?merchant_id=...
+// ListRules handles GET /v1/chirp/rules. Tenant is derived from the
+// authenticated API-key claims — query-string merchant_id is no
+// longer honored as the source of truth (was an IDOR vector pre-GRO-905).
 func (h *Handler) ListRules(w http.ResponseWriter, r *http.Request) {
-	merchantStr := r.URL.Query().Get("merchant_id")
-	if merchantStr == "" {
-		writeError(w, http.StatusBadRequest, "missing_merchant_id", "merchant_id is required")
-		return
-	}
-	tenantID, err := uuid.Parse(merchantStr)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "malformed_merchant_id", err.Error())
+	tenantID, ok := requireTenant(w, r)
+	if !ok {
 		return
 	}
 	rules, err := h.store.ListRules(r.Context(), tenantID)
@@ -125,19 +161,16 @@ func (h *Handler) ListRules(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ListDetections handles GET /v1/chirp/detections?merchant_id=...&from=...&to=...&limit=...&offset=...
+// ListDetections handles GET /v1/chirp/detections?from=...&to=...&limit=...&offset=...
+// Tenant is derived from the authenticated API-key claims — query-string
+// merchant_id is no longer honored as the source of truth (was an IDOR
+// vector pre-GRO-905).
 func (h *Handler) ListDetections(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
 	q := r.URL.Query()
-	merchantStr := q.Get("merchant_id")
-	if merchantStr == "" {
-		writeError(w, http.StatusBadRequest, "missing_merchant_id", "merchant_id is required")
-		return
-	}
-	tenantID, err := uuid.Parse(merchantStr)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "malformed_merchant_id", err.Error())
-		return
-	}
 	dq := DetectionQuery{TenantID: tenantID}
 
 	if s := q.Get("from"); s != "" {
