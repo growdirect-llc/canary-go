@@ -39,6 +39,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -223,34 +224,56 @@ func New(deps Deps, logger *zap.Logger) *Handler {
 	return h
 }
 
+// parseTemplateSet creates a template set with componentFuncs registered and
+// templates/components/*.html loaded, then parses the supplied files into it.
+// The returned set is named after the basename of the first file so callers
+// using Execute() on a standalone page template still work (the stdlib
+// ParseFS convention).
+//
+// All page-level template parses go through this so every page can compose
+// from the {{template "components/<name>" ...}} primitives in
+// templates/components/.
+func parseTemplateSet(files ...string) *template.Template {
+	if len(files) == 0 {
+		panic("parseTemplateSet: at least one file required")
+	}
+	patterns := append([]string{}, files...)
+	patterns = append(patterns, "templates/components/*.html")
+	return template.Must(
+		template.New(path.Base(files[0])).
+			Funcs(componentFuncs).
+			ParseFS(embedFS, patterns...),
+	)
+}
+
 // mustParseMobile builds a mobile-shell template set: mobile_base + page.
 // No sidebar / no desktop chrome.
 func (h *Handler) mustParseMobile(name, pageFile string) {
-	h.templates[name] = template.Must(template.ParseFS(embedFS,
+	h.templates[name] = parseTemplateSet(
 		"templates/mobile/base.html",
 		pageFile,
-	))
+	)
 }
 
 // mustParseShared is like mustParse but pulls in an extra partial alongside
 // the page template (used by the onboarding wizard for the progress bar).
 func (h *Handler) mustParseShared(name, pageFile, sharedPartial string) {
-	h.templates[name] = template.Must(template.ParseFS(embedFS,
+	h.templates[name] = parseTemplateSet(
 		"templates/base.html",
 		"templates/partials/sidebar.html",
 		sharedPartial,
 		pageFile,
-	))
+	)
 }
 
 // mustParse builds a per-page template set: base + sidebar + page file.
 // Panics on parse error — caught at startup, not at request time.
 func (h *Handler) mustParse(name, pageFile string) {
-	h.templates[name] = template.Must(template.ParseFS(embedFS,
+	h.templates[name] = parseTemplateSet(
 		"templates/base.html",
 		"templates/partials/sidebar.html",
 		pageFile,
-	))
+	)
 }
 
 // Mount registers all web UI routes on r.
@@ -555,11 +578,7 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, tmplName, activ
 
 // joinPage serves the standalone public join page (no base template).
 func (h *Handler) joinPage(w http.ResponseWriter, r *http.Request) {
-	tmpl, err := template.ParseFS(embedFS, "templates/auth/join.html")
-	if err != nil {
-		http.Error(w, "template error", http.StatusInternalServerError)
-		return
-	}
+	tmpl := parseTemplateSet("templates/auth/join.html")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = tmpl.Execute(w, map[string]any{
 		"Error": r.URL.Query().Get("error"),
@@ -582,11 +601,7 @@ func (h *Handler) joinPage(w http.ResponseWriter, r *http.Request) {
 // actually log in. The `?error=` query string surfaces failures from
 // the Square OAuth callback.
 func (h *Handler) loginPage(w http.ResponseWriter, r *http.Request) {
-	tmpl, err := template.ParseFS(embedFS, "templates/auth/login.html")
-	if err != nil {
-		http.Error(w, "template error", http.StatusInternalServerError)
-		return
-	}
+	tmpl := parseTemplateSet("templates/auth/login.html")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	_ = tmpl.Execute(w, map[string]any{

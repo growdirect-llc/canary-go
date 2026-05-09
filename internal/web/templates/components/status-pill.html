@@ -1,0 +1,18 @@
+{{/*
+  components/status-pill
+
+  Renders: a small inline label with semantic tone (status badge).
+
+  Params (passed via dict in calling template):
+    label  string  required  visible text inside the pill
+    tone   string  optional  one of: neutral|success|warning|danger|info (default: neutral)
+                             maps to .status-pill-<tone> class.
+
+  Slots: none
+
+  Example:
+    {{template "components/status-pill" (dict "label" "Open" "tone" "warning")}}
+*/}}
+{{define "components/status-pill"}}
+<span class="status-pill status-pill-{{or .tone "neutral"}}">{{.label}}</span>
+{{end}}

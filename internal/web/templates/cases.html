@@ -19,7 +19,7 @@
     <div style="flex:1;min-width:0;">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <span style="font-size:13px;font-weight:600;color:var(--text-primary);">{{.Title}}</span>
-        <span class="badge {{.StatusClass}}">{{.Status}}</span>
+        {{template "components/status-pill" (dict "label" .Status)}}
         <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">{{.CreatedAt}}</span>
       </div>
       <div style="font-size:13px;color:var(--text-secondary);margin-top:3px;">{{.Summary}}</div>

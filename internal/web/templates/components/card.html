@@ -1,0 +1,37 @@
+{{/*
+  components/card
+
+  Renders: a bordered container with optional title, body content, and optional footer.
+  Used as the building block for dashboard panels and grouped content.
+
+  Params (passed via dict in calling template):
+    title    string         optional  visible header text; omits the header section if absent
+    subtitle string         optional  smaller secondary text under the title
+    body     template.HTML  required  inner content; pass pre-escaped HTML or a stringer
+    footer   template.HTML  optional  footer slot (e.g. CTAs, summary line); omits if absent
+    tone     string         optional  one of: default|accent|warning|danger (default: default)
+                                       maps to .card-<tone> modifier class
+
+  Slots:
+    body, footer (passed via params as template.HTML; render order is title → body → footer)
+
+  Example:
+    {{template "components/card" (dict
+       "title" "Today's alerts"
+       "body"  (renderAlertCount .Alerts)
+       "footer" (renderViewAllLink "/alerts"))}}
+*/}}
+{{define "components/card"}}
+<section class="card{{with .tone}} card-{{.}}{{end}}">
+  {{- if .title }}
+  <header class="card-header">
+    <h3 class="card-title">{{.title}}</h3>
+    {{- with .subtitle }}<p class="card-subtitle">{{.}}</p>{{- end }}
+  </header>
+  {{- end }}
+  <div class="card-body">{{.body}}</div>
+  {{- with .footer }}
+  <footer class="card-footer">{{.}}</footer>
+  {{- end }}
+</section>
+{{end}}

@@ -389,6 +389,16 @@ func lpScreens() []lpScreen {
 				if len(entries) > 0 {
 					out["Enabled"] = entries[0]["Enabled"]
 				}
+				// Adapt entries to the components/data-table row shape:
+				// each row is {cells: [...]}, columns aligned to the
+				// "Start, End, Stores" header in the template.
+				rows := make([]map[string]any, 0, len(entries))
+				for _, e := range entries {
+					rows = append(rows, map[string]any{
+						"cells": []any{e["Start"], e["End"], e["Stores"]},
+					})
+				}
+				out["RecentWindowRows"] = rows
 				return out
 			},
 		},

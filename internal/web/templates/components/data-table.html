@@ -1,0 +1,55 @@
+{{/*
+  components/data-table
+
+  Renders: a table with header row, body rows, and an empty state.
+  Each row may optionally carry an `href` that turns the row into a link
+  (rendered as a click target on the first cell or whole-row click target,
+  depending on caller's CSS).
+
+  Params (passed via dict in calling template):
+    columns  []string               required  header labels (also column count)
+    rows     []dict                 required  per-row data; pass [] for empty state
+                                              each row dict supports:
+                                                cells  []any           required  cell values (length == len(columns))
+                                                href   string          optional  if set, row is a link to this URL
+                                                badge  template.HTML   optional  rendered in the rightmost cell as a status indicator
+    empty    string                 optional  empty-state message (default: "No data")
+    caption  string                 optional  visible <caption> for the table
+
+  Slots: none (cells accept any value; coerce template.HTML upstream if cells need raw markup)
+
+  Example:
+    {{template "components/data-table" (dict
+       "columns" (list "SKU" "Name" "Stock")
+       "rows"    .ItemRows
+       "empty"   "No items yet — add your first.")}}
+*/}}
+{{define "components/data-table"}}
+<table class="data-table">
+  {{- with .caption }}<caption>{{.}}</caption>{{- end }}
+  <thead>
+    <tr>
+      {{- range .columns }}
+      <th scope="col">{{.}}</th>
+      {{- end }}
+    </tr>
+  </thead>
+  <tbody>
+    {{- if .rows }}
+      {{- range .rows }}
+      <tr{{with .href}} class="data-table-row-link" data-href="{{.}}"{{end}}>
+        {{- $row := . -}}
+        {{- range $i, $cell := .cells }}
+        <td>{{- if and $row.href (eq $i 0) -}}<a href="{{$row.href}}">{{$cell}}</a>{{- else -}}{{$cell}}{{- end -}}</td>
+        {{- end }}
+        {{- with .badge }}<td>{{.}}</td>{{- end }}
+      </tr>
+      {{- end }}
+    {{- else }}
+      <tr class="data-table-empty">
+        <td colspan="{{len .columns}}">{{or .empty "No data"}}</td>
+      </tr>
+    {{- end }}
+  </tbody>
+</table>
+{{end}}

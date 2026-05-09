@@ -1,0 +1,42 @@
+{{/*
+  components/drawer
+
+  Renders: a slide-out side panel with title bar (title + close), body, optional footer.
+  CSS controls the slide animation via the `drawer-open` class on the wrapper;
+  callers toggle it via JS or HTMX. Markup ships closed by default.
+
+  Params (passed via dict in calling template):
+    id      string         required  unique element id (used for aria-controls binding from openers)
+    title   string         required  visible title in the drawer header
+    body    template.HTML  required  inner content
+    footer  template.HTML  optional  footer slot for actions (Save/Cancel/etc.)
+    open    bool           optional  if true, renders open (aria-hidden="false" + drawer-open class).
+                                      Default false; toggle from JS to animate.
+    side    string         optional  one of: right|left (default: right). Controls which edge
+                                      the drawer slides in from.
+
+  Slots: body, footer
+
+  Example:
+    {{template "components/drawer" (dict
+       "id" "bulk-fix"
+       "title" "Bulk fix by class"
+       "body" (renderBulkFixOptions .Job)
+       "footer" (renderApplyCancel))}}
+*/}}
+{{define "components/drawer"}}
+<aside id="{{.id}}" class="drawer drawer-{{or .side "right"}}{{if .open}} drawer-open{{end}}" role="dialog" aria-modal="true" aria-labelledby="{{.id}}-title" aria-hidden="{{if .open}}false{{else}}true{{end}}">
+  <header class="drawer-header">
+    <h2 id="{{.id}}-title" class="drawer-title">{{.title}}</h2>
+    <button type="button" class="drawer-close" aria-label="Close" data-drawer-close="{{.id}}">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </header>
+  <div class="drawer-body">{{.body}}</div>
+  {{- with .footer }}
+  <footer class="drawer-footer">{{.}}</footer>
+  {{- end }}
+</aside>
+{{end}}

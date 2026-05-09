@@ -1,0 +1,44 @@
+{{/*
+  components/form-field
+
+  Renders: <label> + <input|textarea|select> + optional help text + optional error.
+
+  Params (passed via dict in calling template):
+    name      string         required  form field name attribute
+    label     string         required  visible label
+    type      string         optional  text|email|password|number|tel|url|textarea|select (default: text)
+    value     string         optional  current value
+    help      string         optional  help text under the field
+    error     string         optional  error message; if non-empty renders red state
+    required  bool           optional  marks field required
+    options   []dict         optional  for type=select: [(dict "value" "v" "label" "L"), ...]
+    rows      int            optional  for type=textarea: row count (default: 4)
+    autofocus bool           optional  marks field autofocus
+
+  Slots: none
+
+  Example:
+    {{template "components/form-field" (dict "name" "email" "label" "Email" "type" "email" "required" true)}}
+*/}}
+{{define "components/form-field"}}
+<div class="form-group{{if .error}} form-group-error{{end}}">
+  <label class="form-label" for="{{.name}}">{{.label}}{{if .required}} <span aria-hidden="true">*</span>{{end}}</label>
+  {{- if eq (or .type "text") "textarea" -}}
+    <textarea class="textarea-input" id="{{.name}}" name="{{.name}}" rows="{{or .rows 4}}"{{if .required}} required{{end}}{{if .autofocus}} autofocus{{end}}>{{.value}}</textarea>
+  {{- else if eq (or .type "text") "select" -}}
+    <select class="form-input" id="{{.name}}" name="{{.name}}"{{if .required}} required{{end}}{{if .autofocus}} autofocus{{end}}>
+      {{- range .options }}
+      <option value="{{.value}}"{{if and ($.value) (eq $.value .value)}} selected{{end}}>{{.label}}</option>
+      {{- end }}
+    </select>
+  {{- else -}}
+    <input class="form-input" id="{{.name}}" name="{{.name}}" type="{{or .type "text"}}"{{with .value}} value="{{.}}"{{end}}{{if .required}} required{{end}}{{if .autofocus}} autofocus{{end}}>
+  {{- end }}
+  {{- if .help }}
+  <p class="form-help">{{.help}}</p>
+  {{- end }}
+  {{- if .error }}
+  <p class="form-error">{{.error}}</p>
+  {{- end }}
+</div>
+{{end}}
