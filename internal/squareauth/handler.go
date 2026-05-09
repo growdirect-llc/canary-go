@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -46,6 +47,66 @@ func (s *Service) Mount(r chi.Router) {
 	r.Get("/auth/square/callback", s.handleCallback)
 	r.Get("/dashboard", s.handleDashboard)
 	r.Post("/auth/square/disconnect", s.handleDisconnect)
+	// /auth/demo is mounted unconditionally — the handler itself
+	// gates on DEV_DEMO_LOGIN=1 and 404s when disabled. Mounting
+	// unconditionally keeps the route table stable across deploys
+	// (operators reading routes-seen.json don't see the route appear
+	// and disappear based on env state).
+	r.Get("/auth/demo", s.handleDevDemoLogin)
+}
+
+// devDemoMerchantID is the seeded "Acme Main Street (Square)" merchant
+// from deploy/schema/99_seed.sql. The dev demo login signs a cookie
+// pointing at this UUID. Operators must have run `make db-seed` so this
+// row exists; without it requireTenantMiddleware will resolve OK but
+// merchant lookups will return empty data.
+const devDemoMerchantID = "33333333-0000-0000-0000-000000000001"
+
+// DevDemoLoginEnabled reports whether the dev-only demo login bypass is
+// turned on. Surfaced so the web login page can conditionally render the
+// "Demo Login" button. Production never sets this env var.
+func (s *Service) DevDemoLoginEnabled() bool {
+	v := os.Getenv("DEV_DEMO_LOGIN")
+	return v == "1" || v == "true" || v == "TRUE"
+}
+
+// handleDevDemoLogin is a dev-only login bypass. When DEV_DEMO_LOGIN=1
+// is set on the gateway, this signs a session cookie for the seeded
+// demo merchant (33333333-0000-0000-0000-000000000001) and redirects
+// to /dashboard. Without the env flag the route returns 404 — production
+// gateways simply behave as if it doesn't exist.
+//
+// Use case: local dev without Square sandbox credentials. Without this
+// path, operators who haven't wired SQUARE_APPLICATION_ID etc into
+// compose can't get a session and the merchant pages are unreachable.
+//
+// Security: gated on a process-wide env var, not user-controllable. The
+// 404 response when disabled doesn't reveal the route exists. Production
+// images run with DEV_DEMO_LOGIN unset.
+func (s *Service) handleDevDemoLogin(w http.ResponseWriter, r *http.Request) {
+	if !s.DevDemoLoginEnabled() {
+		http.NotFound(w, r)
+		return
+	}
+	merchantID, err := uuid.Parse(devDemoMerchantID)
+	if err != nil {
+		// Static UUID; should never fail to parse. Defensive.
+		s.logger.Error("squareauth demo: parsing static UUID failed", zap.Error(err))
+		http.Error(w, "demo merchant id parse failed", http.StatusInternalServerError)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    s.signCookieValue(merchantID),
+		Path:     "/",
+		MaxAge:   sessionMaxAge,
+		HttpOnly: true,
+		Secure:   r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
+		SameSite: http.SameSiteLaxMode,
+	})
+	s.logger.Info("squareauth demo: signed dev session cookie",
+		zap.String("merchant_id", merchantID.String()))
+	http.Redirect(w, r, "/dashboard", http.StatusFound)
 }
 
 // ─── Landing ────────────────────────────────────────────────────────────────

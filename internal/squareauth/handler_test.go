@@ -1,9 +1,12 @@
 package squareauth
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -110,5 +113,101 @@ func TestCookieSign_DevFallback_NoKey(t *testing.T) {
 	}
 	if gotID != id {
 		t.Errorf("dev fallback round-trip mismatch")
+	}
+}
+
+// TestDevDemoLogin_DisabledByDefault confirms /auth/demo returns 404 when
+// DEV_DEMO_LOGIN is unset. Production deploys never set the var, so this
+// is the production-equivalent path. Hardening: 404 (not 403/401) so the
+// route doesn't reveal that "demo login" is a thing.
+func TestDevDemoLogin_DisabledByDefault(t *testing.T) {
+	t.Setenv("DEV_DEMO_LOGIN", "")
+	s := newTestService(t, "test-session-secret")
+
+	r := chi.NewRouter()
+	r.Get("/auth/demo", s.handleDevDemoLogin)
+	req := httptest.NewRequest(http.MethodGet, "/auth/demo", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("/auth/demo with flag unset = %d, want 404", rr.Code)
+	}
+	if c := rr.Result().Cookies(); len(c) > 0 {
+		t.Errorf("disabled handler should not set any cookies; got %d", len(c))
+	}
+}
+
+// TestDevDemoLogin_SignsCookieAndRedirectsWhenEnabled confirms the happy
+// path: env flag on, route signs the demo session cookie and redirects
+// to /dashboard. The cookie value round-trips through verifyCookieValue
+// to the seeded demo merchant UUID.
+func TestDevDemoLogin_SignsCookieAndRedirectsWhenEnabled(t *testing.T) {
+	t.Setenv("DEV_DEMO_LOGIN", "1")
+	s := newTestService(t, "test-session-secret")
+
+	r := chi.NewRouter()
+	r.Get("/auth/demo", s.handleDevDemoLogin)
+	req := httptest.NewRequest(http.MethodGet, "/auth/demo", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusFound {
+		t.Fatalf("/auth/demo with flag on = %d, want 302", rr.Code)
+	}
+	if loc := rr.Header().Get("Location"); loc != "/dashboard" {
+		t.Errorf("redirect target = %q, want /dashboard", loc)
+	}
+
+	// Cookie should be set + signed for the seeded demo merchant.
+	var sessionCookie *http.Cookie
+	for _, c := range rr.Result().Cookies() {
+		if c.Name == sessionCookieName {
+			sessionCookie = c
+			break
+		}
+	}
+	if sessionCookie == nil {
+		t.Fatalf("expected %q cookie to be set; got cookies %v",
+			sessionCookieName, rr.Result().Cookies())
+	}
+	if !sessionCookie.HttpOnly {
+		t.Error("cookie should be HttpOnly")
+	}
+	if sessionCookie.Path != "/" {
+		t.Errorf("cookie Path = %q, want /", sessionCookie.Path)
+	}
+
+	// Verify the cookie carries the seeded merchant UUID.
+	gotID, ok := s.verifyCookieValue(sessionCookie.Value)
+	if !ok {
+		t.Fatal("verifyCookieValue rejected the demo cookie")
+	}
+	wantID := uuid.MustParse(devDemoMerchantID)
+	if gotID != wantID {
+		t.Errorf("demo cookie merchant = %s, want %s (seeded demo)", gotID, wantID)
+	}
+}
+
+// TestDevDemoLoginEnabled_ReadsEnvVar — small unit test on the env gate
+// helper. Truthy values turn it on; everything else (including unset)
+// leaves it off. Mirrors getBool in internal/config.
+func TestDevDemoLoginEnabled_ReadsEnvVar(t *testing.T) {
+	cases := map[string]bool{
+		"":      false,
+		"0":     false,
+		"false": false,
+		"no":    false,
+		"1":     true,
+		"true":  true,
+		"TRUE":  true,
+	}
+	s := newTestService(t, "k")
+	for in, want := range cases {
+		t.Run("env="+in, func(t *testing.T) {
+			t.Setenv("DEV_DEMO_LOGIN", in)
+			if got := s.DevDemoLoginEnabled(); got != want {
+				t.Errorf("DEV_DEMO_LOGIN=%q → %v, want %v", in, got, want)
+			}
+		})
 	}
 }

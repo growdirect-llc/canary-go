@@ -49,6 +49,12 @@ services:
       LNURL_SCHEME: http
       LNURL_HOST: localhost:8080
       DEV_CONSOLE: "1"
+      # DEV_DEMO_LOGIN=1 surfaces the dev-only "Demo Login" button on
+      # /login. Clicking it signs a session cookie for the seeded
+      # Acme Main Street merchant (33333333-...) so dev environments
+      # without Square OAuth credentials can still reach merchant pages.
+      # Production never sets this. handleDevDemoLogin 404s when unset.
+      DEV_DEMO_LOGIN: "1"
       # MANIFEST_ROUTEWALK=1 dumps every mounted route to routes-seen.json
       # on each boot. Pure observation; consumed by reconcile.py to detect
       # drift between the manifest and the live router. GRO-836 / GRO-838.

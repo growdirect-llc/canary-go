@@ -164,6 +164,15 @@ h1 {
     </span>
     {{end}}
 
+    {{if .DemoLoginEnabled}}
+    <div class="divider">Or skip auth</div>
+    <a href="/auth/demo" class="cta" id="demo-login" style="background:#2a3036;color:#c9d1d9;border:1px dashed #58a6ff;">
+      <span>Demo Login (dev only)</span>
+      <span aria-hidden="true">→</span>
+    </a>
+    <p style="font-size:11px;color:var(--text-muted,#8b949e);text-align:center;margin-top:6px;">Signs a session for the seeded Acme Main Street merchant. Available when <code>DEV_DEMO_LOGIN=1</code>.</p>
+    {{end}}
+
     <div class="divider">More integrations coming</div>
 
     <span class="cta-secondary" title="NCR Counterpoint connector ships in a follow-on dispatch">
