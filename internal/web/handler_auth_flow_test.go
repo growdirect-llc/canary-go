@@ -212,6 +212,63 @@ func TestLoginPage_ShowsSquareButtonWhenConfigured(t *testing.T) {
 	}
 }
 
+// TestLoginPage_RendersDemoButtonWhenEnabled — the dev-only login
+// bypass UI. When DEV_DEMO_LOGIN=1 is set on the gateway, the /login
+// page shows a "Demo Login (dev only)" anchor pointing at /auth/demo.
+// Production never sets the flag so the button doesn't render.
+//
+// Pairs with squareauth.handleDevDemoLogin (TestDevDemoLogin_*) — the
+// button just navigates; the gate is server-side.
+func TestLoginPage_RendersDemoButtonWhenEnabled(t *testing.T) {
+	t.Setenv("DEV_DEMO_LOGIN", "1")
+	// Square unconfigured branch — exercises the most common dev state.
+	t.Setenv("SQUARE_APPLICATION_ID", "")
+	t.Setenv("SQUARE_APPLICATION_SECRET", "")
+	t.Setenv("SQUARE_REDIRECT_URI", "")
+
+	h := New(Deps{}, nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+
+	for _, want := range []string{
+		`href="/auth/demo"`,
+		"Demo Login (dev only)",
+		"DEV_DEMO_LOGIN=1",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("login page missing %q when DEV_DEMO_LOGIN=1", want)
+		}
+	}
+}
+
+// TestLoginPage_HidesDemoButtonByDefault — inverse path. Without the
+// env flag, the demo button must not render. Defends against accidental
+// production exposure.
+func TestLoginPage_HidesDemoButtonByDefault(t *testing.T) {
+	t.Setenv("DEV_DEMO_LOGIN", "")
+
+	h := New(Deps{}, nil)
+	r := chi.NewRouter()
+	h.Mount(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	body := rr.Body.String()
+
+	if strings.Contains(body, `href="/auth/demo"`) {
+		t.Error("login page should not render /auth/demo anchor when DEV_DEMO_LOGIN is unset")
+	}
+	if strings.Contains(body, "Demo Login") {
+		t.Error("login page should not render 'Demo Login' text when DEV_DEMO_LOGIN is unset")
+	}
+}
+
 // TestAuthConnect_RedirectsToLogin verifies the /auth/connect route
 // referenced by templates/auth/join.html (line 128 — the marketing CTA
 // "Connect your store") points at a real handler. Pre-fix it 404'd

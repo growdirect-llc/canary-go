@@ -592,7 +592,17 @@ func (h *Handler) loginPage(w http.ResponseWriter, r *http.Request) {
 	_ = tmpl.Execute(w, map[string]any{
 		"Error":            r.URL.Query().Get("error"),
 		"SquareConfigured": squareConfigured(),
+		"DemoLoginEnabled": demoLoginEnabled(),
 	})
+}
+
+// demoLoginEnabled mirrors squareauth.Service.DevDemoLoginEnabled —
+// the dev-only login bypass at /auth/demo. Read directly from env so
+// the login template can render a "Demo Login" button without
+// threading squareauth into web.Deps. Production never sets the var.
+func demoLoginEnabled() bool {
+	v := os.Getenv("DEV_DEMO_LOGIN")
+	return v == "1" || v == "true" || v == "TRUE"
 }
 
 // squareConfigured mirrors the gate inside squareauth.handleAuthorize
