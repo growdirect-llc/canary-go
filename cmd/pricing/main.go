@@ -31,6 +31,7 @@ import (
 	"github.com/ruptiv/canary/internal/cmdutil"
 	"github.com/ruptiv/canary/internal/config"
 	"github.com/ruptiv/canary/internal/db"
+	"github.com/ruptiv/canary/internal/identity"
 	"github.com/ruptiv/canary/internal/pricing"
 )
 
@@ -55,12 +56,29 @@ func main() {
 	resolver := pricing.NewResolver(store, logger)
 	handler := pricing.New(resolver, store, logger)
 
+	limiter, closeLimiter := cmdutil.MustValkeyRateLimiter(cfg.ValkeyURL, logger)
+	defer closeLimiter()
+
+	closeRecorder := cmdutil.MustLastUsedRecorder(ctx, pool)
+	defer closeRecorder()
+
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP, middleware.Recoverer)
 	r.Use(requestLogger(logger))
 
 	r.Get("/health", healthHandler(cfg))
-	handler.Mount(r)
+
+	// GRO-928: pricing endpoints carry tenant-scoped read traffic.
+	// Wrap the handler in APIKeyMiddleware so unauthenticated callers
+	// receive 401 before any pricing data leaves the binary.
+	r.Group(func(r chi.Router) {
+		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
+			Pool:     pool,
+			Required: true,
+			Limiter:  limiter,
+		}))
+		handler.Mount(r)
+	})
 
 	addr := ":" + cfg.Port
 	ln, err := net.Listen("tcp", addr)

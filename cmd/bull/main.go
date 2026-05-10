@@ -143,14 +143,17 @@ func main() {
 	r.Use(middleware.RealIP, middleware.Recoverer)
 	r.Get("/health", health(cfg))
 
-	taskHandler.Mount(r)
-
+	// GRO-928: taskHandler carried tenant from query/header pre-fix
+	// and was mounted outside the auth group. Move it inside so a
+	// caller hitting cmd/bull's port directly (i.e., not via the
+	// gateway mesh) gets 401'd before any tenant inference runs.
 	r.Group(func(r chi.Router) {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
 			Pool:     pool,
 			Required: true,
 			Limiter:  limiter,
 		}))
+		taskHandler.Mount(r)
 		h.Mount(r)
 	})
 

@@ -17,7 +17,35 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+
+	"github.com/ruptiv/canary/internal/identity"
 )
+
+// requireTenant returns the authenticated claim's tenant id (GRO-928).
+// Replaces uuidParam(r, "tenant_id", true) at every site so the
+// tenant comes from the API-key claims, never from a query parameter
+// or header. If the request also supplies a tenant_id query param, it
+// MUST match the claim — otherwise 403 tenant_mismatch.
+func (h *Handler) requireTenant(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	claims, ok := identity.ClaimsFromContext(r.Context())
+	if !ok || claims.TenantID == uuid.Nil {
+		writeErr(w, http.StatusUnauthorized, "unauthenticated", "tenant claim required")
+		return uuid.Nil, false
+	}
+	if v := r.URL.Query().Get("tenant_id"); v != "" {
+		q, err := uuid.Parse(v)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "invalid_tenant_id", err.Error())
+			return uuid.Nil, false
+		}
+		if q != claims.TenantID {
+			writeErr(w, http.StatusForbidden, "tenant_mismatch",
+				"tenant_id query parameter does not match authenticated tenant")
+			return uuid.Nil, false
+		}
+	}
+	return claims.TenantID, true
+}
 
 // Handler is the HTTP layer for the task package.
 type Handler struct {
@@ -49,6 +77,18 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
+	// GRO-928: tenant comes from claims, not the body. If the body
+	// supplied a tenant_id and it doesn't match the claim, 403.
+	tenantID, ok := h.requireTenant(w, r)
+	if !ok {
+		return
+	}
+	if req.TenantID != uuid.Nil && req.TenantID != tenantID {
+		writeErr(w, http.StatusForbidden, "tenant_mismatch",
+			"body tenant_id does not match authenticated tenant")
+		return
+	}
+	req.TenantID = tenantID
 	clean, err := ValidateCreate(req)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "validation_failed", err.Error())
@@ -64,9 +104,8 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getNext(w http.ResponseWriter, r *http.Request) {
-	tenantID, err := uuidParam(r, "tenant_id", true)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "missing_tenant_id", err.Error())
+	tenantID, ok := h.requireTenant(w, r)
+	if !ok {
 		return
 	}
 	employeeID, err := uuidParam(r, "employee_id", true)
@@ -88,9 +127,8 @@ func (h *Handler) getNext(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getByID(w http.ResponseWriter, r *http.Request) {
-	tenantID, err := uuidParam(r, "tenant_id", true)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "missing_tenant_id", err.Error())
+	tenantID, ok := h.requireTenant(w, r)
+	if !ok {
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -112,9 +150,8 @@ func (h *Handler) getByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) updateStatus(w http.ResponseWriter, r *http.Request) {
-	tenantID, err := uuidParam(r, "tenant_id", true)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "missing_tenant_id", err.Error())
+	tenantID, ok := h.requireTenant(w, r)
+	if !ok {
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -145,9 +182,8 @@ func (h *Handler) updateStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) logException(w http.ResponseWriter, r *http.Request) {
-	tenantID, err := uuidParam(r, "tenant_id", true)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "missing_tenant_id", err.Error())
+	tenantID, ok := h.requireTenant(w, r)
+	if !ok {
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -174,9 +210,8 @@ func (h *Handler) logException(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) skip(w http.ResponseWriter, r *http.Request) {
-	tenantID, err := uuidParam(r, "tenant_id", true)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "missing_tenant_id", err.Error())
+	tenantID, ok := h.requireTenant(w, r)
+	if !ok {
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
