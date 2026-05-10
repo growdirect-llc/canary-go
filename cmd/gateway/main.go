@@ -455,16 +455,31 @@ func healthHandler(cfg *config.Config) http.HandlerFunc {
 }
 
 // buildResolver picks a secrets backend based on env vars and returns
-// a Resolver. Default is PgxResolver for dev; production sets
-// SECRET_BACKEND=sm + GCP_PROJECT_ID. If SECRET_BACKEND_REQUIRE_SM=1
-// is set, a failure to construct SmResolver is fatal — used in
-// production deployments to prevent silent fallback to plaintext.
+// a Resolver. Default is PgxResolver for dev; production REQUIRES
+// SECRET_BACKEND=sm + GCP_PROJECT_ID per GRO-930. The earlier
+// SECRET_BACKEND_REQUIRE_SM=1 opt-in is now subsumed by ENV=production
+// — production deploys cannot silently fall back to plaintext webhook
+// secrets regardless of which flag is set.
+//
+// Refuses to boot when ENV=production and:
+//   - SECRET_BACKEND is unset, "pgx", or any value other than "sm"
+//   - GCP_PROJECT_ID is empty
+//   - SmResolver construction fails
+//
+// Always logs the resolved backend at startup so the active surface
+// is observable.
 func buildResolver(ctx context.Context, pool *pgxpool.Pool, logger *zap.Logger) secrets.Resolver {
+	isProd := os.Getenv("ENV") == "production"
 	backend := os.Getenv("SECRET_BACKEND")
 	if backend == "" {
 		backend = "pgx"
 	}
 	if backend != "sm" {
+		if isProd {
+			logger.Fatal("SECRET_BACKEND must be 'sm' in production; refusing to boot",
+				zap.String("got", backend),
+				zap.String("hint", "set SECRET_BACKEND=sm + GCP_PROJECT_ID. The pgx resolver stores plaintext and is dev-only."))
+		}
 		logger.Info("secrets backend",
 			zap.String("backend", "pgx"),
 			zap.String("note", "plaintext column lookup; dev only"),
@@ -474,6 +489,12 @@ func buildResolver(ctx context.Context, pool *pgxpool.Pool, logger *zap.Logger) 
 
 	projectID := os.Getenv("GCP_PROJECT_ID")
 	if projectID == "" {
+		if isProd {
+			logger.Fatal("SECRET_BACKEND=sm requires GCP_PROJECT_ID in production")
+		}
+		// Legacy SECRET_BACKEND_REQUIRE_SM=1 flag remains honored for
+		// non-production environments that want the same fail-closed
+		// behavior (e.g. staging mirroring prod).
 		if os.Getenv("SECRET_BACKEND_REQUIRE_SM") == "1" {
 			logger.Fatal("SECRET_BACKEND=sm requires GCP_PROJECT_ID")
 		}
@@ -483,6 +504,11 @@ func buildResolver(ctx context.Context, pool *pgxpool.Pool, logger *zap.Logger) 
 
 	smResolver, err := secrets.NewSmResolver(ctx, pool, projectID, secrets.WithLogger(logger))
 	if err != nil {
+		if isProd {
+			logger.Fatal("SmResolver construct failed in production",
+				zap.Error(err),
+				zap.String("hint", "fix Application Default Credentials / Secret Manager access before redeploy"))
+		}
 		if os.Getenv("SECRET_BACKEND_REQUIRE_SM") == "1" {
 			logger.Fatal("SmResolver construct failed", zap.Error(err))
 		}
@@ -496,6 +522,50 @@ func buildResolver(ctx context.Context, pool *pgxpool.Pool, logger *zap.Logger) 
 		zap.String("project_id", projectID),
 	)
 	return smResolver
+}
+
+// secretBackendDecision is the resolved buildResolver path picked for
+// a given (ENV, SECRET_BACKEND, GCP_PROJECT_ID) tuple. Extracted so
+// tests can pin the production fail-closed behavior without booting
+// the gateway. GRO-930.
+type secretBackendDecision int
+
+const (
+	// secretBackendOK_SM: SmResolver construction will be attempted.
+	secretBackendOK_SM secretBackendDecision = iota
+	// secretBackendOK_Pgx: PgxResolver — dev/staging acceptable, never
+	// reached in production.
+	secretBackendOK_Pgx
+	// secretBackendFatalProductionMissingSM: ENV=production but
+	// SECRET_BACKEND is not "sm".
+	secretBackendFatalProductionMissingSM
+	// secretBackendFatalProductionMissingProject: ENV=production +
+	// SECRET_BACKEND=sm but GCP_PROJECT_ID empty.
+	secretBackendFatalProductionMissingProject
+)
+
+// resolveSecretBackend mirrors buildResolver's gating logic so the
+// production fail-closed truth table can be unit-tested. It does not
+// itself construct any resolver — it only reports which arm the real
+// builder would take.
+func resolveSecretBackend(envValue, backend, gcpProjectID string) secretBackendDecision {
+	isProd := envValue == "production"
+	if backend == "" {
+		backend = "pgx"
+	}
+	if backend != "sm" {
+		if isProd {
+			return secretBackendFatalProductionMissingSM
+		}
+		return secretBackendOK_Pgx
+	}
+	if gcpProjectID == "" {
+		if isProd {
+			return secretBackendFatalProductionMissingProject
+		}
+		return secretBackendOK_Pgx
+	}
+	return secretBackendOK_SM
 }
 
 // buildCSRFKey loads the CSRF auth key from CSRF_SECRET (32-byte hex).
