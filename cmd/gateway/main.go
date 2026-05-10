@@ -23,6 +23,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -176,7 +177,11 @@ func main() {
 	mcp.RegisterEmployeeTools(mcpRegistry, employeePkg.NewStore(pool))
 	mcp.RegisterReturnsTools(mcpRegistry, returnsPkg.NewStore(pool))
 	mcp.RegisterReportTools(mcpRegistry, reportPkg.NewPgxStore(pool))
-	mcpHandler := mcp.New(mcpRegistry)
+	// GRO-936: every tools/call lands a row in app.audit_log via the
+	// same PgxInserter the webhook + admin surfaces use. The adapter
+	// maps mcp.AuditEvent → audit.Entry.
+	mcpAuditRecorder := newMCPAuditRecorder(audit.NewPgxInserter(pool), serviceName)
+	mcpHandler := mcp.NewWithAudit(mcpRegistry, mcpAuditRecorder, logger)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP, middleware.Recoverer)
@@ -625,4 +630,45 @@ func requestLogger(logger *zap.Logger) func(http.Handler) http.Handler {
 			)
 		})
 	}
+}
+
+// mcpAuditRecorder bridges mcp.AuditRecorder to the existing
+// audit.Inserter so MCP rows land in the same app.audit_log table as
+// the webhook + admin surfaces (GRO-936). The action column carries
+// the MCP tool name so log queries can pivot on it without parsing
+// the path; tool_name is also populated for explicit MCP queries.
+type mcpAuditRecorder struct {
+	inserter    audit.Inserter
+	serviceName string
+}
+
+func newMCPAuditRecorder(inserter audit.Inserter, serviceName string) *mcpAuditRecorder {
+	return &mcpAuditRecorder{inserter: inserter, serviceName: serviceName}
+}
+
+func (r *mcpAuditRecorder) Record(ctx context.Context, e mcp.AuditEvent) error {
+	entry := audit.Entry{
+		Action:        "POST /mcp " + e.ToolName,
+		Resource:      "mcp.tool_call",
+		PayloadDigest: e.ArgsDigest,
+		RequestID:     e.RequestID,
+		// Status string lives in mcp.AuditEvent because JSON-RPC
+		// errors are not HTTP status codes; we surface "ok" or the
+		// rpc error code in the user_agent column-adjacent slot via
+		// SourceCode so dashboards can pivot without a join.
+		SourceCode: e.Status,
+		LatencyMS:  e.LatencyMS,
+		ActorType:  "agent",
+		MCPServer:  r.serviceName,
+		ToolName:   e.ToolName,
+	}
+	if e.TenantID != uuid.Nil {
+		mid := e.TenantID
+		entry.MerchantID = &mid
+	}
+	if e.KeyID != uuid.Nil {
+		kid := e.KeyID
+		entry.ResourceID = &kid
+	}
+	return r.inserter.Insert(ctx, entry)
 }

@@ -368,3 +368,191 @@ func TestToolsCall_NoRequiredScope_AllowsUnscopedTools(t *testing.T) {
 		t.Errorf("unscoped tool should run without claims; got rpc code %d", got)
 	}
 }
+
+// ─── GRO-936 MCP audit emission ──────────────────────────────────────
+
+// stubRecorder captures the most recent AuditEvent. err lets tests
+// assert handlers stay fail-open on recorder failures.
+type stubRecorder struct {
+	events []mcp.AuditEvent
+	err    error
+}
+
+func (s *stubRecorder) Record(_ context.Context, e mcp.AuditEvent) error {
+	s.events = append(s.events, e)
+	return s.err
+}
+
+// scopedReqWithRecorder mirrors scopedReq but constructs a Handler
+// via NewWithAudit so the recorder is wired in.
+func scopedReqWithRecorder(t *testing.T, reg *mcp.Registry, rec mcp.AuditRecorder, scopes []string, params map[string]any, requestID string) *httptest.ResponseRecorder {
+	t.Helper()
+	h := mcp.NewWithAudit(reg, rec, nil)
+	body, _ := json.Marshal(map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": params,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	if requestID != "" {
+		req.Header.Set("X-Request-ID", requestID)
+	}
+	keyID := uuid.New()
+	tenantID := uuid.New()
+	ctx := identity.InjectClaims(req.Context(), identity.Claims{
+		AuthMethod: identity.AuthMethodAPIKey,
+		TenantID:   tenantID,
+		KeyID:      keyID,
+		Scopes:     scopes,
+	})
+	req = req.WithContext(ctx)
+
+	r := chi.NewRouter()
+	h.Mount(r)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
+// TestToolsCall_Audit_RecordsOnSuccess is the GRO-936 acceptance probe.
+// A successful tools/call MUST produce exactly one audit event whose
+// fields capture: tool name, tenant id, key id, args hash, "ok" status,
+// non-zero latency, request id. The args field itself is NOT recorded
+// — only its SHA-256 — so customer PII passing through tool arguments
+// stays out of app.audit_log.
+//
+// Fails pre-fix because pre-GRO-936 the handler did not call any
+// recorder; events array stays empty.
+func TestToolsCall_Audit_RecordsOnSuccess(t *testing.T) {
+	reg := mcp.NewRegistry()
+	reg.Register(mcp.ToolDef{
+		Name:          "canary.alert.list",
+		Description:   "list",
+		InputSchema:   json.RawMessage(`{"type":"object"}`),
+		RequiredScope: "alert:read",
+	}, func(ctx context.Context, _ json.RawMessage) (any, error) {
+		return map[string]any{"alerts": []any{}}, nil
+	})
+	rec := &stubRecorder{}
+
+	args := json.RawMessage(`{"limit":10}`)
+	params := map[string]any{"name": "canary.alert.list", "arguments": json.RawMessage(args)}
+	w := scopedReqWithRecorder(t, reg, rec, []string{"alert:read"}, params, "req-abc-123")
+
+	if got := rpcErrorCode(t, w.Body.Bytes()); got != 0 {
+		t.Fatalf("expected success, got rpc code %d (body=%s)", got, w.Body.String())
+	}
+	if len(rec.events) != 1 {
+		t.Fatalf("audit events: got %d, want 1", len(rec.events))
+	}
+	e := rec.events[0]
+	if e.ToolName != "canary.alert.list" {
+		t.Errorf("tool name: got %q, want canary.alert.list", e.ToolName)
+	}
+	if e.Status != "ok" {
+		t.Errorf("status: got %q, want ok", e.Status)
+	}
+	if e.TenantID == uuid.Nil {
+		t.Errorf("tenant id should be populated from claims")
+	}
+	if e.KeyID == uuid.Nil {
+		t.Errorf("key id should be populated from claims")
+	}
+	if e.RequestID != "req-abc-123" {
+		t.Errorf("request id: got %q, want req-abc-123", e.RequestID)
+	}
+	// PII guard: the raw args MUST NOT be reflected verbatim. Hash MUST be set
+	// (32-byte SHA-256 → 64 hex chars).
+	if len(e.ArgsDigest) != 64 {
+		t.Errorf("args digest: expected 64-char sha256 hex, got %q", e.ArgsDigest)
+	}
+}
+
+// TestToolsCall_Audit_RecordsOnScopeDenial verifies a scope-denied
+// dispatch still produces an audit row — incident response needs to
+// see the attempt, not just the success. Status carries the rpc error
+// code as a string so dashboards can pivot on "denied" without a join.
+func TestToolsCall_Audit_RecordsOnScopeDenial(t *testing.T) {
+	reg := mcp.NewRegistry()
+	reg.Register(mcp.ToolDef{
+		Name:          "canary.alert.acknowledge",
+		Description:   "ack",
+		InputSchema:   json.RawMessage(`{"type":"object"}`),
+		RequiredScope: "alert:write",
+	}, func(ctx context.Context, _ json.RawMessage) (any, error) {
+		return map[string]any{"ok": true}, nil
+	})
+	rec := &stubRecorder{}
+
+	params := map[string]any{"name": "canary.alert.acknowledge", "arguments": map[string]any{}}
+	w := scopedReqWithRecorder(t, reg, rec, []string{"alert:read"}, params, "")
+
+	if got := rpcErrorCode(t, w.Body.Bytes()); got != -32001 {
+		t.Fatalf("expected -32001, got %d", got)
+	}
+	if len(rec.events) != 1 {
+		t.Fatalf("scope-denied call should still emit audit: got %d events", len(rec.events))
+	}
+	if rec.events[0].Status != "-32001" {
+		t.Errorf("status: got %q, want -32001", rec.events[0].Status)
+	}
+	if rec.events[0].ToolName != "canary.alert.acknowledge" {
+		t.Errorf("tool name should be the attempted tool")
+	}
+}
+
+// TestToolsCall_Audit_RecordFailureIsNotFatal verifies the recorder
+// is fail-open: a Record error MUST NOT turn into a 500 from the
+// handler. The response must still carry the dispatch result.
+func TestToolsCall_Audit_RecordFailureIsNotFatal(t *testing.T) {
+	reg := mcp.NewRegistry()
+	reg.Register(mcp.ToolDef{
+		Name:          "canary.alert.list",
+		Description:   "list",
+		InputSchema:   json.RawMessage(`{"type":"object"}`),
+		RequiredScope: "alert:read",
+	}, func(ctx context.Context, _ json.RawMessage) (any, error) {
+		return map[string]any{"alerts": []any{}}, nil
+	})
+	rec := &stubRecorder{err: errAuditDown}
+
+	params := map[string]any{"name": "canary.alert.list", "arguments": map[string]any{}}
+	w := scopedReqWithRecorder(t, reg, rec, []string{"alert:read"}, params, "")
+
+	if got := rpcErrorCode(t, w.Body.Bytes()); got != 0 {
+		t.Errorf("recorder error must not surface as rpc error; got code %d", got)
+	}
+	if len(rec.events) != 1 {
+		t.Errorf("recorder should still have been invoked once")
+	}
+}
+
+// errAuditDown is a tiny shim for the fail-open test.
+type errAuditDownT struct{}
+
+func (errAuditDownT) Error() string { return "audit store unavailable" }
+
+var errAuditDown = errAuditDownT{}
+
+// TestToolsCall_Audit_NilRecorderIsOK verifies a Handler built via
+// New() (no recorder) keeps working — the audit emission is opt-in.
+// Belt-and-suspenders for any code path that constructs a registry
+// without wiring audit.
+func TestToolsCall_Audit_NilRecorderIsOK(t *testing.T) {
+	reg := mcp.NewRegistry()
+	reg.Register(mcp.ToolDef{
+		Name:        "canary.test.ping",
+		Description: "ping",
+		InputSchema: json.RawMessage(`{"type":"object"}`),
+	}, func(ctx context.Context, _ json.RawMessage) (any, error) {
+		return map[string]any{"pong": true}, nil
+	})
+	h := mcp.New(reg) // no recorder
+
+	w := postMCP(t, h, map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+		"params": map[string]any{"name": "canary.test.ping", "arguments": map[string]any{}},
+	})
+	if got := rpcErrorCode(t, w.Body.Bytes()); got != 0 {
+		t.Errorf("nil recorder should not affect dispatch; rpc code = %d", got)
+	}
+}
