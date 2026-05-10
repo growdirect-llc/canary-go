@@ -87,9 +87,13 @@ func NewServer(
 	// per GRO-895.
 	refreshFamilyStore := refreshfamily.New(pool)
 
-	// /auth/login — credential exchange (T-1.a / GRO-848).
+	// /auth/login — credential exchange (T-1.a / GRO-848). Limiter
+	// (GRO-954) mirrors the API-key brute-force half on (email, ip)
+	// buckets — 5 fails / 5 min per email → 15 min lockout; 20 fails
+	// / 5 min per IP → 15 min lockout.
 	personStore := auth.NewPersonStore(identityPool)
-	auth.NewLoginHandler(personStore, tokenMinter, refreshFamilyStore, logger).Mount(r)
+	loginLimiter := newLoginLimiterAdapter(identity.NewLoginRateLimiter(rdb, identity.LoginLockoutConfig{}))
+	auth.NewLoginHandler(personStore, tokenMinter, refreshFamilyStore, loginLimiter, logger).Mount(r)
 
 	// /auth/refresh — token rotation with reuse detection (T-1.b).
 	// personStore reload (GRO-949) refuses rotation for deactivated
@@ -188,4 +192,32 @@ func stub(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNotImplemented)
 	w.Write([]byte(`{"error":"not_implemented"}`))
+}
+
+// loginLimiterAdapter bridges *identity.LoginRateLimiter (concrete) to
+// the auth.LoginLimiter interface. Lives at the wiring layer to avoid
+// pulling identity types into the auth package.
+type loginLimiterAdapter struct {
+	inner *identity.LoginRateLimiter
+}
+
+func newLoginLimiterAdapter(inner *identity.LoginRateLimiter) auth.LoginLimiter {
+	return &loginLimiterAdapter{inner: inner}
+}
+
+func (a *loginLimiterAdapter) Check(ctx context.Context, email, ip string) (auth.LoginLockoutStatus, error) {
+	st, err := a.inner.Check(ctx, email, ip)
+	return auth.LoginLockoutStatus{Locked: st.Locked, RetryAfter: st.RetryAfter}, err
+}
+
+func (a *loginLimiterAdapter) RecordFailure(ctx context.Context, email, ip string) (auth.LoginFailureRecord, error) {
+	r, err := a.inner.RecordFailure(ctx, email, ip)
+	return auth.LoginFailureRecord{
+		AccountLockedNow: r.AccountLockedNow,
+		IPLockedNow:      r.IPLockedNow,
+	}, err
+}
+
+func (a *loginLimiterAdapter) Clear(ctx context.Context, email string) error {
+	return a.inner.Clear(ctx, email)
 }

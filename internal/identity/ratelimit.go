@@ -38,6 +38,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -232,12 +233,246 @@ func (l *RateLimiter) AllowSuccess(ctx context.Context, keyID uuid.UUID, rateLim
 	}, nil
 }
 
+// ── Login brute-force limiter (GRO-954) ───────────────────────────────
+//
+// Mirrors the API-key brute-force half on a distinct Valkey key
+// namespace. Two independent buckets so an attacker cannot bypass by
+// rotating across one axis:
+//
+//   - per-account: aggregates across all source IPs. Catches credential
+//     stuffing that fans out a single account across a botnet.
+//   - per-source-IP: aggregates across all accounts. Catches a single
+//     source running through a list of accounts.
+//
+// Either bucket independently triggers a lockout on (email, *, lockout
+// TTL) or (*, ip, lockout TTL); the handler refuses the login if EITHER
+// is locked.
+//
+// Email is normalized (TrimSpace + ToLower) before hashing into the
+// Valkey key so case-only variants share a bucket.
+
+// LoginLockoutConfig holds the policy. Defaults are intentionally
+// stricter than the API-key counters: credential brute force is a
+// higher-stakes attack than spraying API-key prefixes.
+type LoginLockoutConfig struct {
+	// PerAccountWindow — failed-attempt counter expiration per email.
+	// Default 5 minutes.
+	PerAccountWindow time.Duration
+
+	// PerAccountThreshold — failures within Window for one email that
+	// trigger an account lockout. Default 5.
+	PerAccountThreshold int
+
+	// PerAccountLockoutFor — how long an account lockout sticks.
+	// Default 15 minutes.
+	PerAccountLockoutFor time.Duration
+
+	// PerIPWindow — failed-attempt counter expiration per source IP.
+	// Default 5 minutes.
+	PerIPWindow time.Duration
+
+	// PerIPThreshold — failures within Window from one IP that trigger
+	// an IP lockout. Default 20 (more permissive than per-account
+	// because shared NATs can legitimately produce more failures).
+	PerIPThreshold int
+
+	// PerIPLockoutFor — how long an IP lockout sticks. Default 15
+	// minutes.
+	PerIPLockoutFor time.Duration
+}
+
+// DefaultLoginLockoutConfig returns reasonable defaults.
+func DefaultLoginLockoutConfig() LoginLockoutConfig {
+	return LoginLockoutConfig{
+		PerAccountWindow:     5 * time.Minute,
+		PerAccountThreshold:  5,
+		PerAccountLockoutFor: 15 * time.Minute,
+		PerIPWindow:          5 * time.Minute,
+		PerIPThreshold:       20,
+		PerIPLockoutFor:      15 * time.Minute,
+	}
+}
+
+// LoginRateLimiter is the entrypoint used by /auth/login. nil-safe at
+// the public method level so callers can pass a nil pointer and the
+// methods become no-ops.
+type LoginRateLimiter struct {
+	client *redis.Client
+	cfg    LoginLockoutConfig
+}
+
+// NewLoginRateLimiter wraps client. Pass nil to get a no-op limiter.
+// Zero fields in cfg take defaults from DefaultLoginLockoutConfig.
+func NewLoginRateLimiter(client *redis.Client, cfg LoginLockoutConfig) *LoginRateLimiter {
+	def := DefaultLoginLockoutConfig()
+	if cfg.PerAccountWindow == 0 {
+		cfg.PerAccountWindow = def.PerAccountWindow
+	}
+	if cfg.PerAccountThreshold == 0 {
+		cfg.PerAccountThreshold = def.PerAccountThreshold
+	}
+	if cfg.PerAccountLockoutFor == 0 {
+		cfg.PerAccountLockoutFor = def.PerAccountLockoutFor
+	}
+	if cfg.PerIPWindow == 0 {
+		cfg.PerIPWindow = def.PerIPWindow
+	}
+	if cfg.PerIPThreshold == 0 {
+		cfg.PerIPThreshold = def.PerIPThreshold
+	}
+	if cfg.PerIPLockoutFor == 0 {
+		cfg.PerIPLockoutFor = def.PerIPLockoutFor
+	}
+	return &LoginRateLimiter{client: client, cfg: cfg}
+}
+
+// Check returns Locked=true if EITHER the per-account or per-IP bucket
+// is currently locked out. RetryAfter is the longer of the two TTLs so
+// the caller's Retry-After header is conservative. Fail-open: a Valkey
+// error returns LockoutStatus{} with the error so the handler can log
+// and proceed (a Valkey blip should not take down login).
+func (l *LoginRateLimiter) Check(ctx context.Context, email, ip string) (LockoutStatus, error) {
+	if l == nil || l.client == nil {
+		return LockoutStatus{}, nil
+	}
+	email = normalizeEmail(email)
+	var maxRetry time.Duration
+	locked := false
+	if email != "" {
+		ttl, err := l.client.PTTL(ctx, loginAccountLockoutKey(email)).Result()
+		if err != nil {
+			return LockoutStatus{}, fmt.Errorf("ratelimit: login account pttl: %w", err)
+		}
+		if ttl > 0 {
+			locked = true
+			if ttl > maxRetry {
+				maxRetry = ttl
+			}
+		}
+	}
+	if ip != "" {
+		ttl, err := l.client.PTTL(ctx, loginIPLockoutKey(ip)).Result()
+		if err != nil {
+			return LockoutStatus{}, fmt.Errorf("ratelimit: login ip pttl: %w", err)
+		}
+		if ttl > 0 {
+			locked = true
+			if ttl > maxRetry {
+				maxRetry = ttl
+			}
+		}
+	}
+	return LockoutStatus{Locked: locked, RetryAfter: maxRetry}, nil
+}
+
+// LoginFailureResult reports which buckets, if any, transitioned into a
+// new lockout on this call. Callers use the booleans to decide whether
+// to emit a security log (one log per lockout, not per failed attempt).
+type LoginFailureResult struct {
+	AccountLockedNow bool
+	IPLockedNow      bool
+}
+
+// RecordFailure increments both bucket counters and sets a lockout key
+// on whichever crosses its threshold. Callers should treat a non-nil
+// error as fail-open — log and continue.
+func (l *LoginRateLimiter) RecordFailure(ctx context.Context, email, ip string) (LoginFailureResult, error) {
+	if l == nil || l.client == nil {
+		return LoginFailureResult{}, nil
+	}
+	email = normalizeEmail(email)
+	var result LoginFailureResult
+
+	if email != "" {
+		count, err := l.incrWithExpire(ctx, loginAccountFailKey(email), l.cfg.PerAccountWindow)
+		if err != nil {
+			return result, fmt.Errorf("ratelimit: login account fail: %w", err)
+		}
+		if count >= int64(l.cfg.PerAccountThreshold) {
+			ok, err := l.client.SetNX(ctx, loginAccountLockoutKey(email), "1", l.cfg.PerAccountLockoutFor).Result()
+			if err != nil {
+				return result, fmt.Errorf("ratelimit: login account lockout set: %w", err)
+			}
+			result.AccountLockedNow = ok
+		}
+	}
+
+	if ip != "" {
+		count, err := l.incrWithExpire(ctx, loginIPFailKey(ip), l.cfg.PerIPWindow)
+		if err != nil {
+			return result, fmt.Errorf("ratelimit: login ip fail: %w", err)
+		}
+		if count >= int64(l.cfg.PerIPThreshold) {
+			ok, err := l.client.SetNX(ctx, loginIPLockoutKey(ip), "1", l.cfg.PerIPLockoutFor).Result()
+			if err != nil {
+				return result, fmt.Errorf("ratelimit: login ip lockout set: %w", err)
+			}
+			result.IPLockedNow = ok
+		}
+	}
+	return result, nil
+}
+
+// Clear removes the per-account counter and lockout. Called on a
+// successful login so a couple of mistaken attempts followed by the
+// right password don't accumulate toward a future lockout. The per-IP
+// counter is intentionally NOT cleared — one user authenticating
+// successfully from a NAT shouldn't reset failure tracking that may
+// reflect a separate attacker on the same IP.
+func (l *LoginRateLimiter) Clear(ctx context.Context, email string) error {
+	if l == nil || l.client == nil || email == "" {
+		return nil
+	}
+	email = normalizeEmail(email)
+	if err := l.client.Del(ctx, loginAccountFailKey(email), loginAccountLockoutKey(email)).Err(); err != nil {
+		return fmt.Errorf("ratelimit: login clear: %w", err)
+	}
+	return nil
+}
+
+// incrWithExpire applies the same INCR+EXPIRE pipeline used by the
+// API-key limiter. EXPIRE on every hit is a known harmless quirk —
+// the counter naturally rolls over after Window seconds anyway.
+func (l *LoginRateLimiter) incrWithExpire(ctx context.Context, key string, window time.Duration) (int64, error) {
+	pipe := l.client.Pipeline()
+	incr := pipe.Incr(ctx, key)
+	pipe.Expire(ctx, key, window)
+	if _, err := pipe.Exec(ctx); err != nil {
+		return 0, err
+	}
+	return incr.Val(), nil
+}
+
+func normalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
+func loginAccountFailKey(email string) string {
+	return fmt.Sprintf("%s:%s", keyPrefixLoginAccountFail, email)
+}
+
+func loginAccountLockoutKey(email string) string {
+	return fmt.Sprintf("%s:%s", keyPrefixLoginAccountLock, email)
+}
+
+func loginIPFailKey(ip string) string {
+	return fmt.Sprintf("%s:%s", keyPrefixLoginIPFail, ip)
+}
+
+func loginIPLockoutKey(ip string) string {
+	return fmt.Sprintf("%s:%s", keyPrefixLoginIPLock, ip)
+}
+
 // ── Internals ─────────────────────────────────────────────────────────
 
 const (
-	keyPrefixLockout    = "apikey:bf:lock"
-	keyPrefixFailCount  = "apikey:bf:fail"
-	keyPrefixPerKeyRate = "apikey:rl"
+	keyPrefixLockout          = "apikey:bf:lock"
+	keyPrefixFailCount        = "apikey:bf:fail"
+	keyPrefixPerKeyRate       = "apikey:rl"
+	keyPrefixLoginAccountFail = "login:bf:account:fail"
+	keyPrefixLoginAccountLock = "login:bf:account:lock"
+	keyPrefixLoginIPFail      = "login:bf:ip:fail"
+	keyPrefixLoginIPLock      = "login:bf:ip:lock"
 )
 
 func lockoutKey(prefix, ip string) string {

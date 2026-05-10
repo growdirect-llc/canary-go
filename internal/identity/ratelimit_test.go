@@ -226,3 +226,193 @@ func TestSourceIP_StripsPort(t *testing.T) {
 		}
 	}
 }
+
+// ─── GRO-954 LoginRateLimiter tests ───────────────────────────────────
+
+// TestLoginRateLimiter_AccountLockoutAtThreshold drives the per-account
+// counter up to the threshold and asserts:
+//
+//   - Check returns Locked=false until the threshold is crossed.
+//   - The threshold-crossing call returns AccountLockedNow=true exactly
+//     once (idempotent — subsequent failures don't re-trigger the log).
+//   - Check then returns Locked=true with a positive RetryAfter ≤ the
+//     configured PerAccountLockoutFor.
+//
+// This is the GRO-954 integration probe — drives the real Valkey
+// pipeline, not just the handler stubs.
+func TestLoginRateLimiter_AccountLockoutAtThreshold(t *testing.T) {
+	c := valkeyTestClient(t)
+	l := NewLoginRateLimiter(c, LoginLockoutConfig{
+		PerAccountWindow:     1 * time.Minute,
+		PerAccountThreshold:  3,
+		PerAccountLockoutFor: 30 * time.Second,
+		PerIPWindow:          1 * time.Minute,
+		PerIPThreshold:       100, // high so account threshold trips first
+		PerIPLockoutFor:      30 * time.Second,
+	})
+
+	email := "lockout-" + t.Name() + "@example.test"
+	ip := uniqueIP(t)
+	ctx := context.Background()
+
+	// Clean residue from prior runs.
+	_ = c.Del(ctx,
+		loginAccountFailKey(normalizeEmail(email)),
+		loginAccountLockoutKey(normalizeEmail(email)),
+		loginIPFailKey(ip),
+		loginIPLockoutKey(ip),
+	).Err()
+	t.Cleanup(func() {
+		_ = c.Del(context.Background(),
+			loginAccountFailKey(normalizeEmail(email)),
+			loginAccountLockoutKey(normalizeEmail(email)),
+			loginIPFailKey(ip),
+			loginIPLockoutKey(ip),
+		).Err()
+	})
+
+	// Before any failures: not locked.
+	st, err := l.Check(ctx, email, ip)
+	if err != nil {
+		t.Fatalf("initial Check: %v", err)
+	}
+	if st.Locked {
+		t.Fatalf("initial state should be unlocked")
+	}
+
+	// Drive failures up to the threshold. Only the threshold-crossing
+	// call should return AccountLockedNow=true.
+	var seenLockedNow int
+	for i := 1; i <= 3; i++ {
+		res, err := l.RecordFailure(ctx, email, ip)
+		if err != nil {
+			t.Fatalf("RecordFailure[%d]: %v", i, err)
+		}
+		if res.AccountLockedNow {
+			seenLockedNow++
+		}
+		if res.IPLockedNow {
+			t.Errorf("IPLockedNow at i=%d (per-IP threshold=100; should not trip)", i)
+		}
+	}
+	if seenLockedNow != 1 {
+		t.Errorf("AccountLockedNow returned true %d times, want exactly 1 (idempotent)", seenLockedNow)
+	}
+
+	// Now locked.
+	st, err = l.Check(ctx, email, ip)
+	if err != nil {
+		t.Fatalf("post-threshold Check: %v", err)
+	}
+	if !st.Locked {
+		t.Fatalf("Check should report Locked after threshold crossed")
+	}
+	if st.RetryAfter <= 0 || st.RetryAfter > 30*time.Second {
+		t.Errorf("RetryAfter: got %v, want (0, 30s]", st.RetryAfter)
+	}
+
+	// Subsequent failures don't re-trigger AccountLockedNow.
+	res, err := l.RecordFailure(ctx, email, ip)
+	if err != nil {
+		t.Fatalf("post-lockout RecordFailure: %v", err)
+	}
+	if res.AccountLockedNow {
+		t.Errorf("AccountLockedNow returned true on already-locked bucket (not idempotent)")
+	}
+}
+
+// TestLoginRateLimiter_ClearResetsCounter verifies a successful login's
+// Clear() removes the per-account bucket so subsequent failures start
+// from zero.
+func TestLoginRateLimiter_ClearResetsCounter(t *testing.T) {
+	c := valkeyTestClient(t)
+	l := NewLoginRateLimiter(c, LoginLockoutConfig{
+		PerAccountWindow:     1 * time.Minute,
+		PerAccountThreshold:  3,
+		PerAccountLockoutFor: 30 * time.Second,
+	})
+
+	email := "clear-" + t.Name() + "@example.test"
+	ip := uniqueIP(t)
+	ctx := context.Background()
+	t.Cleanup(func() {
+		_ = c.Del(context.Background(),
+			loginAccountFailKey(normalizeEmail(email)),
+			loginAccountLockoutKey(normalizeEmail(email)),
+			loginIPFailKey(ip),
+			loginIPLockoutKey(ip),
+		).Err()
+	})
+
+	// Two failures (below threshold).
+	for i := 0; i < 2; i++ {
+		if _, err := l.RecordFailure(ctx, email, ip); err != nil {
+			t.Fatalf("RecordFailure: %v", err)
+		}
+	}
+
+	// Clear (simulates successful login).
+	if err := l.Clear(ctx, email); err != nil {
+		t.Fatalf("Clear: %v", err)
+	}
+
+	// Two more failures should NOT trigger the lockout — the counter
+	// reset, so we're back to N=2 of 3.
+	for i := 0; i < 2; i++ {
+		res, err := l.RecordFailure(ctx, email, ip)
+		if err != nil {
+			t.Fatalf("post-clear RecordFailure[%d]: %v", i, err)
+		}
+		if res.AccountLockedNow {
+			t.Errorf("lockout fired at i=%d after Clear (should require 3 fresh failures)", i)
+		}
+	}
+}
+
+// TestLoginRateLimiter_NormalizeEmail verifies case-only and
+// whitespace-only variants share the same bucket. Without this, an
+// attacker could rotate "Foo@x.com" / "FOO@x.com" / " foo@x.com " to
+// reset the counter on every attempt.
+func TestLoginRateLimiter_NormalizeEmail(t *testing.T) {
+	c := valkeyTestClient(t)
+	l := NewLoginRateLimiter(c, LoginLockoutConfig{
+		PerAccountWindow:     1 * time.Minute,
+		PerAccountThreshold:  3,
+		PerAccountLockoutFor: 30 * time.Second,
+	})
+	ctx := context.Background()
+	base := "norm-" + t.Name() + "@example.test"
+	normalized := normalizeEmail(base)
+	// Pre-clear so a re-run within the lockout TTL still starts fresh.
+	// Cleanup runs only on exit; previous runs' lockout keys would
+	// otherwise make SetNX a no-op for the threshold-crossing call.
+	_ = c.Del(ctx,
+		loginAccountFailKey(normalized),
+		loginAccountLockoutKey(normalized),
+	).Err()
+	t.Cleanup(func() {
+		_ = c.Del(context.Background(),
+			loginAccountFailKey(normalized),
+			loginAccountLockoutKey(normalized),
+		).Err()
+	})
+
+	variants := []string{
+		base,
+		strings.ToUpper(base),
+		"   " + base + "   ",
+	}
+	var lockedNow bool
+	for i, v := range variants {
+		res, err := l.RecordFailure(ctx, v, "")
+		if err != nil {
+			t.Fatalf("RecordFailure[%d]: %v", i, err)
+		}
+		if res.AccountLockedNow {
+			lockedNow = true
+		}
+	}
+	if !lockedNow {
+		t.Errorf("3 case/whitespace-variant failures should share a bucket and lock the account")
+	}
+}
