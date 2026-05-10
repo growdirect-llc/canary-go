@@ -43,6 +43,12 @@ func main() {
 	}
 	defer pool.Close()
 
+	// last_used_at aggregating writer (GRO-913). Replaces the
+	// per-request goroutine fan-out in identity.AuthenticateAPIKey
+	// with a single process-level batched flusher.
+	closeRecorder := cmdutil.MustLastUsedRecorder(ctx, pool)
+	defer closeRecorder()
+
 	identityPool, err := db.Connect(ctx, cfg.IdentityDatabaseURL)
 	if err != nil {
 		logger.Fatal("db connect (canary_identity_gcp)", zap.Error(err))

@@ -57,6 +57,9 @@ func main() {
 	limiter, closeLimiter := cmdutil.MustValkeyRateLimiter(cfg.ValkeyURL, logger)
 	defer closeLimiter()
 
+	closeRecorder := cmdutil.MustLastUsedRecorder(ctx, pool)
+	defer closeRecorder()
+
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP, middleware.Recoverer)
 	r.Use(requestLogger(logger))

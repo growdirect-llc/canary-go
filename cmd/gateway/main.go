@@ -236,6 +236,8 @@ func main() {
 	})
 
 	limiter := cmdutil.MustValkeyRateLimiterFromClient(rdb)
+	closeRecorder := cmdutil.MustLastUsedRecorder(ctx, pool)
+	defer closeRecorder()
 	r.Group(func(r chi.Router) {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
 			Pool:     pool,

@@ -214,9 +214,38 @@ func extractPrefix(plaintext string) string {
 	return plaintext[:keyPrefixLen]
 }
 
+// authLastUsed is the package-level LastUsedRecorder used by
+// AuthenticateAPIKey and authenticateByPrefix to record successful
+// auths. Set via SetLastUsedRecorder at process boot. nil ⇒ no-op
+// (preserves the legacy "fire goroutine, write directly" path? No —
+// nil simply skips recording. Wiring is opt-in per binary so tests
+// and binaries that don't yet construct a recorder keep working.)
+//
+// Package-level rather than threaded through every call so the auth
+// helpers' call sites stay clean and the migration to the recorder
+// is one set per binary instead of plumbing through every call site.
+var authLastUsed *LastUsedRecorder
+
+// SetLastUsedRecorder installs the process-level recorder. Call once
+// at boot before serving traffic. Passing nil clears the recorder
+// (useful in tests). The previous recorder, if any, is NOT closed —
+// the caller owns its lifecycle.
+//
+// Concurrency note: SetLastUsedRecorder is intended to be called once
+// at startup, before any auth path runs. Reads of authLastUsed by
+// concurrent auth paths under simultaneous Sets would race; that
+// pattern is not supported.
+func SetLastUsedRecorder(r *LastUsedRecorder) {
+	authLastUsed = r
+}
+
 // AuthenticateAPIKey verifies plaintext against app.api_keys and
-// returns the claim set on success. Updates last_used_at as a
-// side-effect — fire-and-forget UPDATE outside the request hot-path.
+// returns the claim set on success. Updates last_used_at via the
+// process-level LastUsedRecorder (GRO-913) — every successful auth
+// records a touch in memory; the recorder's background flusher
+// writes them out in batches. Falls back to a no-op when no
+// recorder is installed (the legacy per-request goroutine has been
+// removed in this PR).
 //
 // Lookup strategy (post-T-L):
 //  1. Extract the indexable prefix from the plaintext (cy_<8 chars>).
@@ -281,15 +310,9 @@ func AuthenticateAPIKey(ctx context.Context, pool *pgxpool.Pool, plaintext strin
 		if !ok {
 			continue
 		}
-		// matched — best-effort last_used_at update
-		go func(keyID uuid.UUID) {
-			ctx2, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer cancel()
-			_, _ = pool.Exec(ctx2,
-				`UPDATE app.api_keys SET last_used_at = now() WHERE id = $1`,
-				keyID,
-			)
-		}(id)
+		// matched — record touch via the aggregating recorder (GRO-913).
+		// Replaces the prior per-request goroutine + DB write.
+		authLastUsed.Touch(id)
 		return &APIKeyAuthClaims{
 			KeyID:        id,
 			TenantID:     tenantID,
@@ -338,14 +361,8 @@ func authenticateByPrefix(ctx context.Context, pool *pgxpool.Pool, plaintext, pr
 		if verr != nil || !ok {
 			continue
 		}
-		go func(keyID uuid.UUID) {
-			ctx2, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer cancel()
-			_, _ = pool.Exec(ctx2,
-				`UPDATE app.api_keys SET last_used_at = now() WHERE id = $1`,
-				keyID,
-			)
-		}(id)
+		// matched — record touch via the aggregating recorder (GRO-913).
+		authLastUsed.Touch(id)
 		return &APIKeyAuthClaims{
 			KeyID:        id,
 			TenantID:     tenantID,

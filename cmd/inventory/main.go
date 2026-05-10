@@ -76,8 +76,11 @@ func main() {
 	// the resolved claims, never from request header / body input.
 	// The background SaleConsumer goroutine started above does NOT
 	// route through HTTP and is unaffected; its tenant comes from the
-	// polled transaction rows. Rate limit per GRO-912.
+	// polled transaction rows. Rate limit per GRO-912; last_used_at
+	// aggregating writer per GRO-913.
 	limiter := cmdutil.MustValkeyRateLimiterFromClient(valkeyClient)
+	closeRecorder := cmdutil.MustLastUsedRecorder(ctx, pool)
+	defer closeRecorder()
 	r.Group(func(r chi.Router) {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
 			Pool:     pool,

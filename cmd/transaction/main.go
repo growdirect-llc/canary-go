@@ -49,6 +49,12 @@ func main() {
 	limiter, closeLimiter := cmdutil.MustValkeyRateLimiter(cfg.ValkeyURL, logger)
 	defer closeLimiter()
 
+	// last_used_at aggregating writer (GRO-913). Replaces the
+	// per-request goroutine fan-out in identity.AuthenticateAPIKey
+	// with a single process-level batched flusher.
+	closeRecorder := cmdutil.MustLastUsedRecorder(ctx, pool)
+	defer closeRecorder()
+
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP, middleware.Recoverer)
 	r.Get("/health", health(cfg))
