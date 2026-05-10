@@ -1,0 +1,25 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+targetRules = ["generic-api-key"]
+description = "Identity login tests use fixed fake password literals committed as fixtures."
+condition = "AND"
+paths = ['''cmd/identity/login_test\.go''']
+regexTarget = "match"
+regexes = [
+  '''password": "round-trip-pw-1234"''',
+  '''password": "family-pw-12345"''',
+]
+
+[[allowlists]]
+targetRules = ["square-access-token"]
+description = "Square auth tests use non-live EAAA-prefixed token fixtures."
+condition = "AND"
+paths = ['''internal/squareauth/squareauth_test\.go''']
+regexTarget = "match"
+regexes = [
+  '''EAAA-secret-merchant-token''',
+  '''EAAA-sandbox-token''',
+  '''EAAA-real-token-with-real-merchant-secret''',
+]

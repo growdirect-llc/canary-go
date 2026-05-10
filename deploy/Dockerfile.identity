@@ -7,6 +7,9 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /identity ./cmd/identity
 
 FROM alpine:3.19
-RUN apk add --no-cache ca-certificates tzdata
-COPY --from=builder /identity /identity
+RUN apk add --no-cache ca-certificates tzdata \
+    && addgroup -S -g 65532 nonroot \
+    && adduser -S -D -H -u 65532 -G nonroot -s /sbin/nologin nonroot
+COPY --from=builder --chown=nonroot:nonroot /identity /identity
+USER nonroot:nonroot
 ENTRYPOINT ["/identity"]

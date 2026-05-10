@@ -1,6 +1,7 @@
 package changefeed
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -144,11 +145,11 @@ func TestChangeFeed_StreamKeyFunc(t *testing.T) {
 
 func TestMemoryWatermark_AdvanceAndRead(t *testing.T) {
 	wm := NewMemoryWatermark()
-	if v, ok, _ := wm.Get(nil, "x"); v != 0 || ok {
+	if v, ok, _ := wm.Get(context.Background(), "x"); v != 0 || ok {
 		t.Errorf("empty watermark should return (0, false, nil), got (%d, %v)", v, ok)
 	}
 	wm.Advance("x", 100)
-	v, ok, err := wm.Get(nil, "x")
+	v, ok, err := wm.Get(context.Background(), "x")
 	if err != nil {
 		t.Fatalf("Get error: %v", err)
 	}
@@ -156,7 +157,7 @@ func TestMemoryWatermark_AdvanceAndRead(t *testing.T) {
 		t.Errorf("after Advance(100): got (%d, %v), want (100, true)", v, ok)
 	}
 	wm.Advance("x", 200)
-	v, _, _ = wm.Get(nil, "x")
+	v, _, _ = wm.Get(context.Background(), "x")
 	if v != 200 {
 		t.Errorf("Advance should overwrite: got %d, want 200", v)
 	}

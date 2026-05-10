@@ -1,10 +1,10 @@
 // Handler — chi routes for the Square OAuth demo flow.
 //
-//   GET  /                            landing page with "Connect Square" button
-//   GET  /auth/square                 OAuth start; sets state cookie; redirects to Square
-//   GET  /auth/square/callback        OAuth callback; exchanges code; stores token; sets session cookie; redirects to /dashboard
-//   GET  /dashboard                   server-rendered dashboard reading the connected merchant's Square data
-//   POST /auth/square/disconnect      delete the stored token; clear session cookie; redirect to /
+//	GET  /                            landing page with "Connect Square" button
+//	GET  /auth/square                 OAuth start; sets state cookie; redirects to Square
+//	GET  /auth/square/callback        OAuth callback; exchanges code; stores token; sets session cookie; redirects to /dashboard
+//	GET  /dashboard                   server-rendered dashboard reading the connected merchant's Square data
+//	POST /auth/square/disconnect      delete the stored token; clear session cookie; redirect to /
 //
 // Session is a HttpOnly, HMAC-SHA256-signed cookie carrying the internal
 // merchant_id (UUID) plus a signature keyed on SESSION_SECRET. Cookie
@@ -30,6 +30,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+
+	webcookie "github.com/ruptiv/canary/internal/web/cookie"
 )
 
 const (
@@ -95,13 +97,12 @@ func (s *Service) handleDevDemoLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "demo merchant id parse failed", http.StatusInternalServerError)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{
+	webcookie.Set(w, webcookie.Spec{
 		Name:     sessionCookieName,
 		Value:    s.signCookieValue(merchantID),
 		Path:     "/",
 		MaxAge:   sessionMaxAge,
 		HttpOnly: true,
-		Secure:   r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
 		SameSite: http.SameSiteLaxMode,
 	})
 	s.logger.Info("squareauth demo: signed dev session cookie",
@@ -137,13 +138,12 @@ func (s *Service) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	state := NewState()
 	hashed := HashState(state)
 
-	http.SetCookie(w, &http.Cookie{
+	webcookie.Set(w, webcookie.Spec{
 		Name:     stateCookieName,
 		Value:    hashed,
 		Path:     "/",
 		MaxAge:   stateMaxAge,
 		HttpOnly: true,
-		Secure:   r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
 		SameSite: http.SameSiteLaxMode,
 	})
 
@@ -179,7 +179,7 @@ func (s *Service) handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Clear state cookie; one-shot.
-	http.SetCookie(w, &http.Cookie{
+	webcookie.Set(w, webcookie.Spec{
 		Name:   stateCookieName,
 		Value:  "",
 		Path:   "/",
@@ -202,13 +202,12 @@ func (s *Service) handleCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Set session cookie carrying the signed internal merchant_id.
 	// HMAC-SHA256 signature prevents cookie forgery.
-	http.SetCookie(w, &http.Cookie{
+	webcookie.Set(w, webcookie.Spec{
 		Name:     sessionCookieName,
 		Value:    s.signCookieValue(internalMerchantID),
 		Path:     "/",
 		MaxAge:   sessionMaxAge,
 		HttpOnly: true,
-		Secure:   r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
 		SameSite: http.SameSiteLaxMode,
 	})
 
@@ -270,13 +269,13 @@ func (s *Service) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]any{
-		"Merchant":      merchant,
-		"Locations":     locations,
-		"Payments":      payments,
-		"Environment":   s.cfg.Environment,
-		"InternalID":    mID.String(),
-		"SquareID":      creds.MerchantIDSquare,
-		"PaymentsCount": len(payments),
+		"Merchant":       merchant,
+		"Locations":      locations,
+		"Payments":       payments,
+		"Environment":    s.cfg.Environment,
+		"InternalID":     mID.String(),
+		"SquareID":       creds.MerchantIDSquare,
+		"PaymentsCount":  len(payments),
 		"LocationsCount": len(locations),
 	}
 	renderHTML(w, dashboardTmpl, data)
@@ -288,7 +287,7 @@ func (s *Service) handleDisconnect(w http.ResponseWriter, r *http.Request) {
 	if mID, ok := s.merchantFromCookie(r); ok {
 		_ = s.DeleteToken(r.Context(), mID)
 	}
-	http.SetCookie(w, &http.Cookie{
+	webcookie.Set(w, webcookie.Spec{
 		Name:   sessionCookieName,
 		Value:  "",
 		Path:   "/",

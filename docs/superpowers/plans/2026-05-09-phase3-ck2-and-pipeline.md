@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status note (2026-05-10):** This is the current operating plan for CK2 close-out and Phase 3 entry. The earlier `2026-05-09-cross-tenant-idor-bundled.md` remains useful as the PR #6 implementation record and test-pattern reference, but this document controls remaining CK2 work: GRO-910, GRO-919 verification, then GRO-908 / GRO-907 / GRO-909 / GRO-914.
+
 **Goal:** Close [GRO-919](https://linear.app/growdirect/issue/GRO-919) (CK2 — Phase 2 Identity Foundation green) by landing the last remaining prereq [GRO-910](https://linear.app/growdirect/issue/GRO-910) (webhook DLQ tenant scoping), then unblock the Phase 3 pipeline-correctness backlog.
 
 **Architecture:** Two waves.
@@ -15,7 +17,7 @@
 - Wave A: GRO-910 (HIGH), GRO-919 (CK2 process gate)
 - Wave B candidates: GRO-907, GRO-908, GRO-909, GRO-914 — pick the order during execution
 
-**Reference:** the IDOR-hardening PR [#6](https://github.com/growdirectprez/CanaryGo/pull/6) is the canonical pattern. Six commits there show the per-service shape: `identity.APIKeyMiddleware` wiring, `requireTenant` helper, `AssertBodyTenantMatches` on body fields, store-level scoping, store + handler cross-tenant tests via `testutil.SeedTenant` + `testutil.WithAPIKeyClaims`. Wave A is one more application of that pattern; Wave B is different bug families and gets its own discovery.
+**Reference:** the IDOR-hardening PR [#6](https://github.com/growdirectprez/CanaryGo/pull/6) is the canonical pattern. Six commits there show the per-service shape: `identity.APIKeyMiddleware` wiring, `requireTenant` helper, `AssertBodyTenantMatches` on body fields, store-level scoping, store + handler cross-tenant tests via `testutil.SeedTenant` + `testutil.WithAPIKeyClaims`. The cmd-level auth wiring is stricter than CK2 formally requires after the unified-dispatch narrowing, but it is a valid hardening precedent. Wave A is one more application of the same tenant-boundary pattern; Wave B is different bug families and gets its own discovery.
 
 ---
 

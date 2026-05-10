@@ -1,0 +1,4 @@
+^\.git/
+^\.gocache/
+^deploy/scripts/deploy-gateway\.sh$
+^deploy/docker-compose\.yml$

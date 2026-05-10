@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -38,10 +37,10 @@ const (
 // SaleConsumer processes unlinked transaction line items and applies
 // corresponding inventory movements.
 type SaleConsumer struct {
-	pool    *pgxpool.Pool
-	store   *Store
-	valkey  *redis.Client
-	logger  *zap.Logger
+	pool         *pgxpool.Pool
+	store        *Store
+	valkey       *redis.Client
+	logger       *zap.Logger
 	pollInterval time.Duration
 }
 
@@ -234,16 +233,4 @@ func isZeroOrNegative(qty string) bool {
 		}
 	}
 	return true
-}
-
-// linkMovementTx sets inventory_movement_id within a supplied pgx.Tx.
-// Used by tests that want to verify the update within a rolled-back tx.
-func linkMovementTx(ctx context.Context, tx pgx.Tx, lineID, movID uuid.UUID) error {
-	_, err := tx.Exec(ctx,
-		`UPDATE transaction.transaction_line_items
-		    SET inventory_movement_id = $1
-		  WHERE id = $2`,
-		movID, lineID,
-	)
-	return err
 }

@@ -10,15 +10,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
 // Thread is a LangGraph thread (one graph execution with checkpoint history).
 type Thread struct {
 	ID        string         `json:"thread_id"`
-	Status    string         `json:"status"`    // "interrupted" | "idle" | "busy" | "error"
-	Values    map[string]any `json:"values"`    // PipelineState fields
+	Status    string         `json:"status"` // "interrupted" | "idle" | "busy" | "error"
+	Values    map[string]any `json:"values"` // PipelineState fields
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 }
@@ -37,10 +40,60 @@ func NewLangGraphClient(baseURL string) *LangGraphClient {
 	}
 }
 
+func (c *LangGraphClient) endpoint(path []string, query url.Values) (string, error) {
+	base, err := parseAllowedLangGraphBase(c.baseURL)
+	if err != nil {
+		return "", err
+	}
+	joined, err := url.JoinPath(base.String(), path...)
+	if err != nil {
+		return "", fmt.Errorf("langgraph: build url: %w", err)
+	}
+	u, err := url.Parse(joined)
+	if err != nil {
+		return "", fmt.Errorf("langgraph: build url: %w", err)
+	}
+	u.RawQuery = query.Encode()
+	return u.String(), nil
+}
+
+func parseAllowedLangGraphBase(raw string) (*url.URL, error) {
+	base, err := url.Parse(raw)
+	if err != nil {
+		return nil, fmt.Errorf("langgraph: invalid base url: %w", err)
+	}
+	if base.Scheme != "http" && base.Scheme != "https" {
+		return nil, fmt.Errorf("langgraph: scheme_not_allowed %q", base.Scheme)
+	}
+	host := strings.ToLower(base.Hostname())
+	if host == "" {
+		return nil, fmt.Errorf("langgraph: host_not_allowed %q", host)
+	}
+	if isAllowedLangGraphEndpoint(base.Scheme, host) {
+		base.RawQuery = ""
+		base.Fragment = ""
+		return base, nil
+	}
+	return nil, fmt.Errorf("langgraph: host_not_allowed %q", host)
+}
+
+func isAllowedLangGraphEndpoint(scheme, host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return scheme == "https" && strings.HasSuffix(host, ".run.app")
+}
+
 // PendingReleases returns threads with status=interrupted (awaiting human approval).
 func (c *LangGraphClient) PendingReleases(ctx context.Context) ([]Thread, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		c.baseURL+"/threads?status=interrupted", nil)
+	target, err := c.endpoint([]string{"threads"}, url.Values{"status": {"interrupted"}})
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -61,8 +114,11 @@ func (c *LangGraphClient) PendingReleases(ctx context.Context) ([]Thread, error)
 
 // GetThread returns the full state of a single thread.
 func (c *LangGraphClient) GetThread(ctx context.Context, id string) (*Thread, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		c.baseURL+"/threads/"+id, nil)
+	target, err := c.endpoint([]string{"threads", id}, nil)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -94,9 +150,11 @@ func (c *LangGraphClient) Resume(ctx context.Context, threadID, assistantID, dec
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.baseURL+"/threads/"+threadID+"/runs",
-		bytes.NewReader(body))
+	target, err := c.endpoint([]string{"threads", threadID, "runs"}, nil)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}

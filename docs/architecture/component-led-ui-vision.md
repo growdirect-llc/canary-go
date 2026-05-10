@@ -198,6 +198,18 @@ The component system should grow only where reuse is real. The existing rule sti
 
 Do not build a massive design system ahead of product demand. Build a narrow substrate and let real screens pull the next component forward.
 
+## Standards Contracts
+
+The component-led architecture is now governed by local standards docs:
+
+- `docs/decisions/ui-retail-vocabulary.md` controls visible merchant nouns.
+- `docs/decisions/ui-status-taxonomy.md` controls status families and tones.
+- `docs/conventions/ui-components.md` controls component public APIs, states, and accessibility obligations.
+- `docs/conventions/connector-metadata.md` controls marketplace-ready connector metadata.
+- `docs/conventions/ui-pr-review-checklist.md` controls frontend PR review.
+
+These docs translate MACH, NRF/ARTS, Square/Clover, GS1, PCI/EMVCo, W3C, and AtlasView lessons into local implementation rules. They govern how new UI is designed, reviewed, and shipped while staying runtime-neutral: Canary can keep Go SSR for merchant execution screens, and AtlasView can implement compatible component contracts in React where its richer management-plane workflows need them.
+
 ## Component Taxonomy
 
 ### Existing substrate
@@ -388,4 +400,3 @@ The component architecture is working when:
 - AtlasView and Canary can discuss the same concept with the same vocabulary even when rendered in different stacks.
 - Integration setup screens are understandable to merchants without developer context.
 - Public commerce references can validate, challenge, or improve our nouns and flows before implementation.
-

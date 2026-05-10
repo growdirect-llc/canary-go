@@ -1,5 +1,5 @@
 .PHONY: migrate-up migrate-down migrate-test-up sqlc-gen test test-integration \
-        build-identity build-all build-edge-windows lint vulncheck \
+        build-identity build-all build-edge-windows lint vulncheck security-scan \
         check-no-dev-secrets \
         db-reset db-reset-test db-seed db-seed-test \
         identity-db-reset identity-db-reset-test \
@@ -18,6 +18,12 @@ IDENTITY_TEST_DATABASE_URL ?= postgres://growdirect:growdirect_dev@localhost:543
 # Local Docker Postgres connection params (used by db-reset / db-seed)
 PG_CONTAINER ?= growdirect_postgres
 PG_USER      ?= growdirect
+
+GOVULNCHECK_VERSION ?= v1.3.0
+STATICCHECK_VERSION ?= v0.7.0
+GITLEAKS_VERSION ?= 8.30.1
+TRUFFLEHOG_VERSION ?= 3.95.2
+TRIVY_VERSION ?= 0.70.0
 
 # ─────────────────────────────────────────────────────────────────────
 # db-reset — drop + recreate canary_gcp from declarative schema files.
@@ -147,13 +153,21 @@ build-edge-windows:
 lint:
 	go vet ./...
 
-# vulncheck — scan dependencies for known CVEs via govulncheck.
-# Installs the tool if missing. Runs against the loaded module graph.
+# vulncheck — scan dependencies for known CVEs via pinned govulncheck.
 # Wire into CI (cloudbuild.gateway.yaml) as a deploy gate before staging.
 # GRO-849 / Sprint 2 T-G.
 vulncheck:
-	@command -v govulncheck >/dev/null 2>&1 || go install golang.org/x/vuln/cmd/govulncheck@latest
-	@govulncheck ./...
+	@GOVULNCHECK_VERSION="$(GOVULNCHECK_VERSION)" scripts/security-scan.sh vulncheck
+
+# security-scan — reproducible local scanner suite.
+# GRO-947 / Lane 3B. Tool versions are pinned above; no @latest installs.
+security-scan:
+	@GOVULNCHECK_VERSION="$(GOVULNCHECK_VERSION)" \
+	STATICCHECK_VERSION="$(STATICCHECK_VERSION)" \
+	GITLEAKS_VERSION="$(GITLEAKS_VERSION)" \
+	TRUFFLEHOG_VERSION="$(TRUFFLEHOG_VERSION)" \
+	TRIVY_VERSION="$(TRIVY_VERSION)" \
+	scripts/security-scan.sh
 
 # check-no-dev-secrets — fail the build if a known dev-secret literal
 # leaks into source-controlled files. The seed file ships placeholders

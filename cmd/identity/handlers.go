@@ -438,21 +438,3 @@ func writeKeyError(w http.ResponseWriter, status int, code, msg string) {
 	w.WriteHeader(status)
 	fmt.Fprintf(w, `{"code":%q,"message":%q}`, code, msg)
 }
-
-// renderIdentityErr maps internal/identity sentinels to HTTP status
-// codes. Used by the API key authentication middleware mounted on
-// the v1/identity routes.
-func renderIdentityErr(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, identity.ErrAPIKeyMissing):
-		writeKeyError(w, http.StatusUnauthorized, "missing_api_key", err.Error())
-	case errors.Is(err, identity.ErrAPIKeyInvalid):
-		writeKeyError(w, http.StatusUnauthorized, "invalid_api_key", err.Error())
-	case errors.Is(err, identity.ErrAPIKeyRevoked):
-		writeKeyError(w, http.StatusForbidden, "key_revoked", err.Error())
-	case errors.Is(err, identity.ErrAPIKeyExpired):
-		writeKeyError(w, http.StatusForbidden, "key_expired", err.Error())
-	default:
-		writeKeyError(w, http.StatusInternalServerError, "auth_error", err.Error())
-	}
-}

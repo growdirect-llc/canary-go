@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -34,6 +35,24 @@ func listenLocal(t *testing.T, handler http.Handler) (*net.TCPListener, *http.Se
 		Handler: handler,
 	}
 	return ln, srv
+}
+
+func TestNewServerSetsReadHeaderTimeout(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	})
+
+	srv := NewServer(handler)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	srv.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("handler status = %d, want %d", rec.Code, http.StatusAccepted)
+	}
+	if srv.ReadHeaderTimeout <= 0 {
+		t.Fatalf("ReadHeaderTimeout = %v, want non-zero", srv.ReadHeaderTimeout)
+	}
 }
 
 func TestRunServer_ServesUntilContextCancel(t *testing.T) {

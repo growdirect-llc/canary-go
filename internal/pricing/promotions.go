@@ -25,10 +25,12 @@ type promoEvalContext struct {
 //
 // SDD-vague: §8 lists eight promotion_type values
 // (percent_off | amount_off | bogo | x_for_y | tier_threshold | bundle |
-//  fixed_price | loyalty_member_price). Wave 2 implements three:
-//   - percent_off  → benefit_qualifier.percent (e.g. "0.20")
-//   - amount_off   → benefit_qualifier.amount  (e.g. "5.00")
-//   - fixed_price  → benefit_qualifier.fixed_price (sets unit price)
+//
+//	fixed_price | loyalty_member_price). Wave 2 implements three:
+//	 - percent_off  → benefit_qualifier.percent (e.g. "0.20")
+//	 - amount_off   → benefit_qualifier.amount  (e.g. "5.00")
+//	 - fixed_price  → benefit_qualifier.fixed_price (sets unit price)
+//
 // Others return (false, ...) — they need richer cart-context evaluation
 // (BOGO needs to look at line collection; tier_threshold needs cart total)
 // which is Wave 3+.
@@ -194,9 +196,9 @@ func pickBestPromotions(candidates []evaluatedPromo) []evaluatedPromo {
 
 // evaluatedPromo carries the matched promo + its computed discount.
 type evaluatedPromo struct {
-	promo          types.Promotion
-	discountCents  int64
-	benefitType    string
+	promo         types.Promotion
+	discountCents int64
+	benefitType   string
 }
 
 // --- helpers ---
@@ -350,9 +352,6 @@ func trimFloat6(f float64) string {
 // sprintfFloat is a tiny helper so we don't import fmt here just for
 // formatting JSON-number-as-string.
 func sprintfFloat(f float64) string {
-	// 6 decimal places is enough — qualifiers are money or percent, both
-	// well within 6dp.
-	const digits = 6
 	whole := int64(f)
 	frac := f - float64(whole)
 	if frac < 0 {

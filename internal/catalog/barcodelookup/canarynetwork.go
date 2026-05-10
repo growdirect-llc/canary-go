@@ -6,11 +6,6 @@ import "context"
 // Canary-network source.
 const canaryNetworkName = "Canary Network"
 
-// canaryNetworkConfidence is what a wired-up adapter would return; kept
-// here so the calibration is documented even while the adapter is a
-// stub. First-party data wins over every external source.
-const canaryNetworkConfidence = 0.99
-
 // CanaryNetworkSource is a Phase 3 placeholder for the cross-tenant
 // barcode index Canary plans to build. The shape of the call (gRPC vs
 // REST, which service owns the index) is still being designed; until

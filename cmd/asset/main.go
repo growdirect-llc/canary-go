@@ -3,8 +3,6 @@
 // Asset — inventory position surface. Exposes i.inventory_positions /
 // i.inventory_lots as operator-facing asset views with a flag write path
 // that creates i.inventory_movements rows for discrepancy capture.
-//
-//
 package main
 
 import (
@@ -89,7 +87,7 @@ func main() {
 		zap.String("service", serviceName),
 		zap.String("addr", ln.Addr().String()),
 	)
-	srv := &http.Server{Handler: r}
+	srv := cmdutil.NewServer(r)
 	if err := cmdutil.RunServer(ctx, srv, ln, logger, 30*time.Second); err != nil &&
 		!errors.Is(err, http.ErrServerClosed) {
 		logger.Fatal("server", zap.Error(err))

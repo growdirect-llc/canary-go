@@ -5,8 +5,9 @@
 // mounts when --add-cloudsql-instances is set on the deploy.
 //
 // Endpoints:
-//   GET /        → 200 "dbcheck — connect ok"
-//   GET /health  → 200 with Postgres version + whether pgvector is installed
+//
+//	GET /        → 200 "dbcheck — connect ok"
+//	GET /health  → 200 with Postgres version + whether pgvector is installed
 //
 // Reads DATABASE_URL from env (mounted from Secret Manager via
 // --set-secrets in cloudbuild.yaml).
@@ -106,7 +107,7 @@ func main() {
 		log.Fatalf("listen: %v", err)
 	}
 	log.Printf("dbcheck starting on %s", ln.Addr().String())
-	srv := &http.Server{Handler: mux}
+	srv := cmdutil.NewServer(mux)
 	if err := cmdutil.RunServer(ctx, srv, ln, logger, 30*time.Second); err != nil &&
 		!errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server: %v", err)

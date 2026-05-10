@@ -4,7 +4,6 @@
 // and SQL Server. No inbound HTTP port. Polls the Counterpoint REST API
 // every 60 seconds and publishes sale document events to the Canary
 // protocol pipeline via Valkey Streams (protocol:events).
-//
 package main
 
 import (

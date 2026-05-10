@@ -9,7 +9,10 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /hello ./cmd/hello
 
 FROM alpine:3.19
-RUN apk add --no-cache ca-certificates tzdata
-COPY --from=builder /hello /hello
+RUN apk add --no-cache ca-certificates tzdata \
+    && addgroup -S -g 65532 nonroot \
+    && adduser -S -D -H -u 65532 -G nonroot -s /sbin/nologin nonroot
+COPY --from=builder --chown=nonroot:nonroot /hello /hello
+USER nonroot:nonroot
 EXPOSE 8080
 ENTRYPOINT ["/hello"]

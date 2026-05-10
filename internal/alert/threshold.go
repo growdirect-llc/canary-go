@@ -13,10 +13,7 @@
 
 package alert
 
-import (
-	"encoding/json"
-	"math"
-)
+import "encoding/json"
 
 // ThresholdConfig is the parsed shape of detection_rules.attributes
 // threshold fields. Missing fields use the defaults below.
@@ -141,9 +138,4 @@ func SignalToSeverity(signal float64) string {
 	default:
 		return "low"
 	}
-}
-
-// clamp is a small float util used in tests.
-func clamp(v, lo, hi float64) float64 {
-	return math.Min(hi, math.Max(lo, v))
 }

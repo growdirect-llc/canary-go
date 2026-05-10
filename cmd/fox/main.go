@@ -4,8 +4,6 @@
 // Reads detections off q.detections, escalates to q.cases, tracks
 // evidence in q.case_evidence and actions in q.case_actions. All q.case_*
 // descendant tables are append-only per canonical schema.
-//
-//
 package main
 
 import (
@@ -83,7 +81,7 @@ func main() {
 		zap.String("service", serviceName),
 		zap.String("addr", ln.Addr().String()),
 	)
-	srv := &http.Server{Handler: r}
+	srv := cmdutil.NewServer(r)
 	if err := cmdutil.RunServer(ctx, srv, ln, logger, 30*time.Second); err != nil &&
 		!errors.Is(err, http.ErrServerClosed) {
 		logger.Fatal("server", zap.Error(err))

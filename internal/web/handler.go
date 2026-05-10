@@ -53,6 +53,7 @@ import (
 	"github.com/ruptiv/canary/internal/item"
 	"github.com/ruptiv/canary/internal/tenant"
 	"github.com/ruptiv/canary/internal/transaction"
+	webcookie "github.com/ruptiv/canary/internal/web/cookie"
 	"github.com/ruptiv/canary/internal/workflow"
 )
 
@@ -375,7 +376,7 @@ func (h *Handler) Mount(r chi.Router) {
 		// Settings — LP allow-list + N.4 thresholds + training mode + alert routing.
 		// 10 screens, each backed by detection.allow_list with a pattern type+kind
 		// discriminator. CRUD wired via h.mountLPSettings (handler_lp_settings.go).
-		// W1 dispatch: 
+		// W1 dispatch:
 		h.mountLPSettings(r)
 		r.Get("/settings/devices", h.page("settings", "settings_devices", func(_ *http.Request) any {
 			return map[string]any{"Online": 0, "Offline": 0, "Degraded": 0, "Devices": nil}
@@ -639,7 +640,7 @@ func squareConfigured() bool {
 // squareauth.handleDisconnect: empty value + MaxAge=-1 + matching
 // Path/HttpOnly/Secure flags so the cookie is cleared cleanly.
 func (h *Handler) logoutHandler(w http.ResponseWriter, r *http.Request) {
-	http.SetCookie(w, &http.Cookie{
+	webcookie.Set(w, webcookie.Spec{
 		Name:     "demo_merchant",
 		Value:    "",
 		Path:     "/",
@@ -649,7 +650,6 @@ func (h *Handler) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	http.Redirect(w, r, "/login", http.StatusFound)
 }
-
 
 func (h *Handler) hawkDetailPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -693,7 +693,6 @@ func (h *Handler) hawkDetailPage(w http.ResponseWriter, r *http.Request) {
 		"Evidence":      evidence,
 	})
 }
-
 
 // hawkListPage renders the Hawk case list from the real case store.
 func (h *Handler) hawkListPage(w http.ResponseWriter, r *http.Request) {
@@ -1031,7 +1030,7 @@ func (h *Handler) promotionsCalendarPage(w http.ResponseWriter, r *http.Request)
 			end = p.EffectiveEnd.Format("2006-01-02")
 		}
 		stores := "All"
-		if p.ActiveLocations != nil && len(p.ActiveLocations) > 0 {
+		if len(p.ActiveLocations) > 0 {
 			stores = strconv.Itoa(len(p.ActiveLocations))
 		}
 		rows = append(rows, map[string]any{
@@ -1199,7 +1198,6 @@ func shortHex(s string, n int) string {
 	}
 	return s[:n] + "…"
 }
-
 
 // workflowsListPage renders all registered workflow definitions plus
 // recent executions across the three engines (3-way match, L402 charge
@@ -1575,8 +1573,6 @@ func (h *Handler) reportLaborPage(w http.ResponseWriter, r *http.Request) {
 		"Employees":       rows,
 	})
 }
-
-
 
 func (h *Handler) hawkCreateCase(w http.ResponseWriter, r *http.Request) {
 	// TODO: wire to casemgmt store

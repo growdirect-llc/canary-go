@@ -2,9 +2,11 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status note (2026-05-10):** This plan is retained as the historical implementation plan for the bundled GRO-904 / GRO-905 / GRO-916 IDOR work. Where it conflicts with the active unified dispatch or the CK2 close-out plan, follow `docs/superpowers/specs/2026-05-08-canary-go-unified-dispatch.md` and `docs/superpowers/plans/2026-05-09-phase3-ck2-and-pipeline.md`. In particular, CK2's formal acceptance scope is the data-layer tenant boundary plus cross-tenant tests; cmd-binary `APIKeyMiddleware` wiring was beneficial hardening in PR #6, but not a CK2 gate after the SDD-013 reframing.
+
 **Goal:** Close GRO-904 (fox unauthenticated + IDOR), GRO-905 (chirp/item/inventory/transaction/pricing trust caller-supplied tenant_id), and GRO-916 (cross-tenant negative test coverage) by bundling the fix and the regression-blocking test together for each affected service.
 
-**Architecture:** TDD red-first per service. For each service: (1) add cross-tenant negative test exercising the public surface, (2) wire `identity.APIKeyMiddleware` in the cmd binary if absent, (3) replace `tenantFromQuery` / `tenantFromHeader` / body-derived tenant with `identity.ClaimsFromContext`, (4) add `tenant_id` predicate to any store function still missing it, (5) keep tests green. Five service slices land sequentially via subagent dispatch — they touch disjoint files (different `cmd/<svc>/main.go`, different `internal/<svc>/handler.go`, different `internal/<svc>/store.go`).
+**Architecture:** TDD red-first per service. For each service: (1) add cross-tenant negative test exercising the public surface, (2) replace `tenantFromQuery` / `tenantFromHeader` / body-derived tenant with `identity.ClaimsFromContext`, (3) add `tenant_id` predicate to any store function still missing it, (4) keep tests green. The original bundle also wired `identity.APIKeyMiddleware` into cmd binaries where absent; that remains valid hardening, but it should be read as extra scope relative to the narrowed CK2 gate. Five service slices land sequentially via subagent dispatch — they touch disjoint files (different `cmd/<svc>/main.go`, different `internal/<svc>/handler.go`, different `internal/<svc>/store.go`).
 
 **Tech Stack:** Go 1.22+, Chi v5, pgx/v5, `internal/identity` (existing primitives), `internal/testutil`, `httptest`. PostgreSQL 17 test DB via `DATABASE_URL` for store tests; integration tests use `//go:build integration` + `GATEWAY_TEST_DATABASE_URL` per existing convention.
 
@@ -86,7 +88,7 @@ Replace the local `seedTenant` definition (lines 18–~38) and every `seedTenant
 - [ ] **Step 4: Run the lp tests.**
 
 ```bash
-DATABASE_URL='postgres://growdirect:growdirect_dev@localhost:5432/canary_go_test?sslmode=disable' \
+DATABASE_URL='postgres://growdirect:growdirect_dev@localhost:5432/canary_gcp_test?sslmode=disable' \
   go test ./internal/lp/...
 ```
 
@@ -209,7 +211,7 @@ Note: `LoadCaseScoped` does not yet exist — that's the red part.
 - [ ] **Step 2: Run the test, observe the failure.**
 
 ```bash
-DATABASE_URL='postgres://growdirect:growdirect_dev@localhost:5432/canary_go_test?sslmode=disable' \
+DATABASE_URL='postgres://growdirect:growdirect_dev@localhost:5432/canary_gcp_test?sslmode=disable' \
   go test ./internal/fox/ -run TestStore_TenantIsolation
 ```
 
@@ -577,7 +579,7 @@ Each follows the fox template with these per-service deltas.
 - [ ] **Step 1: Unit tests.**
 
 ```bash
-DATABASE_URL='postgres://growdirect:growdirect_dev@localhost:5432/canary_go_test?sslmode=disable' \
+DATABASE_URL='postgres://growdirect:growdirect_dev@localhost:5432/canary_gcp_test?sslmode=disable' \
   go test ./...
 ```
 
