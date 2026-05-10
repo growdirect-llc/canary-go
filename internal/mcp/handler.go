@@ -52,6 +52,38 @@ type toolsCallParams struct {
 	Arguments json.RawMessage `json:"arguments"`
 }
 
+// MCPProtocolVersion is the MCP spec revision this server speaks
+// (GRO-938). Mirrors the value advertised in the gateway's
+// /.well-known/mcp.json discovery document — keep them in sync when
+// bumping. The 2025-03-26 revision adds the initialize handshake +
+// notifications/initialized + capabilities object that this server
+// now implements.
+const MCPProtocolVersion = "2025-03-26"
+
+// initializeParams is the client → server payload of the MCP
+// initialize method. Spec: https://spec.modelcontextprotocol.io/
+type initializeParams struct {
+	ProtocolVersion string         `json:"protocolVersion"`
+	Capabilities    map[string]any `json:"capabilities"`
+	ClientInfo      struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	} `json:"clientInfo"`
+}
+
+// initializeResult is the server → client response. Capabilities
+// advertises only what this server actually supports — the registry's
+// tools surface — so generic clients don't request features that
+// would 404.
+type initializeResult struct {
+	ProtocolVersion string         `json:"protocolVersion"`
+	Capabilities    map[string]any `json:"capabilities"`
+	ServerInfo      struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	} `json:"serverInfo"`
+}
+
 type toolsListResult struct {
 	Tools []ToolDef `json:"tools"`
 }
@@ -101,6 +133,39 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch req.Method {
+	case "initialize":
+		// GRO-938: minimal MCP initialize handshake. Echoes the spec
+		// version we speak, advertises a tools capability (the only
+		// surface this server exposes), and returns serverInfo so
+		// generic MCP clients can identify the implementation. Older
+		// bespoke clients that never send initialize keep working —
+		// nothing here is required to call tools/* — but generic
+		// clients (Claude Code, IDE connectors, MCP-aware SDKs) can
+		// now complete the standard lifecycle.
+		var p initializeParams
+		_ = json.Unmarshal(req.Params, &p) // tolerant: empty params allowed
+		var result initializeResult
+		result.ProtocolVersion = MCPProtocolVersion
+		result.Capabilities = map[string]any{
+			"tools": map[string]any{
+				// listChanged=false — the registry is built once at
+				// startup; we don't push tools/list_changed
+				// notifications.
+				"listChanged": false,
+			},
+		}
+		result.ServerInfo.Name = "Canary Retail Ops"
+		result.ServerInfo.Version = MCPProtocolVersion
+		writeResult(w, req.ID, result)
+
+	case "notifications/initialized":
+		// MCP notifications carry no id and expect no response
+		// (JSON-RPC notification semantics). Acknowledge silently —
+		// per the spec, the server MUST accept this notification but
+		// MUST NOT respond.
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNoContent)
+
 	case "tools/list":
 		writeResult(w, req.ID, toolsListResult{Tools: h.reg.List()})
 

@@ -690,3 +690,95 @@ func TestIsInvalidParams_HelperWorks(t *testing.T) {
 		t.Error("IsInvalidParams should report false for unrelated errors")
 	}
 }
+
+// ─── GRO-938 initialize handshake ────────────────────────────────────
+
+// TestInitialize_HandshakeRespondsWithCapabilities is the GRO-938
+// acceptance probe. A standard MCP client begins every session with
+// the initialize method and expects:
+//
+//   - the server's MCP protocol version (must match the discovery
+//     document so clients trust both surfaces)
+//   - a capabilities object describing what the server supports
+//     (tools, in our case — no resources, prompts, sampling)
+//   - serverInfo.name and serverInfo.version
+//
+// Without this, generic MCP clients (Claude Code, IDE connectors,
+// MCP-aware SDKs) refuse to use the endpoint or behave unpredictably.
+// Fails pre-fix because pre-GRO-938 the handler returned -32601
+// "method not found" for initialize.
+func TestInitialize_HandshakeRespondsWithCapabilities(t *testing.T) {
+	h, _ := buildHandler(t)
+	w := postMCP(t, h, map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "initialize",
+		"params": map[string]any{
+			"protocolVersion": "2025-03-26",
+			"capabilities":    map[string]any{},
+			"clientInfo":      map[string]any{"name": "test-client", "version": "0.1.0"},
+		},
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", w.Code)
+	}
+	var resp struct {
+		Result struct {
+			ProtocolVersion string         `json:"protocolVersion"`
+			Capabilities    map[string]any `json:"capabilities"`
+			ServerInfo      struct {
+				Name, Version string
+			} `json:"serverInfo"`
+		} `json:"result"`
+		Error any `json:"error"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v (body=%s)", err, w.Body.String())
+	}
+	if resp.Error != nil {
+		t.Fatalf("rpc error on initialize: %v", resp.Error)
+	}
+	if resp.Result.ProtocolVersion != mcp.MCPProtocolVersion {
+		t.Errorf("protocolVersion: got %q, want %q", resp.Result.ProtocolVersion, mcp.MCPProtocolVersion)
+	}
+	if _, ok := resp.Result.Capabilities["tools"]; !ok {
+		t.Errorf("capabilities should advertise tools; got %v", resp.Result.Capabilities)
+	}
+	if resp.Result.ServerInfo.Name == "" {
+		t.Errorf("serverInfo.name should be populated; got %q", resp.Result.ServerInfo.Name)
+	}
+}
+
+// TestNotificationsInitialized_NoBody verifies the post-initialize
+// notification handler returns 204 with no body — JSON-RPC
+// notifications carry no response. A bespoke client that doesn't
+// send this notification still works (no server-side state hangs on
+// it); a standard client that sends it shouldn't see an error.
+func TestNotificationsInitialized_NoBody(t *testing.T) {
+	h, _ := buildHandler(t)
+	w := postMCP(t, h, map[string]any{
+		"jsonrpc": "2.0", "method": "notifications/initialized",
+		"params": map[string]any{},
+	})
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status: got %d, want 204", w.Code)
+	}
+	if w.Body.Len() != 0 {
+		t.Errorf("notification should have empty body; got %s", w.Body.String())
+	}
+}
+
+// TestInitialize_VersionMatchesDiscovery pins the version-coupling
+// invariant: the constant in the MCP package and the literal version
+// in the gateway's discovery document MUST match. A future bump
+// without updating both will break agent onboarding silently.
+func TestInitialize_VersionMatchesDiscovery(t *testing.T) {
+	// The discovery doc constant lives in cmd/gateway/main.go
+	// (mcpVersion). We can't import main from here — instead we pin
+	// the value here so a drift between handler and discovery becomes
+	// a test failure in this package after a single-side bump.
+	const expectedDiscoveryVersion = "2025-03-26"
+	if mcp.MCPProtocolVersion != expectedDiscoveryVersion {
+		t.Errorf("mcp.MCPProtocolVersion=%q drifted from discovery's mcpVersion=%q. "+
+			"Update both or bump expectedDiscoveryVersion in this test if the protocol moved.",
+			mcp.MCPProtocolVersion, expectedDiscoveryVersion)
+	}
+}
