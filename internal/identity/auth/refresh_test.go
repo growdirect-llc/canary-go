@@ -51,6 +51,11 @@ type stubFamilyStore struct {
 	gotFamilyID     uuid.UUID
 	gotPresentedJTI string
 	gotNewJTI       string
+
+	// Revoke captures.
+	revokedFamilyID uuid.UUID
+	revokedReason   string
+	revokeErr       error
 }
 
 func (s *stubFamilyStore) ValidateAndRotate(_ context.Context, fid uuid.UUID, presented, newJTI string) error {
@@ -58,6 +63,33 @@ func (s *stubFamilyStore) ValidateAndRotate(_ context.Context, fid uuid.UUID, pr
 	s.gotPresentedJTI = presented
 	s.gotNewJTI = newJTI
 	return s.err
+}
+
+func (s *stubFamilyStore) Revoke(_ context.Context, fid uuid.UUID, reason string) error {
+	s.revokedFamilyID = fid
+	s.revokedReason = reason
+	return s.revokeErr
+}
+
+// stubPersonLookup satisfies PersonLookup. By default returns an
+// active Person with the looked-up id and a fresh OrgID.
+type stubPersonLookup struct {
+	person *Person
+	err    error
+
+	// Captured input.
+	gotID uuid.UUID
+}
+
+func (s *stubPersonLookup) LookupByID(_ context.Context, id uuid.UUID) (*Person, error) {
+	s.gotID = id
+	if s.err != nil {
+		return nil, s.err
+	}
+	if s.person != nil {
+		return s.person, nil
+	}
+	return &Person{ID: id, OrgID: uuid.New(), IsActive: true}, nil
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────
@@ -91,8 +123,13 @@ func validPair() *mint.Pair {
 
 func mountAndPost(t *testing.T, v RefreshVerifier, m PairMinter, s FamilyStore, body any) *httptest.ResponseRecorder {
 	t.Helper()
+	return mountAndPostWithPersons(t, v, m, s, &stubPersonLookup{}, body)
+}
+
+func mountAndPostWithPersons(t *testing.T, v RefreshVerifier, m PairMinter, s FamilyStore, p PersonLookup, body any) *httptest.ResponseRecorder {
+	t.Helper()
 	router := chi.NewRouter()
-	NewRefreshHandler(v, m, s, nil).Mount(router)
+	NewRefreshHandler(v, m, s, p, nil).Mount(router)
 
 	var bodyBytes []byte
 	switch b := body.(type) {
@@ -322,5 +359,110 @@ func TestRefresh_MintFails_500(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "mint_failed") {
 		t.Errorf("body: got %q, expected mint_failed", rec.Body.String())
+	}
+}
+
+// TestRefresh_PersonDeactivated_RevokesFamilyAnd401 is the
+// GRO-949 acceptance probe. When the Person referenced by the
+// refresh-token claims is no longer active (deactivated or deleted),
+// the handler MUST:
+//
+//  1. Refuse to mint a new pair (no body leak — the new pair never
+//     reaches the wire).
+//  2. Revoke the family family-wide so subsequent refreshes also
+//     fail (closes the rotation window before the next TTL).
+//  3. Return 401 with the person_inactive code so clients re-login.
+func TestRefresh_PersonDeactivated_RevokesFamilyAnd401(t *testing.T) {
+	claims := validClaims()
+	v := &stubVerifier{claims: claims}
+	m := &stubMinter{pair: validPair()}
+	s := &stubFamilyStore{} // happy ValidateAndRotate path; should not be reached
+	p := &stubPersonLookup{err: ErrPersonNotFound}
+
+	rec := mountAndPostWithPersons(t, v, m, s, p, map[string]string{"refresh_token": "old"})
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d, want 401 (body=%s)", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "person_inactive") {
+		t.Errorf("body: got %q, expected person_inactive", body)
+	}
+
+	// Critical (mirrors reuse-detection invariant): the new pair must
+	// NOT leak into the response body.
+	if strings.Contains(body, "new.access.token") || strings.Contains(body, "new.refresh.token") {
+		t.Errorf("new pair leaked into response despite person-inactive: %s", body)
+	}
+
+	// PersonLookup must have been called with the PersonID from claims.
+	wantPersonID, _ := uuid.Parse(claims.PersonID)
+	if p.gotID != wantPersonID {
+		t.Errorf("person lookup: got %s, want %s", p.gotID, wantPersonID)
+	}
+
+	// Family must be revoked family-wide so subsequent refreshes also
+	// fail until re-login establishes a new family.
+	wantFamilyID, _ := uuid.Parse(claims.FamilyID)
+	if s.revokedFamilyID != wantFamilyID {
+		t.Errorf("family revoke: got %s, want %s", s.revokedFamilyID, wantFamilyID)
+	}
+	if s.revokedReason != "person_inactive" {
+		t.Errorf("revoke reason: got %q, want %q", s.revokedReason, "person_inactive")
+	}
+
+	// ValidateAndRotate must NOT have been called — we short-circuited
+	// before the rotation lock ever opened.
+	if s.gotFamilyID != uuid.Nil {
+		t.Errorf("ValidateAndRotate ran despite inactive person: %s", s.gotFamilyID)
+	}
+}
+
+// TestRefresh_HappyPath_ReloadsOrgFromPersonStore verifies the
+// post-fix subject's OrgID reflects the freshly-read DB value, not
+// the (potentially stale) value from claims. Catches the regression
+// where a user moved between orgs would keep refreshing under the
+// old org until their refresh TTL ended.
+func TestRefresh_HappyPath_ReloadsOrgFromPersonStore(t *testing.T) {
+	claims := validClaims()
+	freshOrgID := uuid.New()
+	personID, _ := uuid.Parse(claims.PersonID)
+
+	v := &stubVerifier{claims: claims}
+	m := &stubMinter{pair: validPair()}
+	s := &stubFamilyStore{}
+	p := &stubPersonLookup{person: &Person{ID: personID, OrgID: freshOrgID, IsActive: true}}
+
+	rec := mountAndPostWithPersons(t, v, m, s, p, map[string]string{"refresh_token": "old"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200 (body=%s)", rec.Code, rec.Body.String())
+	}
+	if m.gotSubject.OrgID != freshOrgID {
+		t.Errorf("subject.OrgID: got %s, want %s (claims override should use DB org)", m.gotSubject.OrgID, freshOrgID)
+	}
+}
+
+// TestRefresh_PersonLookupFails_500 verifies a transient DB error in
+// the active-state check surfaces as 500 — we do NOT silently mint a
+// pair when we can't verify the user is still active, and we do NOT
+// revoke the family on a transient failure (revoke is reserved for
+// the can-confirm-deactivated path).
+func TestRefresh_PersonLookupFails_500(t *testing.T) {
+	claims := validClaims()
+	v := &stubVerifier{claims: claims}
+	m := &stubMinter{pair: validPair()}
+	s := &stubFamilyStore{}
+	p := &stubPersonLookup{err: errors.New("identity db unavailable")}
+
+	rec := mountAndPostWithPersons(t, v, m, s, p, map[string]string{"refresh_token": "old"})
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status: got %d, want 500", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "lookup_failed") {
+		t.Errorf("body: got %q, expected lookup_failed", rec.Body.String())
+	}
+	if s.revokedFamilyID != uuid.Nil {
+		t.Errorf("family revoked on transient lookup failure: should only revoke when we can confirm deactivation")
 	}
 }

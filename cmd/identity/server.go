@@ -92,8 +92,10 @@ func NewServer(
 	auth.NewLoginHandler(personStore, tokenMinter, refreshFamilyStore, logger).Mount(r)
 
 	// /auth/refresh — token rotation with reuse detection (T-1.b).
+	// personStore reload (GRO-949) refuses rotation for deactivated
+	// users and revokes the family.
 	refreshVerifier := tokenverify.New(keyStore, issuerString(cfg), "refresh")
-	auth.NewRefreshHandler(refreshVerifier, tokenMinter, refreshFamilyStore, logger).Mount(r)
+	auth.NewRefreshHandler(refreshVerifier, tokenMinter, refreshFamilyStore, personStore, logger).Mount(r)
 
 	// /v1/me — WhoAmI (T-3 / GRO-848 §3). Verifier accepts the
 	// canary access audience; resolver pulls the full Person record

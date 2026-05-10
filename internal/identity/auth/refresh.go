@@ -50,9 +50,19 @@ type PairMinter interface {
 }
 
 // FamilyStore is the family-ledger surface. *refreshfamily.Store
-// satisfies it.
+// satisfies it. Revoke is invoked when post-verify, pre-mint state
+// proves the refresh must not produce a new pair (e.g., deactivated
+// person — GRO-949).
 type FamilyStore interface {
 	ValidateAndRotate(ctx context.Context, familyID uuid.UUID, presentedJTI, newJTI string) error
+	Revoke(ctx context.Context, familyID uuid.UUID, reason string) error
+}
+
+// PersonLookup re-reads Person/Org state from the identity DB so the
+// refresh handler can refuse rotation for deactivated/deleted users
+// (GRO-949). *PersonStore satisfies it.
+type PersonLookup interface {
+	LookupByID(ctx context.Context, id uuid.UUID) (*Person, error)
 }
 
 // RefreshHandler serves /auth/refresh.
@@ -60,15 +70,17 @@ type RefreshHandler struct {
 	verifier RefreshVerifier
 	minter   PairMinter
 	store    FamilyStore
+	persons  PersonLookup
 	logger   *zap.Logger
 }
 
-// NewRefreshHandler wires the handler.
-func NewRefreshHandler(v RefreshVerifier, m PairMinter, s FamilyStore, logger *zap.Logger) *RefreshHandler {
+// NewRefreshHandler wires the handler. persons is consulted before
+// minting so deactivated/deleted users cannot keep rotating.
+func NewRefreshHandler(v RefreshVerifier, m PairMinter, s FamilyStore, persons PersonLookup, logger *zap.Logger) *RefreshHandler {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
-	return &RefreshHandler{verifier: v, minter: m, store: s, logger: logger}
+	return &RefreshHandler{verifier: v, minter: m, store: s, persons: persons, logger: logger}
 }
 
 // Mount registers POST /auth/refresh on r.
@@ -160,6 +172,42 @@ func (h *RefreshHandler) serve(w http.ResponseWriter, r *http.Request) {
 		if id, err := uuid.Parse(claims.PersonID); err == nil {
 			subject.PersonID = id
 		}
+	}
+
+	// Step 3a (GRO-949): re-read Person/Org state. A deactivated or
+	// deleted user must not be able to keep rotating refresh tokens
+	// until the family TTL ends — that weakens incident response and
+	// right-to-forget enforcement. When PersonID is present and the
+	// active row is gone, revoke the family family-wide and 401.
+	// PersonID-less subjects (system / service users) bypass this
+	// check.
+	if h.persons != nil && subject.PersonID != uuid.Nil {
+		person, err := h.persons.LookupByID(r.Context(), subject.PersonID)
+		switch {
+		case errors.Is(err, ErrPersonNotFound):
+			if revErr := h.store.Revoke(r.Context(), familyID, "person_inactive"); revErr != nil {
+				h.logger.Error("refresh: revoke on inactive person",
+					zap.String("family_id", familyID.String()),
+					zap.String("person_id", subject.PersonID.String()),
+					zap.Error(revErr))
+			}
+			h.logger.Warn("refresh: person inactive — family revoked",
+				zap.String("family_id", familyID.String()),
+				zap.String("person_id", subject.PersonID.String()))
+			writeError(w, http.StatusUnauthorized, "person_inactive",
+				"user is no longer active; refresh family revoked. Re-login required.")
+			return
+		case err != nil:
+			h.logger.Error("refresh: person lookup",
+				zap.String("person_id", subject.PersonID.String()),
+				zap.Error(err))
+			writeError(w, http.StatusInternalServerError, "lookup_failed",
+				"could not verify person state")
+			return
+		}
+		// Org assignment may have changed since the original token —
+		// reflect current state in the new pair.
+		subject.OrgID = person.OrgID
 	}
 	pair, err := h.minter.MintPair(r.Context(), subject, familyID)
 	if err != nil {
