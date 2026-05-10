@@ -251,3 +251,153 @@ func TestClientIP_FallsBackToRemoteAddr(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+// ─── GRO-956 spool / regulated-route durability ──────────────────────
+
+// memSpool is an in-memory Spooler used to inspect what would have
+// been pushed to the durable backstop.
+type memSpool struct {
+	mu      sync.Mutex
+	entries []Entry
+	err     error // injected failure
+	calls   int
+}
+
+func (m *memSpool) Push(_ context.Context, e Entry) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls++
+	if m.err != nil {
+		return m.err
+	}
+	m.entries = append(m.entries, e)
+	return nil
+}
+
+// newTestRouterWithSpool spins up a chi router with audit middleware
+// configured to mark every request as regulated and route Insert
+// failures to the supplied Spool.
+func newTestRouterWithSpool(ins Inserter, spool Spooler) *chi.Mux {
+	r := chi.NewRouter()
+	cfg := Config{
+		Inserter:    ins,
+		ServiceName: "canary-gateway-test",
+		ActorType:   "agent",
+		Resource:    "protocol.event",
+		Spool:       spool,
+		Regulated:   func(_ *http.Request) bool { return true },
+	}
+	r.Use(Middleware(cfg))
+	r.Post("/v1/protocol/webhook/{source}", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	})
+	return r
+}
+
+// TestMiddleware_RegulatedRoute_InsertFailure_PushesToSpool is the
+// GRO-956 acceptance probe. When the primary inserter fails on a
+// regulated route, the middleware MUST push the entry to the
+// Spool — otherwise an audit-DB outage produces accepted state
+// changes with no durable evidentiary trail.
+//
+// Multi-assert:
+//   1. The HTTP response is unaffected (still 200 — the middleware
+//      preserves response-path latency / availability characteristics).
+//   2. The Inserter was called exactly once (single attempt; the
+//      Spool is the failover, not a retry).
+//   3. The Spool received the same Entry shape (request_id, action,
+//      status, etc.) so offline retry can replay with full fidelity.
+//
+// Fails pre-fix because pre-GRO-956 the middleware logged the
+// Insert failure at Warn and dropped the entry on the floor.
+func TestMiddleware_RegulatedRoute_InsertFailure_PushesToSpool(t *testing.T) {
+	ins := &memInserter{err: errors.New("audit DB unavailable")}
+	spool := &memSpool{}
+	r := newTestRouterWithSpool(ins, spool)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/protocol/webhook/square",
+		bytes.NewReader([]byte(`{"hello":"world"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Request-ID", "req-spool-test-1")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("response: got %d, want 200 (middleware should not block on audit failure)", w.Code)
+	}
+	if ins.calls != 1 {
+		t.Errorf("inserter calls: got %d, want exactly 1 (no retry)", ins.calls)
+	}
+	if spool.calls != 1 {
+		t.Fatalf("spool.Push not called — durable audit gap on regulated route")
+	}
+	if len(spool.entries) != 1 {
+		t.Fatalf("spool entries: got %d, want 1", len(spool.entries))
+	}
+	got := spool.entries[0]
+	if got.RequestID != "req-spool-test-1" {
+		t.Errorf("spooled request_id: got %q, want req-spool-test-1", got.RequestID)
+	}
+	if got.Action != "POST /v1/protocol/webhook/square" {
+		t.Errorf("spooled action: got %q", got.Action)
+	}
+	if got.StatusCode != http.StatusOK {
+		t.Errorf("spooled status: got %d, want 200", got.StatusCode)
+	}
+}
+
+// TestMiddleware_RegulatedRoute_BothFail_LogsErrorButResponseUnaffected
+// pins the worst-case behavior: both Inserter and Spool fail. The
+// middleware must log at Error (durable audit gap) but the response
+// has already gone out — the goal is observability, not blocking the
+// request.
+func TestMiddleware_RegulatedRoute_BothFail_LogsErrorButResponseUnaffected(t *testing.T) {
+	ins := &memInserter{err: errors.New("audit DB unavailable")}
+	spool := &memSpool{err: errors.New("spool DB unavailable")}
+	r := newTestRouterWithSpool(ins, spool)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/protocol/webhook/square",
+		bytes.NewReader([]byte(`{}`)))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("response: got %d, want 200", w.Code)
+	}
+	if ins.calls != 1 || spool.calls != 1 {
+		t.Errorf("call counts: ins=%d spool=%d, want 1/1", ins.calls, spool.calls)
+	}
+}
+
+// TestMiddleware_NonRegulatedRoute_InsertFailure_DoesNotPushSpool
+// verifies the gate semantics: Spool is only invoked for routes that
+// Regulated marks true. A non-regulated read path that fails to
+// audit should NOT consume Spool capacity.
+func TestMiddleware_NonRegulatedRoute_InsertFailure_DoesNotPushSpool(t *testing.T) {
+	ins := &memInserter{err: errors.New("audit DB unavailable")}
+	spool := &memSpool{}
+	cfg := Config{
+		Inserter:    ins,
+		ServiceName: "canary-gateway-test",
+		ActorType:   "agent",
+		Resource:    "protocol.event",
+		Spool:       spool,
+		Regulated:   func(_ *http.Request) bool { return false }, // none regulated
+	}
+	r := chi.NewRouter()
+	r.Use(Middleware(cfg))
+	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", w.Code)
+	}
+	if spool.calls != 0 {
+		t.Errorf("spool called for non-regulated route: %d calls", spool.calls)
+	}
+}

@@ -102,11 +102,26 @@ type Entry struct {
 	ToolName      string // for MCP-style invocation; mirrors handler/route name for HTTP
 }
 
-// Inserter is the storage seam. Production wires PgxInserter; unit tests
-// can supply a mock. Returning an error is non-fatal — Middleware logs
-// and continues.
+// Inserter is the storage seam. Production wires PgxInserter; unit
+// tests can supply a mock. Insert error is non-fatal at the response
+// path — Middleware logs and (when Spool is configured) pushes the
+// entry to the durable backstop.
 type Inserter interface {
 	Insert(ctx context.Context, e Entry) error
+}
+
+// Spooler is the durable backstop for regulated mutations (GRO-956).
+// When Inserter.Insert fails AND Config.Regulated marks the request
+// as a regulated mutation, Middleware calls Spool.Push to preserve
+// the entry for offline retry. Production wires a Valkey-list-backed
+// implementation; tests pass a stub.
+//
+// Push MUST be cheap and reliable — it sits on the request hot path
+// when the primary insert failed. Spool errors are logged at Error
+// level (not Warn) because they represent the loss of a durable
+// audit guarantee for a regulated route.
+type Spooler interface {
+	Push(ctx context.Context, e Entry) error
 }
 
 // Config bundles the dependencies the middleware needs. ServiceName is
@@ -119,6 +134,21 @@ type Config struct {
 	ServiceName string
 	ActorType   string
 	Resource    string // default entity_type; "protocol.event" for the gateway
+
+	// Spool is the optional durable backstop for regulated routes
+	// (GRO-956). When non-nil, Insert failures whose request matches
+	// Regulated push the Entry to the spool for offline retry. Without
+	// a Spool, the middleware preserves the legacy fail-open + Warn-log
+	// behavior, but Insert failures on regulated routes log at Error
+	// level so dashboards can pivot on durable-audit gaps.
+	Spool Spooler
+
+	// Regulated classifies a request as a regulated mutation requiring
+	// durable audit. When nil, no requests are regulated — preserves
+	// pre-GRO-956 behavior. Production wires a func that matches
+	// webhook ingest paths, admin DLQ replay, identity-key lifecycle
+	// routes, and any future regulated-write surface.
+	Regulated func(*http.Request) bool
 }
 
 // Middleware returns a chi-compatible HTTP middleware. It is intentionally
@@ -210,14 +240,50 @@ func Middleware(cfg Config) func(http.Handler) http.Handler {
 			// up goroutines. The HTTP response has already gone out.
 			insertCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
-			if err := cfg.Inserter.Insert(insertCtx, entry); err != nil {
-				logger.Warn("audit insert failed",
+			err := cfg.Inserter.Insert(insertCtx, entry)
+			if err == nil {
+				return
+			}
+			// Insert failed. GRO-956: if this request was a regulated
+			// mutation and a Spool is configured, push the entry to
+			// the durable backstop. Without a Spool, fall back to the
+			// legacy Warn log — but elevate to Error for regulated
+			// routes so a missing-Spool deployment is observable.
+			regulated := cfg.Regulated != nil && cfg.Regulated(r)
+			if regulated && cfg.Spool != nil {
+				spoolCtx, spoolCancel := context.WithTimeout(context.Background(), 2*time.Second)
+				defer spoolCancel()
+				if spoolErr := cfg.Spool.Push(spoolCtx, entry); spoolErr != nil {
+					logger.Error("audit insert AND spool failed (durable audit gap)",
+						zap.Error(err),
+						zap.NamedError("spool_err", spoolErr),
+						zap.String("request_id", entry.RequestID),
+						zap.String("action", entry.Action),
+						zap.Int("status", entry.StatusCode),
+					)
+					return
+				}
+				logger.Warn("audit insert failed; entry spooled for retry",
 					zap.Error(err),
 					zap.String("request_id", entry.RequestID),
 					zap.String("action", entry.Action),
-					zap.Int("status", entry.StatusCode),
 				)
+				return
 			}
+			level := zap.WarnLevel
+			if regulated {
+				// Regulated route + no Spool configured = durable audit
+				// gap on this request. Log at Error so the gap surfaces
+				// in alerts even before the Spool wiring lands.
+				level = zap.ErrorLevel
+			}
+			logger.Log(level, "audit insert failed",
+				zap.Error(err),
+				zap.String("request_id", entry.RequestID),
+				zap.String("action", entry.Action),
+				zap.Int("status", entry.StatusCode),
+				zap.Bool("regulated", regulated),
+			)
 		})
 	}
 }
