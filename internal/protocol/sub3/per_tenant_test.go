@@ -238,18 +238,37 @@ func TestWriteAnchor_PerMerchantSeparation(t *testing.T) {
 		t.Fatalf("WriteAnchor: %v", err)
 	}
 
-	// ── Assertion: exactly two anchors returned ───────────────────────────
+	// Filter the full result set to only the merchants this test seeded.
+	// WriteAnchor scans every unanchored evidence row in the database, so
+	// leftovers from a prior aborted run (where cleanup never fired) or a
+	// concurrent integration test in another package can produce extra
+	// anchors that aren't under test here. The contract under test is
+	// per-merchant separation for *our two seeded merchants*, not "this
+	// test owns the database."
+	seeded := map[uuid.UUID]bool{merchantA: true, merchantB: true}
+	results = filterAnchorsByMerchant(results, seeded)
+
+	// ── Assertion: exactly two anchors returned for our seeded merchants ──
 	if len(results) != 2 {
-		t.Fatalf("expected 2 anchors (one per merchant), got %d", len(results))
+		t.Fatalf("expected 2 anchors for seeded merchants, got %d", len(results))
 	}
 
-	// ── Assertion: Inscriber called exactly twice with distinct roots ─────
+	// ── Assertion: Inscriber received one call for each seeded merchant's
+	//    Merkle root, and the two roots are distinct. We don't bound the
+	//    total inscribe count: leftover unanchored evidence legitimately
+	//    triggers additional Inscribe calls for non-test merchants, and
+	//    that's outside this test's contract. ──────────────────────────────
 	calls := cap.snapshot()
-	if len(calls) != 2 {
-		t.Fatalf("expected 2 Inscribe calls, got %d", len(calls))
+	for _, r := range results {
+		if countOccurrences(calls, r.MerkleRoot) != 1 {
+			t.Fatalf(
+				"expected exactly one Inscribe call for merchant=%s root=%s; got %d (all calls=%v)",
+				r.MerchantID, r.MerkleRoot, countOccurrences(calls, r.MerkleRoot), calls,
+			)
+		}
 	}
-	if calls[0] == calls[1] {
-		t.Fatalf("two anchors but identical Merkle root: %s", calls[0])
+	if results[0].MerkleRoot == results[1].MerkleRoot {
+		t.Fatalf("two anchors but identical Merkle root: %s", results[0].MerkleRoot)
 	}
 
 	// ── Index results by merchant id for the leaf-set assertions ──────────
@@ -350,4 +369,29 @@ func equalStringSlices(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// filterAnchorsByMerchant returns only the AnchorResults whose MerchantID is
+// in the provided set. Used to scope this test's assertions to the two
+// merchants it seeded, ignoring any other anchors WriteAnchor produced from
+// unanchored leftovers in the test DB.
+func filterAnchorsByMerchant(results []*AnchorResult, want map[uuid.UUID]bool) []*AnchorResult {
+	out := make([]*AnchorResult, 0, len(want))
+	for _, r := range results {
+		if want[r.MerchantID] {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// countOccurrences returns the number of elements in xs equal to want.
+func countOccurrences(xs []string, want string) int {
+	n := 0
+	for _, x := range xs {
+		if x == want {
+			n++
+		}
+	}
+	return n
 }
