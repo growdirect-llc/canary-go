@@ -14,9 +14,10 @@ import (
 // RegisterAssetTools registers 4 asset tools with the registry.
 func RegisterAssetTools(reg *Registry, s *asset.Store) {
 	reg.Register(ToolDef{
-		Name:        "canary.asset.list",
-		Description: "List inventory positions. Filters: location_id, status (active|discontinued), low_stock (bool), limit, offset.",
-		InputSchema: json.RawMessage(`{"type":"object","properties":{"location_id":{"type":"string","format":"uuid"},"status":{"type":"string","enum":["active","discontinued"]},"low_stock":{"type":"boolean"},"limit":{"type":"integer"},"offset":{"type":"integer"}}}`),
+		Name:          "canary.asset.list",
+		Description:   "List inventory positions. Filters: location_id, status (active|discontinued), low_stock (bool), limit, offset.",
+		InputSchema:   json.RawMessage(`{"type":"object","properties":{"location_id":{"type":"string","format":"uuid"},"status":{"type":"string","enum":["active","discontinued"]},"low_stock":{"type":"boolean"},"limit":{"type":"integer"},"offset":{"type":"integer"}}}`),
+		RequiredScope: identity.ScopeAssetRead,
 	}, func(ctx context.Context, args json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {
@@ -40,9 +41,10 @@ func RegisterAssetTools(reg *Registry, s *asset.Store) {
 	})
 
 	reg.Register(ToolDef{
-		Name:        "canary.asset.get_item",
-		Description: "Get an item master record with all inventory positions and lots across locations.",
-		InputSchema: json.RawMessage(`{"type":"object","required":["item_id"],"properties":{"item_id":{"type":"string","format":"uuid"}}}`),
+		Name:          "canary.asset.get_item",
+		Description:   "Get an item master record with all inventory positions and lots across locations.",
+		InputSchema:   json.RawMessage(`{"type":"object","required":["item_id"],"properties":{"item_id":{"type":"string","format":"uuid"}}}`),
+		RequiredScope: identity.ScopeAssetRead,
 	}, func(ctx context.Context, args json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {
@@ -60,9 +62,10 @@ func RegisterAssetTools(reg *Registry, s *asset.Store) {
 	})
 
 	reg.Register(ToolDef{
-		Name:        "canary.asset.shrink_movements",
-		Description: "Aggregate write-off and negative-adjustment inventory movements by type and reason code over a date range.",
-		InputSchema: json.RawMessage(`{"type":"object","properties":{"from":{"type":"string","format":"date"},"to":{"type":"string","format":"date"},"location_id":{"type":"string","format":"uuid"}}}`),
+		Name:          "canary.asset.shrink_movements",
+		Description:   "Aggregate write-off and negative-adjustment inventory movements by type and reason code over a date range.",
+		InputSchema:   json.RawMessage(`{"type":"object","properties":{"from":{"type":"string","format":"date"},"to":{"type":"string","format":"date"},"location_id":{"type":"string","format":"uuid"}}}`),
+		RequiredScope: identity.ScopeAssetRead,
 	}, func(ctx context.Context, args json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {
@@ -93,9 +96,10 @@ func RegisterAssetTools(reg *Registry, s *asset.Store) {
 	})
 
 	reg.Register(ToolDef{
-		Name:        "canary.asset.flag",
-		Description: "Create an inventory discrepancy flag (writes an adjustment movement row). Does not update SOH directly — Bull pipeline reconciles. quantity_delta is negative for a loss.",
-		InputSchema: json.RawMessage(`{"type":"object","required":["item_id","location_id","quantity_delta","reason_code"],"properties":{"item_id":{"type":"string","format":"uuid"},"location_id":{"type":"string","format":"uuid"},"quantity_delta":{"type":"number"},"reason_code":{"type":"string","enum":["theft","damaged","spoilage","recount_corrected"]},"reference":{"type":"string"},"performed_by_user_id":{"type":"string","format":"uuid"}}}`),
+		Name:          "canary.asset.flag",
+		Description:   "Create an inventory discrepancy flag (writes an adjustment movement row). Does not update SOH directly — Bull pipeline reconciles. quantity_delta is negative for a loss.",
+		InputSchema:   json.RawMessage(`{"type":"object","required":["item_id","location_id","quantity_delta","reason_code"],"properties":{"item_id":{"type":"string","format":"uuid"},"location_id":{"type":"string","format":"uuid"},"quantity_delta":{"type":"number"},"reason_code":{"type":"string","enum":["theft","damaged","spoilage","recount_corrected"]},"reference":{"type":"string"},"performed_by_user_id":{"type":"string","format":"uuid"}}}`),
+		RequiredScope: identity.ScopeAssetWrite,
 	}, func(ctx context.Context, args json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {

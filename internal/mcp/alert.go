@@ -26,6 +26,7 @@ func RegisterAlertTools(reg *Registry, s *alert.Store) {
 				"offset":{"type":"integer","minimum":0}
 			}
 		}`),
+		RequiredScope: identity.ScopeAlertRead,
 	}, func(ctx context.Context, args json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {
@@ -58,9 +59,10 @@ func RegisterAlertTools(reg *Registry, s *alert.Store) {
 	})
 
 	reg.Register(ToolDef{
-		Name:        "canary.alert.get",
-		Description: "Get a single alert by ID.",
-		InputSchema: json.RawMessage(`{"type":"object","required":["id"],"properties":{"id":{"type":"string","format":"uuid"}}}`),
+		Name:          "canary.alert.get",
+		Description:   "Get a single alert by ID.",
+		InputSchema:   json.RawMessage(`{"type":"object","required":["id"],"properties":{"id":{"type":"string","format":"uuid"}}}`),
+		RequiredScope: identity.ScopeAlertRead,
 	}, func(ctx context.Context, args json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {
@@ -78,9 +80,10 @@ func RegisterAlertTools(reg *Registry, s *alert.Store) {
 	})
 
 	reg.Register(ToolDef{
-		Name:        "canary.alert.stats",
-		Description: "Return detection counts grouped by rule_category, severity, and status for the tenant.",
-		InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		Name:          "canary.alert.stats",
+		Description:   "Return detection counts grouped by rule_category, severity, and status for the tenant.",
+		InputSchema:   json.RawMessage(`{"type":"object","properties":{}}`),
+		RequiredScope: identity.ScopeAlertRead,
 	}, func(ctx context.Context, _ json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {
@@ -90,9 +93,10 @@ func RegisterAlertTools(reg *Registry, s *alert.Store) {
 	})
 
 	reg.Register(ToolDef{
-		Name:        "canary.alert.acknowledge",
-		Description: "Acknowledge an alert (status new → acknowledged).",
-		InputSchema: json.RawMessage(`{"type":"object","required":["id","acknowledged_by"],"properties":{"id":{"type":"string","format":"uuid"},"acknowledged_by":{"type":"string","format":"uuid"}}}`),
+		Name:          "canary.alert.acknowledge",
+		Description:   "Acknowledge an alert (status new → acknowledged).",
+		InputSchema:   json.RawMessage(`{"type":"object","required":["id","acknowledged_by"],"properties":{"id":{"type":"string","format":"uuid"},"acknowledged_by":{"type":"string","format":"uuid"}}}`),
+		RequiredScope: identity.ScopeAlertWrite,
 	}, func(ctx context.Context, args json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {
@@ -111,9 +115,10 @@ func RegisterAlertTools(reg *Registry, s *alert.Store) {
 	})
 
 	reg.Register(ToolDef{
-		Name:        "canary.alert.resolve",
-		Description: "Resolve/dismiss an alert with a disposition label (dismissed|false_positive|escalated).",
-		InputSchema: json.RawMessage(`{"type":"object","required":["id","disposition"],"properties":{"id":{"type":"string","format":"uuid"},"disposition":{"type":"string","enum":["dismissed","false_positive","escalated"]},"note":{"type":"string"}}}`),
+		Name:          "canary.alert.resolve",
+		Description:   "Resolve/dismiss an alert with a disposition label (dismissed|false_positive|escalated).",
+		InputSchema:   json.RawMessage(`{"type":"object","required":["id","disposition"],"properties":{"id":{"type":"string","format":"uuid"},"disposition":{"type":"string","enum":["dismissed","false_positive","escalated"]},"note":{"type":"string"}}}`),
+		RequiredScope: identity.ScopeAlertWrite,
 	}, func(ctx context.Context, args json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {
@@ -135,9 +140,10 @@ func RegisterAlertTools(reg *Registry, s *alert.Store) {
 	})
 
 	reg.Register(ToolDef{
-		Name:        "canary.alert.suppress",
-		Description: "Suppress an alert. duration_minutes=0 means indefinite.",
-		InputSchema: json.RawMessage(`{"type":"object","required":["id"],"properties":{"id":{"type":"string","format":"uuid"},"duration_minutes":{"type":"integer","minimum":0},"reason":{"type":"string"}}}`),
+		Name:          "canary.alert.suppress",
+		Description:   "Suppress an alert. duration_minutes=0 means indefinite.",
+		InputSchema:   json.RawMessage(`{"type":"object","required":["id"],"properties":{"id":{"type":"string","format":"uuid"},"duration_minutes":{"type":"integer","minimum":0},"reason":{"type":"string"}}}`),
+		RequiredScope: identity.ScopeAlertWrite,
 	}, func(ctx context.Context, args json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {

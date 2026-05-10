@@ -15,7 +15,8 @@ func RegisterCustomerTools(reg *Registry, s *customer.Store) {
 	reg.Register(ToolDef{
 		Name:        "canary.customer.list",
 		Description: "List customers for the tenant. Filters: search (name/email fragment), status, customer_type, limit, offset.",
-		InputSchema: json.RawMessage(`{"type":"object","properties":{"search":{"type":"string"},"status":{"type":"string"},"customer_type":{"type":"string"},"limit":{"type":"integer"},"offset":{"type":"integer"}}}`),
+		InputSchema:   json.RawMessage(`{"type":"object","properties":{"search":{"type":"string"},"status":{"type":"string"},"customer_type":{"type":"string"},"limit":{"type":"integer"},"offset":{"type":"integer"}}}`),
+		RequiredScope: identity.ScopeCustomerRead,
 	}, func(ctx context.Context, args json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {
@@ -40,9 +41,10 @@ func RegisterCustomerTools(reg *Registry, s *customer.Store) {
 	})
 
 	reg.Register(ToolDef{
-		Name:        "canary.customer.get",
-		Description: "Get a single customer record by ID.",
-		InputSchema: json.RawMessage(`{"type":"object","required":["id"],"properties":{"id":{"type":"string","format":"uuid"}}}`),
+		Name:          "canary.customer.get",
+		Description:   "Get a single customer record by ID.",
+		InputSchema:   json.RawMessage(`{"type":"object","required":["id"],"properties":{"id":{"type":"string","format":"uuid"}}}`),
+		RequiredScope: identity.ScopeCustomerRead,
 	}, func(ctx context.Context, args json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {
@@ -60,9 +62,10 @@ func RegisterCustomerTools(reg *Registry, s *customer.Store) {
 	})
 
 	reg.Register(ToolDef{
-		Name:        "canary.customer.memberships",
-		Description: "Get all loyalty program memberships for a customer.",
-		InputSchema: json.RawMessage(`{"type":"object","required":["customer_id"],"properties":{"customer_id":{"type":"string","format":"uuid"}}}`),
+		Name:          "canary.customer.memberships",
+		Description:   "Get all loyalty program memberships for a customer.",
+		InputSchema:   json.RawMessage(`{"type":"object","required":["customer_id"],"properties":{"customer_id":{"type":"string","format":"uuid"}}}`),
+		RequiredScope: identity.ScopeCustomerRead,
 	}, func(ctx context.Context, args json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {

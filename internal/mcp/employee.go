@@ -13,9 +13,10 @@ import (
 // RegisterEmployeeTools registers 3 employee tools with the registry.
 func RegisterEmployeeTools(reg *Registry, s *employee.Store) {
 	reg.Register(ToolDef{
-		Name:        "canary.employee.list",
-		Description: "List employees (cashier roster) for the tenant. Filters: employment_status (active|terminated), search (name/code/email fragment), limit, offset.",
-		InputSchema: json.RawMessage(`{"type":"object","properties":{"employment_status":{"type":"string","enum":["active","terminated"]},"search":{"type":"string"},"limit":{"type":"integer"},"offset":{"type":"integer"}}}`),
+		Name:          "canary.employee.list",
+		Description:   "List employees (cashier roster) for the tenant. Filters: employment_status (active|terminated), search (name/code/email fragment), limit, offset.",
+		InputSchema:   json.RawMessage(`{"type":"object","properties":{"employment_status":{"type":"string","enum":["active","terminated"]},"search":{"type":"string"},"limit":{"type":"integer"},"offset":{"type":"integer"}}}`),
+		RequiredScope: identity.ScopeEmployeeRead,
 	}, func(ctx context.Context, args json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {
@@ -38,9 +39,10 @@ func RegisterEmployeeTools(reg *Registry, s *employee.Store) {
 	})
 
 	reg.Register(ToolDef{
-		Name:        "canary.employee.get",
-		Description: "Get a single employee record by ID.",
-		InputSchema: json.RawMessage(`{"type":"object","required":["id"],"properties":{"id":{"type":"string","format":"uuid"}}}`),
+		Name:          "canary.employee.get",
+		Description:   "Get a single employee record by ID.",
+		InputSchema:   json.RawMessage(`{"type":"object","required":["id"],"properties":{"id":{"type":"string","format":"uuid"}}}`),
+		RequiredScope: identity.ScopeEmployeeRead,
 	}, func(ctx context.Context, args json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {
@@ -58,9 +60,10 @@ func RegisterEmployeeTools(reg *Registry, s *employee.Store) {
 	})
 
 	reg.Register(ToolDef{
-		Name:        "canary.employee.alert_summaries",
-		Description: "Return detection counts grouped by cashier employee, ordered by total alerts DESC.",
-		InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		Name:          "canary.employee.alert_summaries",
+		Description:   "Return detection counts grouped by cashier employee, ordered by total alerts DESC.",
+		InputSchema:   json.RawMessage(`{"type":"object","properties":{}}`),
+		RequiredScope: identity.ScopeEmployeeRead,
 	}, func(ctx context.Context, _ json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {

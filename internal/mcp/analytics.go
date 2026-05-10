@@ -43,7 +43,7 @@ type dateArgs struct {
 
 // RegisterAnalyticsTools registers 5 analytics tools with the registry.
 func RegisterAnalyticsTools(reg *Registry, s *analytics.Store) {
-	reg.Register(ToolDef{Name: "canary.analytics.sales_summary", Description: "Aggregate revenue, transaction count, avg ticket, and return stats for a date range.", InputSchema: dateSchema},
+	reg.Register(ToolDef{Name: "canary.analytics.sales_summary", Description: "Aggregate revenue, transaction count, avg ticket, and return stats for a date range.", InputSchema: dateSchema, RequiredScope: identity.ScopeAnalyticsRead},
 		func(ctx context.Context, args json.RawMessage) (any, error) {
 			claims, ok := identity.ClaimsFromContext(ctx)
 			if !ok {
@@ -54,7 +54,7 @@ func RegisterAnalyticsTools(reg *Registry, s *analytics.Store) {
 			return s.SalesSummary(ctx, parseDateRange(claims.TenantID, p.From, p.To, p.LocationID, p.Limit))
 		})
 
-	reg.Register(ToolDef{Name: "canary.analytics.basket_metrics", Description: "Per-ticket composition (avg items, avg value) and tender-type distribution.", InputSchema: dateSchema},
+	reg.Register(ToolDef{Name: "canary.analytics.basket_metrics", Description: "Per-ticket composition (avg items, avg value) and tender-type distribution.", InputSchema: dateSchema, RequiredScope: identity.ScopeAnalyticsRead},
 		func(ctx context.Context, args json.RawMessage) (any, error) {
 			claims, ok := identity.ClaimsFromContext(ctx)
 			if !ok {
@@ -65,7 +65,7 @@ func RegisterAnalyticsTools(reg *Registry, s *analytics.Store) {
 			return s.BasketMetrics(ctx, parseDateRange(claims.TenantID, p.From, p.To, p.LocationID, p.Limit))
 		})
 
-	reg.Register(ToolDef{Name: "canary.analytics.cohort", Description: "Monthly new vs returning customer cohort rows for a date range.", InputSchema: dateSchema},
+	reg.Register(ToolDef{Name: "canary.analytics.cohort", Description: "Monthly new vs returning customer cohort rows for a date range.", InputSchema: dateSchema, RequiredScope: identity.ScopeAnalyticsRead},
 		func(ctx context.Context, args json.RawMessage) (any, error) {
 			claims, ok := identity.ClaimsFromContext(ctx)
 			if !ok {
@@ -76,7 +76,7 @@ func RegisterAnalyticsTools(reg *Registry, s *analytics.Store) {
 			return s.CohortRows(ctx, parseDateRange(claims.TenantID, p.From, p.To, p.LocationID, p.Limit))
 		})
 
-	reg.Register(ToolDef{Name: "canary.analytics.velocity", Description: "Top items by quantity sold in the date range.", InputSchema: dateSchema},
+	reg.Register(ToolDef{Name: "canary.analytics.velocity", Description: "Top items by quantity sold in the date range.", InputSchema: dateSchema, RequiredScope: identity.ScopeAnalyticsRead},
 		func(ctx context.Context, args json.RawMessage) (any, error) {
 			claims, ok := identity.ClaimsFromContext(ctx)
 			if !ok {
@@ -87,7 +87,7 @@ func RegisterAnalyticsTools(reg *Registry, s *analytics.Store) {
 			return s.VelocityItems(ctx, parseDateRange(claims.TenantID, p.From, p.To, p.LocationID, p.Limit))
 		})
 
-	reg.Register(ToolDef{Name: "canary.analytics.shrink", Description: "Return count/revenue, void count/revenue, unknown-scan count, and shrink rate for a date range.", InputSchema: dateSchema},
+	reg.Register(ToolDef{Name: "canary.analytics.shrink", Description: "Return count/revenue, void count/revenue, unknown-scan count, and shrink rate for a date range.", InputSchema: dateSchema, RequiredScope: identity.ScopeAnalyticsRead},
 		func(ctx context.Context, args json.RawMessage) (any, error) {
 			claims, ok := identity.ClaimsFromContext(ctx)
 			if !ok {

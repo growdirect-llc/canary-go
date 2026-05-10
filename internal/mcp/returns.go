@@ -14,9 +14,10 @@ import (
 // RegisterReturnsTools registers 4 returns tools with the registry.
 func RegisterReturnsTools(reg *Registry, s *returns.Store) {
 	reg.Register(ToolDef{
-		Name:        "canary.returns.list",
-		Description: "List return transactions. Filters: location_id, customer_id, from, to, limit, offset.",
-		InputSchema: json.RawMessage(`{"type":"object","properties":{"location_id":{"type":"string","format":"uuid"},"customer_id":{"type":"string","format":"uuid"},"from":{"type":"string","format":"date"},"to":{"type":"string","format":"date"},"limit":{"type":"integer"},"offset":{"type":"integer"}}}`),
+		Name:          "canary.returns.list",
+		Description:   "List return transactions. Filters: location_id, customer_id, from, to, limit, offset.",
+		InputSchema:   json.RawMessage(`{"type":"object","properties":{"location_id":{"type":"string","format":"uuid"},"customer_id":{"type":"string","format":"uuid"},"from":{"type":"string","format":"date"},"to":{"type":"string","format":"date"},"limit":{"type":"integer"},"offset":{"type":"integer"}}}`),
+		RequiredScope: identity.ScopeReturnsRead,
 	}, func(ctx context.Context, args json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {
@@ -61,9 +62,10 @@ func RegisterReturnsTools(reg *Registry, s *returns.Store) {
 	})
 
 	reg.Register(ToolDef{
-		Name:        "canary.returns.get",
-		Description: "Get a return transaction with its line items.",
-		InputSchema: json.RawMessage(`{"type":"object","required":["id"],"properties":{"id":{"type":"string","format":"uuid"}}}`),
+		Name:          "canary.returns.get",
+		Description:   "Get a return transaction with its line items.",
+		InputSchema:   json.RawMessage(`{"type":"object","required":["id"],"properties":{"id":{"type":"string","format":"uuid"}}}`),
+		RequiredScope: identity.ScopeReturnsRead,
 	}, func(ctx context.Context, args json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {
@@ -81,9 +83,10 @@ func RegisterReturnsTools(reg *Registry, s *returns.Store) {
 	})
 
 	reg.Register(ToolDef{
-		Name:        "canary.returns.summary",
-		Description: "Aggregate return statistics (count, revenue, avg amount) for a date range.",
-		InputSchema: json.RawMessage(`{"type":"object","properties":{"from":{"type":"string","format":"date"},"to":{"type":"string","format":"date"},"location_id":{"type":"string","format":"uuid"}}}`),
+		Name:          "canary.returns.summary",
+		Description:   "Aggregate return statistics (count, revenue, avg amount) for a date range.",
+		InputSchema:   json.RawMessage(`{"type":"object","properties":{"from":{"type":"string","format":"date"},"to":{"type":"string","format":"date"},"location_id":{"type":"string","format":"uuid"}}}`),
+		RequiredScope: identity.ScopeReturnsRead,
 	}, func(ctx context.Context, args json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {
@@ -114,9 +117,10 @@ func RegisterReturnsTools(reg *Registry, s *returns.Store) {
 	})
 
 	reg.Register(ToolDef{
-		Name:        "canary.returns.fraud_flag",
-		Description: "Flag a return transaction as suspicious. Creates a q.detections row that drives the alert lifecycle.",
-		InputSchema: json.RawMessage(`{"type":"object","required":["transaction_id","detection_rule_id","reason","severity","flagged_by"],"properties":{"transaction_id":{"type":"string","format":"uuid"},"detection_rule_id":{"type":"string","format":"uuid"},"reason":{"type":"string"},"severity":{"type":"string","enum":["low","medium","high","critical"]},"flagged_by":{"type":"string","format":"uuid"}}}`),
+		Name:          "canary.returns.fraud_flag",
+		Description:   "Flag a return transaction as suspicious. Creates a q.detections row that drives the alert lifecycle.",
+		InputSchema:   json.RawMessage(`{"type":"object","required":["transaction_id","detection_rule_id","reason","severity","flagged_by"],"properties":{"transaction_id":{"type":"string","format":"uuid"},"detection_rule_id":{"type":"string","format":"uuid"},"reason":{"type":"string"},"severity":{"type":"string","enum":["low","medium","high","critical"]},"flagged_by":{"type":"string","format":"uuid"}}}`),
+		RequiredScope: identity.ScopeReturnsWrite,
 	}, func(ctx context.Context, args json.RawMessage) (any, error) {
 		claims, ok := identity.ClaimsFromContext(ctx)
 		if !ok {
