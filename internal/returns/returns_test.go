@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/ruptiv/canary/internal/identity"
+	"github.com/ruptiv/canary/internal/testutil"
 )
 
 func TestHandlerMount_RegistersRoutes(t *testing.T) {
@@ -64,10 +64,7 @@ func TestHandlerGet_MalformedID(t *testing.T) {
 	h.Mount(r)
 	tid := uuid.New()
 	req := httptest.NewRequest(http.MethodGet, "/v1/returns/not-a-uuid", nil)
-	req = req.WithContext(identity.InjectClaims(req.Context(), identity.Claims{
-		TenantID:   tid,
-		AuthMethod: "apikey",
-	}))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tid))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
@@ -84,10 +81,7 @@ func TestHandlerFlag_MissingDetectionRuleID(t *testing.T) {
 	body := `{"reason":"suspicious","severity":"high","flagged_by":"` + uuid.New().String() + `"}`
 	req := httptest.NewRequest(http.MethodPost, "/v1/returns/"+txID.String()+"/flag", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(identity.InjectClaims(req.Context(), identity.Claims{
-		TenantID:   tid,
-		AuthMethod: "apikey",
-	}))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tid))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {

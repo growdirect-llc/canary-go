@@ -39,12 +39,20 @@ func New(store *Store, logger *zap.Logger) *Handler {
 	return &Handler{Store: store, Logger: logger}
 }
 
+// Mount registers all returns routes on a chi router. GETs require
+// returns:read; POST /flag requires returns:write (GRO-906).
 func (h *Handler) Mount(r chi.Router) {
-	r.Get("/v1/returns", h.list)
-	r.Get("/v1/returns/summary", h.summary)
-	r.Get("/v1/returns/{id}", h.get)
-	r.Post("/v1/returns/{id}/flag", h.flag)
-	r.Get("/v1/returns/{id}/lines", h.lines)
+	r.Group(func(r chi.Router) {
+		r.Use(identity.RequireScopeMiddleware(identity.ScopeReturnsRead))
+		r.Get("/v1/returns", h.list)
+		r.Get("/v1/returns/summary", h.summary)
+		r.Get("/v1/returns/{id}", h.get)
+		r.Get("/v1/returns/{id}/lines", h.lines)
+	})
+	r.Group(func(r chi.Router) {
+		r.Use(identity.RequireScopeMiddleware(identity.ScopeReturnsWrite))
+		r.Post("/v1/returns/{id}/flag", h.flag)
+	})
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {

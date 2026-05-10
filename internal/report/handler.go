@@ -36,10 +36,19 @@ func New(store Storer, logger *zap.Logger) *Handler {
 	return &Handler{Store: store, Logger: logger}
 }
 
+// Mount registers report routes on a chi router. GETs require
+// report:read; POST creates a report job and requires report:write
+// (GRO-906).
 func (h *Handler) Mount(r chi.Router) {
-	r.Post("/v1/reports", h.create)
-	r.Get("/v1/reports", h.list)
-	r.Get("/v1/reports/{job_id}", h.get)
+	r.Group(func(r chi.Router) {
+		r.Use(identity.RequireScopeMiddleware(identity.ScopeReportRead))
+		r.Get("/v1/reports", h.list)
+		r.Get("/v1/reports/{job_id}", h.get)
+	})
+	r.Group(func(r chi.Router) {
+		r.Use(identity.RequireScopeMiddleware(identity.ScopeReportWrite))
+		r.Post("/v1/reports", h.create)
+	})
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {

@@ -38,11 +38,17 @@ func New(store *Store, logger *zap.Logger) *Handler {
 	return &Handler{Store: store, Logger: logger}
 }
 
+// Mount registers all employee routes on a chi router. All routes are
+// reads today; employee:read enforced uniformly. employee:write reserved
+// for future write flows (GRO-906).
 func (h *Handler) Mount(r chi.Router) {
-	r.Get("/v1/employees", h.list)
-	r.Get("/v1/employees/alert-summary", h.alertSummary)
-	r.Get("/v1/employees/{id}", h.get)
-	r.Get("/v1/employees/{id}/alerts", h.employeeAlerts)
+	r.Group(func(r chi.Router) {
+		r.Use(identity.RequireScopeMiddleware(identity.ScopeEmployeeRead))
+		r.Get("/v1/employees", h.list)
+		r.Get("/v1/employees/alert-summary", h.alertSummary)
+		r.Get("/v1/employees/{id}", h.get)
+		r.Get("/v1/employees/{id}/alerts", h.employeeAlerts)
+	})
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {

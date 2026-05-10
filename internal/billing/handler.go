@@ -30,13 +30,21 @@ func New(s *Store, l *zap.Logger) *Handler {
 	return &Handler{Store: s, Logger: l}
 }
 
-// Mount registers routes on a chi router.
+// Mount registers billing routes on a chi router. GETs require
+// billing:read; OTB create + consume mutate budget state and require
+// billing:write (GRO-906).
 func (h *Handler) Mount(r chi.Router) {
-	r.Post("/v1/billing/otb", h.createBudget)
-	r.Get("/v1/billing/otb", h.listBudgets)
-	r.Get("/v1/billing/otb/{id}", h.getBudget)
-	r.Post("/v1/billing/otb/{id}/consume", h.consume)
-	r.Get("/v1/billing/cost-rollup", h.costRollup)
+	r.Group(func(r chi.Router) {
+		r.Use(identity.RequireScopeMiddleware(identity.ScopeBillingRead))
+		r.Get("/v1/billing/otb", h.listBudgets)
+		r.Get("/v1/billing/otb/{id}", h.getBudget)
+		r.Get("/v1/billing/cost-rollup", h.costRollup)
+	})
+	r.Group(func(r chi.Router) {
+		r.Use(identity.RequireScopeMiddleware(identity.ScopeBillingWrite))
+		r.Post("/v1/billing/otb", h.createBudget)
+		r.Post("/v1/billing/otb/{id}/consume", h.consume)
+	})
 }
 
 // requireTenant returns the authenticated tenant or writes 401 and

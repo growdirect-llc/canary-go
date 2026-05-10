@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/ruptiv/canary/internal/identity"
+	"github.com/ruptiv/canary/internal/testutil"
 )
 
 func TestHandlerMount_RegistersRoutes(t *testing.T) {
@@ -61,10 +61,7 @@ func TestHandlerGet_MalformedID(t *testing.T) {
 	h.Mount(r)
 	tid := uuid.New()
 	req := httptest.NewRequest(http.MethodGet, "/v1/employees/not-a-uuid", nil)
-	req = req.WithContext(identity.InjectClaims(req.Context(), identity.Claims{
-		TenantID:   tid,
-		AuthMethod: "apikey",
-	}))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tid))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
@@ -78,10 +75,7 @@ func TestHandlerAlerts_MalformedID(t *testing.T) {
 	h.Mount(r)
 	tid := uuid.New()
 	req := httptest.NewRequest(http.MethodGet, "/v1/employees/not-a-uuid/alerts", nil)
-	req = req.WithContext(identity.InjectClaims(req.Context(), identity.Claims{
-		TenantID:   tid,
-		AuthMethod: "apikey",
-	}))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tid))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {

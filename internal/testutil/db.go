@@ -69,14 +69,59 @@ func SeedTenant(t *testing.T, ctx context.Context) uuid.UUID {
 }
 
 // WithAPIKeyClaims returns a context carrying a minimal API-key Claims
-// record for tenantID. Use this to build test requests that exercise
-// handler tenant-scoping without standing up the APIKeyMiddleware DB
-// lookup. Mirrors identity.InjectAPIKeyClaims but takes the resolved
-// tenant directly.
+// record for tenantID with a generous scope set covering every read +
+// write + admin scope across the platform. Use this for handler tests
+// that exercise tenant-scoping without standing up the APIKeyMiddleware
+// DB lookup; the broad scope grant means RequireScopeMiddleware never
+// 403s these test requests, isolating the unit under test from
+// scope-enforcement concerns.
+//
+// Tests that want to assert scope-enforcement behavior should call
+// WithAPIKeyClaimsScoped (below) and pass the exact scope set under
+// test (e.g. only the read scope when probing a 403 on a write route).
 func WithAPIKeyClaims(ctx context.Context, tenantID uuid.UUID) context.Context {
+	return WithAPIKeyClaimsScoped(ctx, tenantID, allTestScopes()...)
+}
+
+// WithAPIKeyClaimsScoped returns a context carrying API-key Claims for
+// tenantID with exactly the named scopes. Use to exercise scope
+// enforcement (e.g. inject a read-only key, hit a write route, assert
+// 403 insufficient_scope).
+func WithAPIKeyClaimsScoped(ctx context.Context, tenantID uuid.UUID, scopes ...string) context.Context {
 	return identity.InjectClaims(ctx, identity.Claims{
 		TenantID:   tenantID,
 		AgentName:  "test-agent",
 		AuthMethod: identity.AuthMethodAPIKey,
+		Scopes:     append([]string(nil), scopes...),
 	})
+}
+
+// allTestScopes returns the union of every scope constant defined in
+// internal/identity/scopes.go. WithAPIKeyClaims grants this set so
+// existing handler tests (predating GRO-906) keep passing once the
+// scope middleware lands.
+func allTestScopes() []string {
+	return []string{
+		// Per-resource read/write scopes added in GRO-906.
+		identity.ScopeTransactionRead, identity.ScopeTransactionWrite,
+		identity.ScopeCustomerRead, identity.ScopeCustomerWrite,
+		identity.ScopeEmployeeRead, identity.ScopeEmployeeWrite,
+		identity.ScopeAssetRead, identity.ScopeAssetWrite,
+		identity.ScopeAnalyticsRead, identity.ScopeAnalyticsWrite,
+		identity.ScopeReturnsRead, identity.ScopeReturnsWrite,
+		identity.ScopeReportRead, identity.ScopeReportWrite,
+		identity.ScopeOwlRead, identity.ScopeOwlWrite,
+		identity.ScopeAlertRead, identity.ScopeAlertWrite,
+		identity.ScopeTaskRead, identity.ScopeTaskWrite,
+		identity.ScopeBillingRead, identity.ScopeBillingWrite,
+		// Pre-existing scopes preserved verbatim.
+		identity.ScopeCaseRead, identity.ScopeCaseWrite,
+		identity.ScopeDLQRead, identity.ScopeDLQReplay,
+		identity.ScopeEvidenceRead, identity.ScopeEvidenceWrite,
+		identity.ScopeWebhookWrite, identity.ScopeWebhookBP, identity.ScopeWebhookIdem,
+		identity.ScopeGatewayNonce, identity.ScopeProtocolEvents,
+		identity.ScopeIdentityMe, identity.ScopeIdentityAdmin,
+		identity.ScopeLedgerRead,
+		identity.ScopeInventoryReplenish,
+	}
 }

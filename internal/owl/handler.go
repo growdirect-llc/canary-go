@@ -12,6 +12,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+
+	"github.com/ruptiv/canary/internal/identity"
 )
 
 // Handler serves Owl's read-only HTTP surface. Five endpoints:
@@ -43,13 +45,19 @@ func New(agg *Aggregator, logger *zap.Logger) *Handler {
 	}
 }
 
-// Mount registers Owl's routes on a chi router.
+// Mount registers Owl's routes on a chi router. All routes are reads
+// (dashboard summaries); owl:read enforced uniformly. owl:write
+// reserved for the dashboards_handler refresh endpoint, which lives in
+// dashboards_handler.go (GRO-906).
 func (h *Handler) Mount(r chi.Router) {
-	r.Get("/v1/owl/dashboard", h.Dashboard)
-	r.Get("/v1/owl/sales", h.Sales)
-	r.Get("/v1/owl/top-items", h.TopItems)
-	r.Get("/v1/owl/cases", h.Cases)
-	r.Get("/v1/owl/exposure", h.Exposure)
+	r.Group(func(r chi.Router) {
+		r.Use(identity.RequireScopeMiddleware(identity.ScopeOwlRead))
+		r.Get("/v1/owl/dashboard", h.Dashboard)
+		r.Get("/v1/owl/sales", h.Sales)
+		r.Get("/v1/owl/top-items", h.TopItems)
+		r.Get("/v1/owl/cases", h.Cases)
+		r.Get("/v1/owl/exposure", h.Exposure)
+	})
 }
 
 // ──────────────────────────────────────────────────────────────────────

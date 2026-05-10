@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/ruptiv/canary/internal/identity"
+	"github.com/ruptiv/canary/internal/testutil"
 )
 
 func TestThreshold_BelowThreshold(t *testing.T) {
@@ -118,10 +118,7 @@ func TestHandlerGet_MalformedID(t *testing.T) {
 	// Inject valid tenant claims so auth passes; ID parse fires next.
 	tid := uuid.New()
 	req := httptest.NewRequest(http.MethodGet, "/v1/alerts/not-a-uuid", nil)
-	req = req.WithContext(identity.InjectClaims(req.Context(), identity.Claims{
-		TenantID:   tid,
-		AuthMethod: "apikey",
-	}))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tid))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {

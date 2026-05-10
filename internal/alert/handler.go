@@ -32,13 +32,22 @@ func New(store *Store, logger *zap.Logger) *Handler {
 	return &Handler{Store: store, Logger: logger}
 }
 
+// Mount registers alert routes on a chi router. GETs require
+// alert:read; acknowledge / resolve / suppress all mutate state and
+// require alert:write (GRO-906).
 func (h *Handler) Mount(r chi.Router) {
-	r.Get("/v1/alerts", h.list)
-	r.Get("/v1/alerts/stats", h.stats)
-	r.Get("/v1/alerts/{id}", h.get)
-	r.Post("/v1/alerts/{id}/acknowledge", h.acknowledge)
-	r.Post("/v1/alerts/{id}/resolve", h.resolve)
-	r.Post("/v1/alerts/{id}/suppress", h.suppress)
+	r.Group(func(r chi.Router) {
+		r.Use(identity.RequireScopeMiddleware(identity.ScopeAlertRead))
+		r.Get("/v1/alerts", h.list)
+		r.Get("/v1/alerts/stats", h.stats)
+		r.Get("/v1/alerts/{id}", h.get)
+	})
+	r.Group(func(r chi.Router) {
+		r.Use(identity.RequireScopeMiddleware(identity.ScopeAlertWrite))
+		r.Post("/v1/alerts/{id}/acknowledge", h.acknowledge)
+		r.Post("/v1/alerts/{id}/resolve", h.resolve)
+		r.Post("/v1/alerts/{id}/suppress", h.suppress)
+	})
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {

@@ -10,7 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/ruptiv/canary/internal/identity"
+	"github.com/ruptiv/canary/internal/testutil"
 )
 
 func TestHandlerMount_RegistersRoutes(t *testing.T) {
@@ -73,10 +73,7 @@ func TestHandler_WithAuth_NoStore_Returns500(t *testing.T) {
 	tid := uuid.New()
 	for _, ep := range endpoints {
 		req := httptest.NewRequest(http.MethodGet, ep, nil)
-		req = req.WithContext(identity.InjectClaims(req.Context(), identity.Claims{
-			TenantID:   tid,
-			AuthMethod: "apikey",
-		}))
+		req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tid))
 		w := httptest.NewRecorder()
 		// expect panic recovery → 500; chi Recoverer not wired here so
 		// we recover manually and just check that auth passed (not 401).
@@ -121,10 +118,7 @@ func TestBuildFilter_LocationIDParsed(t *testing.T) {
 	var capturedFilter DateRangeFilter
 	// We test buildFilter directly
 	req := httptest.NewRequest(http.MethodGet, "/v1/analytics/sales?location_id="+lid.String(), nil)
-	req = req.WithContext(identity.InjectClaims(req.Context(), identity.Claims{
-		TenantID:   tid,
-		AuthMethod: "apikey",
-	}))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tid))
 	capturedFilter = buildFilter(tid, req)
 	if capturedFilter.LocationID == nil {
 		t.Fatal("location_id should be parsed")

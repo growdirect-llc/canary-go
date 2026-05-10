@@ -33,11 +33,19 @@ func New(store *Store, logger *zap.Logger) *Handler {
 	return &Handler{Store: store, Logger: logger}
 }
 
+// Mount registers all asset routes on a chi router. GETs require
+// asset:read; POST /flag requires asset:write (GRO-906).
 func (h *Handler) Mount(r chi.Router) {
-	r.Get("/v1/assets", h.list)
-	r.Get("/v1/assets/shrink", h.shrink)
-	r.Get("/v1/assets/{item_id}", h.get)
-	r.Post("/v1/assets/{item_id}/flag", h.flag)
+	r.Group(func(r chi.Router) {
+		r.Use(identity.RequireScopeMiddleware(identity.ScopeAssetRead))
+		r.Get("/v1/assets", h.list)
+		r.Get("/v1/assets/shrink", h.shrink)
+		r.Get("/v1/assets/{item_id}", h.get)
+	})
+	r.Group(func(r chi.Router) {
+		r.Use(identity.RequireScopeMiddleware(identity.ScopeAssetWrite))
+		r.Post("/v1/assets/{item_id}/flag", h.flag)
+	})
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {

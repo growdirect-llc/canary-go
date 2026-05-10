@@ -39,14 +39,29 @@ func New(store *Store, logger *zap.Logger) *Handler {
 	}
 }
 
-// Mount registers all transaction routes on a chi router.
+// Mount registers all transaction routes on a chi router. Routes are
+// split into per-scope subgroups so identity.RequireScopeMiddleware
+// enforces least-privilege at the route boundary (GRO-906).
+//
+//   - GET routes require transaction:read
+//   - POST routes (create / void / make-return) require transaction:write
+//
+// The caller (cmd/transaction/main.go) is expected to mount Mount inside
+// an APIKeyMiddleware group so claims are populated before the scope
+// check runs; missing claims yields 401 from the scope middleware.
 func (h *Handler) Mount(r chi.Router) {
-	r.Get("/v1/transactions/by-receipt-number", h.byReceipt) // most-specific first
-	r.Get("/v1/transactions/{id}", h.getByID)
-	r.Get("/v1/transactions", h.list)
-	r.Post("/v1/transactions", h.create)
-	r.Post("/v1/transactions/{id}/voids", h.void)
-	r.Post("/v1/transactions/{id}/returns", h.makeReturn)
+	r.Group(func(r chi.Router) {
+		r.Use(identity.RequireScopeMiddleware(identity.ScopeTransactionRead))
+		r.Get("/v1/transactions/by-receipt-number", h.byReceipt) // most-specific first
+		r.Get("/v1/transactions/{id}", h.getByID)
+		r.Get("/v1/transactions", h.list)
+	})
+	r.Group(func(r chi.Router) {
+		r.Use(identity.RequireScopeMiddleware(identity.ScopeTransactionWrite))
+		r.Post("/v1/transactions", h.create)
+		r.Post("/v1/transactions/{id}/voids", h.void)
+		r.Post("/v1/transactions/{id}/returns", h.makeReturn)
+	})
 }
 
 // requireTenant returns the authenticated tenant or writes 401 and

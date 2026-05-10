@@ -36,11 +36,20 @@ func NewDashboardHandler(s *DashboardStore, l *zap.Logger) *DashboardHandler {
 	return &DashboardHandler{Store: s, Logger: l}
 }
 
+// Mount registers Owl's dashboard routes on a chi router. GET routes
+// require owl:read; POST refresh mutates decisioning state and requires
+// owl:write (GRO-906).
 func (h *DashboardHandler) Mount(r chi.Router) {
-	r.Get("/v1/owl/parties", h.listParties)
-	r.Get("/v1/owl/parties/{id}/rfm", h.getPartyRFM)
-	r.Post("/v1/owl/parties/refresh", h.refreshDecisioningFacts)
-	r.Get("/v1/owl/lp-rate", h.lpRate)
+	r.Group(func(r chi.Router) {
+		r.Use(identity.RequireScopeMiddleware(identity.ScopeOwlRead))
+		r.Get("/v1/owl/parties", h.listParties)
+		r.Get("/v1/owl/parties/{id}/rfm", h.getPartyRFM)
+		r.Get("/v1/owl/lp-rate", h.lpRate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Use(identity.RequireScopeMiddleware(identity.ScopeOwlWrite))
+		r.Post("/v1/owl/parties/refresh", h.refreshDecisioningFacts)
+	})
 }
 
 // requireTenant returns the authenticated tenant or writes 401 and

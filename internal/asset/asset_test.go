@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/ruptiv/canary/internal/identity"
+	"github.com/ruptiv/canary/internal/testutil"
 )
 
 func TestHandlerMount_RegistersRoutes(t *testing.T) {
@@ -62,10 +62,7 @@ func TestHandlerGet_MalformedItemID(t *testing.T) {
 	h.Mount(r)
 	tid := uuid.New()
 	req := httptest.NewRequest(http.MethodGet, "/v1/assets/not-a-uuid", nil)
-	req = req.WithContext(identity.InjectClaims(req.Context(), identity.Claims{
-		TenantID:   tid,
-		AuthMethod: "apikey",
-	}))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tid))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
@@ -81,10 +78,7 @@ func TestHandlerFlag_MalformedItemID(t *testing.T) {
 	body := `{"location_id":"` + uuid.New().String() + `","quantity_delta":-1,"reason_code":"theft"}`
 	req := httptest.NewRequest(http.MethodPost, "/v1/assets/not-a-uuid/flag", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(identity.InjectClaims(req.Context(), identity.Claims{
-		TenantID:   tid,
-		AuthMethod: "apikey",
-	}))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tid))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
@@ -102,10 +96,7 @@ func TestHandlerFlag_MissingLocationID(t *testing.T) {
 	body := `{"quantity_delta":-1,"reason_code":"theft"}`
 	req := httptest.NewRequest(http.MethodPost, "/v1/assets/"+itemID.String()+"/flag", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(identity.InjectClaims(req.Context(), identity.Claims{
-		TenantID:   tid,
-		AuthMethod: "apikey",
-	}))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tid))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
@@ -127,10 +118,7 @@ func TestHandlerFlag_MissingReasonCode(t *testing.T) {
 	body := `{"location_id":"` + uuid.New().String() + `","quantity_delta":-1}`
 	req := httptest.NewRequest(http.MethodPost, "/v1/assets/"+itemID.String()+"/flag", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(identity.InjectClaims(req.Context(), identity.Claims{
-		TenantID:   tid,
-		AuthMethod: "apikey",
-	}))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tid))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
@@ -149,10 +137,7 @@ func TestHandlerList_MalformedLocationID(t *testing.T) {
 	h.Mount(r)
 	tid := uuid.New()
 	req := httptest.NewRequest(http.MethodGet, "/v1/assets?location_id=bad", nil)
-	req = req.WithContext(identity.InjectClaims(req.Context(), identity.Claims{
-		TenantID:   tid,
-		AuthMethod: "apikey",
-	}))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tid))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {

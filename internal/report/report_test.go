@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/ruptiv/canary/internal/identity"
+	"github.com/ruptiv/canary/internal/testutil"
 )
 
 func TestHandlerMount_RegistersRoutes(t *testing.T) {
@@ -69,10 +69,7 @@ func TestHandlerCreate_ValidRequest(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/v1/reports", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(identity.InjectClaims(req.Context(), identity.Claims{
-		TenantID:   tid,
-		AuthMethod: "apikey",
-	}))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tid))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusAccepted {
@@ -99,10 +96,7 @@ func TestHandlerCreate_InvalidReportType(t *testing.T) {
 	body, _ := json.Marshal(ReportRequest{ReportType: "bogus"})
 	req := httptest.NewRequest(http.MethodPost, "/v1/reports", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(identity.InjectClaims(req.Context(), identity.Claims{
-		TenantID:   tid,
-		AuthMethod: "apikey",
-	}))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tid))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
@@ -119,10 +113,7 @@ func TestHandlerCreate_MissingReportType(t *testing.T) {
 	body, _ := json.Marshal(ReportRequest{From: "2026-01-01"})
 	req := httptest.NewRequest(http.MethodPost, "/v1/reports", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(identity.InjectClaims(req.Context(), identity.Claims{
-		TenantID:   tid,
-		AuthMethod: "apikey",
-	}))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tid))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
@@ -140,13 +131,12 @@ func TestHandlerGetJob_RoundTrip(t *testing.T) {
 	h := New(NewStore(), nil)
 	h.Mount(r)
 	tid := uuid.New()
-	claims := identity.Claims{TenantID: tid, AuthMethod: "apikey"}
 
 	// Create
 	body, _ := json.Marshal(ReportRequest{ReportType: ReportTypeReturnDetail, From: "2026-01-01", To: "2026-01-31"})
 	req := httptest.NewRequest(http.MethodPost, "/v1/reports", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(identity.InjectClaims(req.Context(), claims))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tid))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusAccepted {
@@ -157,7 +147,7 @@ func TestHandlerGetJob_RoundTrip(t *testing.T) {
 
 	// Fetch by ID
 	req2 := httptest.NewRequest(http.MethodGet, "/v1/reports/"+job.JobID.String(), nil)
-	req2 = req2.WithContext(identity.InjectClaims(req2.Context(), claims))
+	req2 = req2.WithContext(testutil.WithAPIKeyClaims(req2.Context(), tid))
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
 	if w2.Code != http.StatusOK {
@@ -180,7 +170,7 @@ func TestHandlerGetJob_WrongTenant(t *testing.T) {
 	body, _ := json.Marshal(ReportRequest{ReportType: ReportTypeShrink, From: "2026-01-01", To: "2026-01-31"})
 	req := httptest.NewRequest(http.MethodPost, "/v1/reports", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(identity.InjectClaims(req.Context(), identity.Claims{TenantID: tid, AuthMethod: "apikey"}))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tid))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	var job ReportJob
@@ -188,7 +178,7 @@ func TestHandlerGetJob_WrongTenant(t *testing.T) {
 
 	// Fetch under a different tenant
 	req2 := httptest.NewRequest(http.MethodGet, "/v1/reports/"+job.JobID.String(), nil)
-	req2 = req2.WithContext(identity.InjectClaims(req2.Context(), identity.Claims{TenantID: uuid.New(), AuthMethod: "apikey"}))
+	req2 = req2.WithContext(testutil.WithAPIKeyClaims(req2.Context(), uuid.New()))
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
 	if w2.Code != http.StatusNotFound {
@@ -202,7 +192,7 @@ func TestHandlerGetJob_MalformedJobID(t *testing.T) {
 	h.Mount(r)
 	tid := uuid.New()
 	req := httptest.NewRequest(http.MethodGet, "/v1/reports/not-a-uuid", nil)
-	req = req.WithContext(identity.InjectClaims(req.Context(), identity.Claims{TenantID: tid, AuthMethod: "apikey"}))
+	req = req.WithContext(testutil.WithAPIKeyClaims(req.Context(), tid))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {

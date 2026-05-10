@@ -32,12 +32,19 @@ func New(store *Store, logger *zap.Logger) *Handler {
 	return &Handler{Store: store, Logger: logger}
 }
 
+// Mount registers all analytics routes on a chi router. All routes are
+// reads (no write surface today); analytics:read enforced uniformly.
+// analytics:write reserved for future drill-down save endpoints
+// (GRO-906).
 func (h *Handler) Mount(r chi.Router) {
-	r.Get("/v1/analytics/sales", h.sales)
-	r.Get("/v1/analytics/basket", h.basket)
-	r.Get("/v1/analytics/cohort", h.cohort)
-	r.Get("/v1/analytics/velocity", h.velocity)
-	r.Get("/v1/analytics/shrink", h.shrink)
+	r.Group(func(r chi.Router) {
+		r.Use(identity.RequireScopeMiddleware(identity.ScopeAnalyticsRead))
+		r.Get("/v1/analytics/sales", h.sales)
+		r.Get("/v1/analytics/basket", h.basket)
+		r.Get("/v1/analytics/cohort", h.cohort)
+		r.Get("/v1/analytics/velocity", h.velocity)
+		r.Get("/v1/analytics/shrink", h.shrink)
+	})
 }
 
 func (h *Handler) sales(w http.ResponseWriter, r *http.Request) {
