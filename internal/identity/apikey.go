@@ -69,10 +69,11 @@ var (
 // fields the rest of the platform depends on; AuthMethod
 // distinguishes them downstream.
 type APIKeyAuthClaims struct {
-	KeyID     uuid.UUID
-	TenantID  *uuid.UUID // nil for platform-scope keys
-	AgentName string
-	Scopes    []string
+	KeyID        uuid.UUID
+	TenantID     *uuid.UUID // nil for platform-scope keys
+	AgentName    string
+	Scopes       []string
+	RateLimitRPM int // requests-per-minute cap from app.api_keys.rate_limit_rpm; 0 ⇒ unlimited
 }
 
 // APIKeyMiddlewareOpts configures the chi middleware.
@@ -89,6 +90,17 @@ type APIKeyMiddlewareOpts struct {
 	// handler — useful for routes that accept either JWT or API
 	// key.
 	Required bool
+
+	// Limiter, when non-nil, is consulted for brute-force lockout
+	// (pre-auth) and per-key rate limiting (post-auth). nil ⇒ no
+	// rate limiting, preserving the pre-GRO-912 behavior.
+	Limiter *RateLimiter
+
+	// OnRateLimitError, when non-nil, is called with errors raised by
+	// Limiter calls. Used to wire structured logs / metrics. The
+	// middleware itself fails open: a Limiter error is treated as
+	// "not limited" so a Valkey blip cannot break authentication.
+	OnRateLimitError func(stage string, err error)
 }
 
 // APIKeyMiddleware returns a chi-compatible middleware that
@@ -100,6 +112,12 @@ func APIKeyMiddleware(opts APIKeyMiddlewareOpts) func(http.Handler) http.Handler
 	}
 	if opts.OnAuthenticated == nil {
 		opts.OnAuthenticated = InjectAPIKeyClaims
+	}
+
+	notify := func(stage string, err error) {
+		if opts.OnRateLimitError != nil && err != nil {
+			opts.OnRateLimitError(stage, err)
+		}
 	}
 
 	return func(next http.Handler) http.Handler {
@@ -114,8 +132,35 @@ func APIKeyMiddleware(opts APIKeyMiddlewareOpts) func(http.Handler) http.Handler
 				return
 			}
 
-			claims, err := AuthenticateAPIKey(r.Context(), opts.Pool, plaintext)
+			// Pre-auth lockout check. Cheap (one Valkey GET) so it fronts
+			// the expensive argon2id verify. Fail-open on Valkey errors —
+			// a blip should not block the auth path.
+			ctx := r.Context()
+			prefix := extractPrefix(plaintext)
+			ip := SourceIP(r)
+			if opts.Limiter != nil {
+				status, err := opts.Limiter.IsLockedOut(ctx, prefix, ip)
+				if err != nil {
+					notify("lockout_check", err)
+				} else if status.Locked {
+					writeRateLimitError(w, status.RetryAfter, "rate_limited",
+						"too many failed authentication attempts; try again later")
+					return
+				}
+			}
+
+			claims, err := AuthenticateAPIKey(ctx, opts.Pool, plaintext)
 			if err != nil {
+				// Record this as a brute-force signal. ErrAPIKeyRevoked /
+				// ErrAPIKeyExpired are NOT counted — those are credentials
+				// the system already knows about and chooses to reject.
+				// Only ErrAPIKeyInvalid (and unknown errors that fall to
+				// the same bucket) accrue toward lockout.
+				if opts.Limiter != nil && errors.Is(err, ErrAPIKeyInvalid) {
+					if _, lerr := opts.Limiter.RecordFailure(ctx, prefix, ip); lerr != nil {
+						notify("record_failure", lerr)
+					}
+				}
 				switch {
 				case errors.Is(err, ErrAPIKeyRevoked), errors.Is(err, ErrAPIKeyExpired):
 					writeAuthError(w, http.StatusForbidden, err)
@@ -124,7 +169,28 @@ func APIKeyMiddleware(opts APIKeyMiddlewareOpts) func(http.Handler) http.Handler
 				}
 				return
 			}
-			ctx := opts.OnAuthenticated(r.Context(), *claims)
+
+			// Auth succeeded. Clear any failure-count residue from prior
+			// mistakes (legitimate clients sometimes typo-then-succeed).
+			if opts.Limiter != nil {
+				if cerr := opts.Limiter.ClearFailures(ctx, prefix, ip); cerr != nil {
+					notify("clear_failures", cerr)
+				}
+			}
+
+			// Per-key throttle. INCR + check.
+			if opts.Limiter != nil {
+				ts, terr := opts.Limiter.AllowSuccess(ctx, claims.KeyID, claims.RateLimitRPM)
+				if terr != nil {
+					notify("throttle", terr)
+				} else if !ts.Allowed {
+					writeRateLimitError(w, ts.RetryAfter, "rate_limited",
+						fmt.Sprintf("rate limit %d/min exceeded", ts.Limit))
+					return
+				}
+			}
+
+			ctx = opts.OnAuthenticated(ctx, *claims)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -182,7 +248,7 @@ func AuthenticateAPIKey(ctx context.Context, pool *pgxpool.Pool, plaintext strin
 	}
 
 	const q = `
-		SELECT id, tenant_id, agent_name, key_hash, scopes, status, expires_at
+		SELECT id, tenant_id, agent_name, key_hash, scopes, rate_limit_rpm, status, expires_at
 		  FROM app.api_keys
 		 WHERE status = 'active'
 		   AND (expires_at IS NULL OR expires_at > now())
@@ -195,15 +261,16 @@ func AuthenticateAPIKey(ctx context.Context, pool *pgxpool.Pool, plaintext strin
 
 	for rows.Next() {
 		var (
-			id        uuid.UUID
-			tenantID  *uuid.UUID
-			agentName string
-			keyHash   string
-			scopes    []string
-			status    string
-			expiresAt *time.Time
+			id           uuid.UUID
+			tenantID     *uuid.UUID
+			agentName    string
+			keyHash      string
+			scopes       []string
+			rateLimitRPM int
+			status       string
+			expiresAt    *time.Time
 		)
-		if err := rows.Scan(&id, &tenantID, &agentName, &keyHash, &scopes, &status, &expiresAt); err != nil {
+		if err := rows.Scan(&id, &tenantID, &agentName, &keyHash, &scopes, &rateLimitRPM, &status, &expiresAt); err != nil {
 			return nil, fmt.Errorf("identity: scan api_keys: %w", err)
 		}
 		ok, verr := VerifyAPIKey(plaintext, keyHash)
@@ -224,10 +291,11 @@ func AuthenticateAPIKey(ctx context.Context, pool *pgxpool.Pool, plaintext strin
 			)
 		}(id)
 		return &APIKeyAuthClaims{
-			KeyID:     id,
-			TenantID:  tenantID,
-			AgentName: agentName,
-			Scopes:    scopes,
+			KeyID:        id,
+			TenantID:     tenantID,
+			AgentName:    agentName,
+			Scopes:       scopes,
+			RateLimitRPM: rateLimitRPM,
 		}, nil
 	}
 	if err := rows.Err(); err != nil {
@@ -241,7 +309,7 @@ func AuthenticateAPIKey(ctx context.Context, pool *pgxpool.Pool, plaintext strin
 // runs argon2id verify on the (typically single) match.
 func authenticateByPrefix(ctx context.Context, pool *pgxpool.Pool, plaintext, prefix string) (*APIKeyAuthClaims, error) {
 	const q = `
-		SELECT id, tenant_id, agent_name, key_hash, scopes, status, expires_at
+		SELECT id, tenant_id, agent_name, key_hash, scopes, rate_limit_rpm, status, expires_at
 		  FROM app.api_keys
 		 WHERE status = 'active'
 		   AND key_prefix = $1
@@ -254,15 +322,16 @@ func authenticateByPrefix(ctx context.Context, pool *pgxpool.Pool, plaintext, pr
 
 	for rows.Next() {
 		var (
-			id        uuid.UUID
-			tenantID  *uuid.UUID
-			agentName string
-			keyHash   string
-			scopes    []string
-			status    string
-			expiresAt *time.Time
+			id           uuid.UUID
+			tenantID     *uuid.UUID
+			agentName    string
+			keyHash      string
+			scopes       []string
+			rateLimitRPM int
+			status       string
+			expiresAt    *time.Time
 		)
-		if err := rows.Scan(&id, &tenantID, &agentName, &keyHash, &scopes, &status, &expiresAt); err != nil {
+		if err := rows.Scan(&id, &tenantID, &agentName, &keyHash, &scopes, &rateLimitRPM, &status, &expiresAt); err != nil {
 			return nil, fmt.Errorf("identity: scan api_keys (prefix): %w", err)
 		}
 		ok, verr := VerifyAPIKey(plaintext, keyHash)
@@ -278,10 +347,11 @@ func authenticateByPrefix(ctx context.Context, pool *pgxpool.Pool, plaintext, pr
 			)
 		}(id)
 		return &APIKeyAuthClaims{
-			KeyID:     id,
-			TenantID:  tenantID,
-			AgentName: agentName,
-			Scopes:    scopes,
+			KeyID:        id,
+			TenantID:     tenantID,
+			AgentName:    agentName,
+			Scopes:       scopes,
+			RateLimitRPM: rateLimitRPM,
 		}, nil
 	}
 	if err := rows.Err(); err != nil {

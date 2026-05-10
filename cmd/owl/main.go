@@ -71,6 +71,9 @@ func main() {
 	dashStore := owl.NewDashboardStore(pool)
 	dashHandler := owl.NewDashboardHandler(dashStore, logger)
 
+	limiter, closeLimiter := cmdutil.MustValkeyRateLimiter(cfg.ValkeyURL, logger)
+	defer closeLimiter()
+
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP, middleware.Recoverer)
 	r.Use(obs.Middleware(serviceName))
@@ -79,11 +82,12 @@ func main() {
 	r.Get("/health", healthHandler(cfg))
 	handler.Mount(r)
 
-	// dashboard endpoints under API-key auth.
+	// dashboard endpoints under API-key auth + rate limit (GRO-912).
 	r.Group(func(r chi.Router) {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
 			Pool:     pool,
 			Required: true,
+			Limiter:  limiter,
 		}))
 		dashHandler.Mount(r)
 	})

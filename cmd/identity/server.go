@@ -14,6 +14,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
+	"github.com/ruptiv/canary/internal/cmdutil"
 	"github.com/ruptiv/canary/internal/config"
 	"github.com/ruptiv/canary/internal/identity"
 	"github.com/ruptiv/canary/internal/identity/auth"
@@ -102,11 +103,13 @@ func NewServer(
 	resolver := newPersonResolverAdapter(personStore)
 	me.NewWithResolver(accessVerifier, resolver, logger).Mount(r)
 
-	// /v1/identity/* — API-key required group
+	// /v1/identity/* — API-key required group + rate limit (GRO-912).
+	limiter := cmdutil.MustValkeyRateLimiterFromClient(rdb)
 	r.Group(func(r chi.Router) {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
 			Pool:     pool,
 			Required: true,
+			Limiter:  limiter,
 		}))
 		r.Post("/v1/identity/keys", h.keysCreate)
 		r.Get("/v1/identity/keys", h.keysList)

@@ -60,6 +60,9 @@ func main() {
 	store := report.NewStore()
 	h := report.New(store, logger)
 
+	limiter, closeLimiter := cmdutil.MustValkeyRateLimiter(cfg.ValkeyURL, logger)
+	defer closeLimiter()
+
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP, middleware.Recoverer)
 	r.Use(obs.Middleware(serviceName))
@@ -71,6 +74,7 @@ func main() {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
 			Pool:     pool,
 			Required: true,
+			Limiter:  limiter,
 		}))
 		h.Mount(r)
 	})

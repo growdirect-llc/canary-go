@@ -52,6 +52,9 @@ func main() {
 	store := casemgmt.NewStore(pool)
 	hawk := &hawkHandler{store: store, logger: logger}
 
+	limiter, closeLimiter := cmdutil.MustValkeyRateLimiter(cfg.ValkeyURL, logger)
+	defer closeLimiter()
+
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP, middleware.Recoverer)
 	r.Get("/health", health(cfg))
@@ -60,6 +63,7 @@ func main() {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
 			Pool:     pool,
 			Required: true,
+			Limiter:  limiter,
 		}))
 		hawk.Mount(r)
 	})

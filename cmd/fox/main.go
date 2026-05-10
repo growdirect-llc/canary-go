@@ -50,6 +50,9 @@ func main() {
 	store := fox.NewStore(pool)
 	handler := fox.New(store, fox.DefaultEscalationConfig(), logger)
 
+	limiter, closeLimiter := cmdutil.MustValkeyRateLimiter(cfg.ValkeyURL, logger)
+	defer closeLimiter()
+
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP, middleware.Recoverer)
 	r.Use(requestLogger(logger))
@@ -57,11 +60,13 @@ func main() {
 	r.Get("/health", healthHandler(cfg))
 
 	// Case routes require API-key auth — tenant is derived from the
-	// resolved claims, never from request body / query input.
+	// resolved claims, never from request body / query input. Rate
+	// limit per GRO-912.
 	r.Group(func(r chi.Router) {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
 			Pool:     pool,
 			Required: true,
+			Limiter:  limiter,
 		}))
 		handler.Mount(r)
 	})

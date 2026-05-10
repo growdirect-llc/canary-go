@@ -235,10 +235,12 @@ func main() {
 		handler.Mount(r)
 	})
 
+	limiter := cmdutil.MustValkeyRateLimiterFromClient(rdb)
 	r.Group(func(r chi.Router) {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
 			Pool:     pool,
 			Required: true,
+			Limiter:  limiter,
 		}))
 		r.Use(auditMW)
 		admin.Mount(r)
@@ -256,6 +258,7 @@ func main() {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
 			Pool:     pool,
 			Required: true,
+			Limiter:  limiter,
 		}))
 		mcpHandler.Mount(r)
 	})

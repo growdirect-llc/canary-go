@@ -46,15 +46,20 @@ func main() {
 	store := transaction.NewStore(pool)
 	h := transaction.New(store, logger)
 
+	limiter, closeLimiter := cmdutil.MustValkeyRateLimiter(cfg.ValkeyURL, logger)
+	defer closeLimiter()
+
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP, middleware.Recoverer)
 	r.Get("/health", health(cfg))
 
-	// Transaction endpoints under API-key auth.
+	// Transaction endpoints under API-key auth + Valkey-backed rate
+	// limit (GRO-912).
 	r.Group(func(r chi.Router) {
 		r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
 			Pool:     pool,
 			Required: true,
+			Limiter:  limiter,
 		}))
 		h.Mount(r)
 	})
