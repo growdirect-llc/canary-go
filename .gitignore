@@ -41,3 +41,9 @@ build/
 # Claude Code workspace — agent state, plugins cache, project memory,
 # and worktrees. Local development environment only; never commit.
 .claude/
+
+# Go test / build cache when an agent overrides GOCACHE locally.
+.gocache/
+
+# Superpowers tooling local cache. Never commit.
+.superpowers/
