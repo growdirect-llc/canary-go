@@ -391,8 +391,22 @@ func discoveryHandler(cfg *config.Config) http.HandlerFunc {
 			"transport": "http-post",
 			"auth": map[string]any{
 				"type":        "api_key",
-				"header":      "X-API-Key",
+				"header":      identity.HeaderAPIKey,
 				"description": "Tenant-scoped API key. Contact the platform operator to obtain one.",
+				"example_request": map[string]any{
+					"method": "POST",
+					"path":   "/mcp",
+					"headers": map[string]string{
+						identity.HeaderAPIKey: "cy_<your-key>",
+						"Content-Type":        "application/json",
+					},
+					"body": map[string]any{
+						"jsonrpc": "2.0",
+						"id":      1,
+						"method":  "tools/list",
+						"params":  map[string]any{},
+					},
+				},
 			},
 			"modules":     modules,
 			"tools_count": toolsCount,
