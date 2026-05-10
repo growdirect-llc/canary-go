@@ -48,12 +48,17 @@ import (
 
 // Service holds OAuth + API client + token storage dependencies.
 type Service struct {
-	pool         *pgxpool.Pool
-	logger       *zap.Logger
-	cfg          Config
-	encKey       []byte // 32 bytes; nil if not configured
-	sessionKey   []byte // SESSION_SECRET bytes; signs the demo session cookie. nil = unsigned dev fallback
-	httpClient   *http.Client
+	pool       *pgxpool.Pool
+	logger     *zap.Logger
+	cfg        Config
+	encKey     []byte // 32 bytes; nil if not configured (sandbox only — see production)
+	sessionKey []byte // SESSION_SECRET bytes; signs the demo session cookie. nil = unsigned dev fallback
+	httpClient *http.Client
+	// production is true when ENV=production or SQUARE_ENVIRONMENT=production
+	// at construction time. When true, encrypt() refuses to write the
+	// PLAIN: sentinel — a defense-in-depth check on top of the startup
+	// fatal in New(). GRO-933.
+	production bool
 }
 
 // Config holds the OAuth + API configuration. Loaded from env via LoadConfig.
@@ -78,13 +83,32 @@ func LoadConfig() Config {
 	}
 }
 
-// New constructs a Service.
+// New constructs a Service. Calls logger.Fatal if running under
+// production (ENV=production or SQUARE_ENVIRONMENT=production) without
+// a valid CANARY_ENCRYPTION_KEY — silent plaintext fallback is
+// forbidden once real merchant tokens are at stake. GRO-933.
 func New(pool *pgxpool.Pool, logger *zap.Logger) *Service {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
 	cfg := LoadConfig()
-	encKey := loadEncryptionKey(logger)
+	production := isProduction(cfg)
+	encKey, err := loadEncryptionKey(os.Getenv("CANARY_ENCRYPTION_KEY"))
+	if err != nil {
+		if production {
+			logger.Fatal("squareauth: CANARY_ENCRYPTION_KEY required in production",
+				zap.Error(err),
+				zap.String("hint", "set CANARY_ENCRYPTION_KEY to a base64-encoded 32-byte key"))
+		}
+		logger.Warn("squareauth: CANARY_ENCRYPTION_KEY invalid — tokens stored plaintext (sandbox only)",
+			zap.Error(err))
+	} else if encKey == nil {
+		if production {
+			logger.Fatal("squareauth: CANARY_ENCRYPTION_KEY required in production",
+				zap.String("hint", "set CANARY_ENCRYPTION_KEY to a base64-encoded 32-byte key"))
+		}
+		logger.Warn("squareauth: CANARY_ENCRYPTION_KEY not set — tokens stored plaintext (sandbox only)")
+	}
 	sessionKey := []byte(os.Getenv("SESSION_SECRET"))
 	if len(sessionKey) == 0 {
 		// SESSION_SECRET is required by config.Load (same name) for the
@@ -101,28 +125,47 @@ func New(pool *pgxpool.Pool, logger *zap.Logger) *Service {
 		encKey:     encKey,
 		sessionKey: sessionKey,
 		httpClient: &http.Client{Timeout: 30 * time.Second},
+		production: production,
 	}
 }
 
-// loadEncryptionKey reads CANARY_ENCRYPTION_KEY (base64-encoded 32 bytes).
-// Returns nil and logs a warning if missing — sandbox demo continues with
-// plaintext token storage in that case.
-func loadEncryptionKey(logger *zap.Logger) []byte {
-	raw := os.Getenv("CANARY_ENCRYPTION_KEY")
+// isProduction returns true when either ENV=production or
+// SQUARE_ENVIRONMENT=production. Both flag the same fatal: real
+// merchant tokens may pass through and silent plaintext storage is
+// forbidden either way.
+func isProduction(cfg Config) bool {
+	if os.Getenv("ENV") == "production" {
+		return true
+	}
+	if cfg.Environment == "production" {
+		return true
+	}
+	return false
+}
+
+// loadEncryptionKey parses CANARY_ENCRYPTION_KEY (base64-encoded 32
+// bytes). Returns one of:
+//
+//   - (nil, nil)  — env var unset (caller decides: sandbox warns,
+//     production fatals).
+//   - (nil, err)  — env var present but malformed (always an error;
+//     caller decides whether to fatal or warn).
+//   - (key, nil)  — valid 32-byte AES-256 key.
+//
+// Pure function: no env reads, no logging. Tests drive it directly
+// with synthetic input.
+func loadEncryptionKey(raw string) ([]byte, error) {
 	if raw == "" {
-		logger.Warn("CANARY_ENCRYPTION_KEY not set — tokens stored plaintext (sandbox only)")
-		return nil
+		return nil, nil
 	}
 	key, err := base64.StdEncoding.DecodeString(raw)
 	if err != nil {
-		logger.Warn("CANARY_ENCRYPTION_KEY base64 decode failed — tokens stored plaintext", zap.Error(err))
-		return nil
+		return nil, fmt.Errorf("CANARY_ENCRYPTION_KEY base64 decode failed: %w", err)
 	}
 	if len(key) != 32 {
-		logger.Warn("CANARY_ENCRYPTION_KEY length != 32 bytes after base64 — tokens stored plaintext", zap.Int("len", len(key)))
-		return nil
+		return nil, fmt.Errorf("CANARY_ENCRYPTION_KEY length != 32 bytes after base64 (got %d)", len(key))
 	}
-	return key
+	return key, nil
 }
 
 // ─── Square base URLs ──────────────────────────────────────────────────────
@@ -377,6 +420,13 @@ func deriveDemoMerchantID(squareMerchantID string) uuid.UUID {
 
 func (s *Service) encrypt(plaintext []byte) ([]byte, error) {
 	if s.encKey == nil {
+		// GRO-933 defense-in-depth: even if startup somehow proceeded
+		// without a key in production mode, refuse to write the PLAIN:
+		// sentinel. The startup fatal in New() should already have
+		// stopped this case; this is the second line.
+		if s.production {
+			return nil, errors.New("squareauth: refusing to write PLAIN: ciphertext in production — CANARY_ENCRYPTION_KEY missing")
+		}
 		// sandbox fallback: prepend a sentinel so we know to skip decryption
 		out := append([]byte("PLAIN:"), plaintext...)
 		return out, nil
