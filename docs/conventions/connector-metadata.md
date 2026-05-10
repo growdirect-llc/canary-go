@@ -1,8 +1,9 @@
 ---
 title: Connector Metadata Convention
 date: 2026-05-10
-status: draft
+status: accepted
 owners: product, design, engineering
+reviewed_by: GRO-978
 related:
   - docs/research/open-commerce-component-patterns-2026-05-10.md
   - docs/decisions/ui-retail-vocabulary.md
@@ -29,6 +30,7 @@ answer every required field in this table before the screen ships.
 | `name` | yes | Visible connector name | `Square` |
 | `summary` | yes | One factual sentence of merchant value | `Sync locations, tenders, transactions, and item references from Square.` |
 | `category` | yes | Connector category | `POS`, `Ecommerce`, `Payments`, `Accounting`, `Inventory`, `Identity` |
+| `authorizationModel` | yes | How access is granted | `OAuth`, `API key`, `webhook`, `manual upload`, `platform-managed` |
 | `state` | yes | Current lifecycle, health, or sync state | `available`, `connected`, `syncing`, `degraded`, `disconnected`, `blocked`, `unsupported` |
 | `primaryActionLabel` | yes | Main action | `Connect`, `Manage`, `Resume sync` |
 | `primaryActionHref` | yes | Main action URL | `/connect?source=square` |
@@ -38,10 +40,13 @@ answer every required field in this table before the screen ships.
 | `compatibility` | yes | Regions, devices, plans, business types, or source versions | `Requires Square locations with Orders API access.` |
 | `support` | yes | Support path or owner | `Canary support`, docs URL, partner URL |
 | `pricingOrRequirements` | no | Cost, plan, prerequisite, or no-extra-cost statement | `Requires Square seller account.` |
+| `privacyOrSecurityHref` | no | Link to security, privacy, data-use, or partner documentation | `/docs/connectors/square-security` |
 | `lastSyncAt` | no | Last successful sync timestamp | `2026-05-10T18:30:00Z` |
 | `nextSyncAt` | no | Next scheduled sync timestamp | `2026-05-10T18:45:00Z` |
 | `sourceSystem` | no | External system of record | `Square` |
 | `identifiers` | no | External ids shown for diagnostics | `location_id`, `merchant_id` |
+| `features` | no | Two to five factual capabilities, not marketing claims | `Imports transaction tenders`, `Maps Square locations` |
+| `retentionOrDeletion` | no | Sensitive-data retention or disconnect behavior when relevant | `Payment references are removed when the connector is disconnected.` |
 
 ## Permission shape
 
@@ -52,10 +57,25 @@ API-key entry, or partner authorization.
 |---|---|
 | `label` | Merchant-readable permission |
 | `direction` | `read`, `write`, or `read-write` |
+| `externalScope` | OAuth, API, or source-system scope name when one exists |
 | `dataCategory` | Item, transaction, customer, employee, payment reference, location, inventory, or configuration |
 | `sensitive` | Whether the permission touches sensitive data |
 | `justification` | One sentence explaining why Canary needs it |
 | `required` | Whether the connector can work without it |
+
+## Compatibility shape
+
+Compatibility must be structured enough for a reviewer to tell whether the
+connector fits the merchant before authorization starts.
+
+| Field | Meaning |
+|---|---|
+| `regions` | Countries, regions, or markets where the connector is supported |
+| `devices` | Registers, POS devices, scanners, terminals, or other hardware limits |
+| `plans` | Source-system plans, subscriptions, or feature gates |
+| `businessTypes` | Retail verticals or operating models the connector supports or excludes |
+| `sourceVersions` | API, webhook, schema, app, or platform versions when compatibility depends on them |
+| `limitations` | Plain-language unsupported cases or known degraded modes |
 
 ## Data-boundary labels
 
@@ -77,6 +97,24 @@ Connector metadata must keep merchant labels and source-system identifiers
 distinct. A connector may show SKU, GTIN, barcode, source-system id, location
 id, merchant id, OIDC client id, or OAuth scope only when that identifier helps
 setup, support, compliance, or troubleshooting.
+
+## Standards alignment
+
+The GRO-978 review confirmed this contract is the local translation of the
+research memo, with these source families mapped into reviewable fields:
+
+- Square/Clover marketplace patterns map to `summary`, `features`,
+  `primaryAction*`, `support`, `pricingOrRequirements`, and `compatibility`.
+- MACH/composable commerce maps to `category`, `sourceSystem`, and explicit
+  identifier/source-record boundaries instead of vendor-specific shared nouns.
+- GS1/OAGi-style interoperability maps to `identifiers`, `sourceSystem`, and
+  source-version metadata.
+- PCI/EMVCo trust boundaries map to `sensitiveData`, `dataBoundary`,
+  `privacyOrSecurityHref`, and `retentionOrDeletion`.
+- OAuth/OIDC authorization maps to `authorizationModel`, `permissions`, and
+  `externalScope`.
+- AtlasView compatibility maps to generic capability, policy, manifest, and
+  standards-anchor metadata rendered in Canary's merchant language.
 
 ## AtlasView mapping
 
