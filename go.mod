@@ -1,6 +1,6 @@
 module github.com/ruptiv/canary
 
-go 1.25.0
+go 1.26.3
 
 require (
 	cloud.google.com/go/secretmanager v1.20.0
