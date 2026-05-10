@@ -21,6 +21,13 @@ import (
 //
 //	POST /v1/protocol/verify         — issue L402 challenge or consume if auth present
 //	GET  /v1/protocol/verify/{token_id} — consume a token and return the Merkle proof
+//
+// GRO-932: GET requires a valid L402 Authorization header by default —
+// the URL-path token_id alone is not a credential. The macaroon in the
+// header MUST be issued for the same token_id; otherwise the request
+// is refused with 401 before the token is consumed. Only the dev/test
+// stub mode (AllowUnauthenticatedConsume) bypasses this check, and the
+// gateway fatals at startup if that flag is set under ENV=production.
 type Handler struct {
 	Store  ValidationStore
 	L402   *StubL402
@@ -28,6 +35,10 @@ type Handler struct {
 	// SatoshiPrice is the cost per proof verification, denominated in satoshis.
 	// Set from VALIDATOR_SATOSHI_PRICE env var (default 100) at startup.
 	SatoshiPrice int64
+	// AllowUnauthenticatedConsume, when true, permits GET to consume
+	// tokens with no L402 Authorization header. Dev/test only — guarded
+	// at the cmd/gateway wiring layer to fatal if ENV=production.
+	AllowUnauthenticatedConsume bool
 }
 
 // Mount registers both routes on a chi router.
@@ -144,9 +155,12 @@ func (h *Handler) issueChallenge(w http.ResponseWriter, r *http.Request) {
 
 // consumeToken handles GET /v1/protocol/verify/{token_id}.
 //
-// In stub mode, payment is not verified — the token is consumed and the
-// proof is returned immediately. In production Phase 2 this endpoint
-// would verify the Lightning pre-image before consuming.
+// GRO-932: by default the URL-path token_id is NOT a credential —
+// callers must present an L402 Authorization header whose macaroon
+// was issued for that same token_id. Without it the request is
+// refused 401 before any token state changes. The dev/test-only
+// AllowUnauthenticatedConsume flag bypasses the check; production is
+// guarded by a fatal in cmd/gateway/main.go.
 func (h *Handler) consumeToken(w http.ResponseWriter, r *http.Request) {
 	rawID := chi.URLParam(r, "token_id")
 	tokenID, err := uuid.Parse(rawID)
@@ -155,6 +169,36 @@ func (h *Handler) consumeToken(w http.ResponseWriter, r *http.Request) {
 			"token_id must be a valid UUID")
 		return
 	}
+
+	if !h.AllowUnauthenticatedConsume {
+		authHeader := r.Header.Get("Authorization")
+		if !strings.HasPrefix(authHeader, "L402 ") {
+			w.Header().Set("WWW-Authenticate", `L402 realm="canary-validator"`)
+			writeError(w, http.StatusUnauthorized, "missing_authorization",
+				"L402 Authorization header required to consume this token")
+			return
+		}
+		hdrTokenID, macaroon, ok := parseL402Header(authHeader)
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "malformed_authorization",
+				"L402 Authorization header could not be parsed")
+			return
+		}
+		// The macaroon must have been issued for the URL-path token_id —
+		// otherwise an attacker could replay any valid macaroon to consume
+		// any token they can name.
+		if hdrTokenID != tokenID {
+			writeError(w, http.StatusUnauthorized, "token_id_mismatch",
+				"L402 macaroon was issued for a different token_id")
+			return
+		}
+		if !h.L402.VerifyMacaroon(tokenID, macaroon) {
+			writeError(w, http.StatusUnauthorized, "invalid_macaroon",
+				"L402 macaroon failed verification")
+			return
+		}
+	}
+
 	h.consumeAndRespond(w, r, tokenID)
 }
 

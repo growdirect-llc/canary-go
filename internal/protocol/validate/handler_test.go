@@ -101,6 +101,9 @@ func (s *stubStore) addAnchoredEvent(eventHash string) {
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
+// newHandler constructs the production-default handler (GET requires
+// an L402 Authorization header). Tests that exercise the dev stub
+// flow should call newStubFlowHandler instead.
 func newHandler(store validate.ValidationStore) (*validate.Handler, *StubL402Wrapper) {
 	secret := make([]byte, 32)
 	_, _ = rand.Read(secret)
@@ -112,6 +115,15 @@ func newHandler(store validate.ValidationStore) (*validate.Handler, *StubL402Wra
 		SatoshiPrice: 100,
 	}
 	return h, &StubL402Wrapper{inner: l402}
+}
+
+// newStubFlowHandler returns a handler with AllowUnauthenticatedConsume
+// = true so the historical POST → GET stub flow keeps working in tests
+// that aren't asserting the GRO-932 gate behavior.
+func newStubFlowHandler(store validate.ValidationStore) (*validate.Handler, *StubL402Wrapper) {
+	h, w := newHandler(store)
+	h.AllowUnauthenticatedConsume = true
+	return h, w
 }
 
 // StubL402Wrapper exposes L402 for tests that need to build auth headers.
@@ -195,10 +207,14 @@ func TestIssueChallenge_NoAuth_Returns402(t *testing.T) {
 }
 
 // TestConsumeToken_StubFlow: POST → get token_id → GET → 200 verified:true.
+// Uses the dev/CI stub-flow handler (AllowUnauthenticatedConsume=true)
+// because production-default GET now requires an L402 auth header
+// (GRO-932). The auth-required path is covered by
+// TestConsumeToken_GET_NoAuth_Returns401 below.
 func TestConsumeToken_StubFlow(t *testing.T) {
 	store := newStubStore()
 	store.addAnchoredEvent(knownEventHash)
-	h, _ := newHandler(store)
+	h, _ := newStubFlowHandler(store)
 	r := newRouter(h)
 
 	// Step 1: POST — should return 402 with token_id in body.
@@ -248,10 +264,12 @@ func TestConsumeToken_StubFlow(t *testing.T) {
 }
 
 // TestConsumeToken_AlreadyConsumed: consuming the same token twice → 410.
+// Uses the stub-flow handler so the test focuses on consume idempotency
+// rather than the auth gate.
 func TestConsumeToken_AlreadyConsumed(t *testing.T) {
 	store := newStubStore()
 	store.addAnchoredEvent(knownEventHash)
-	h, _ := newHandler(store)
+	h, _ := newStubFlowHandler(store)
 	r := newRouter(h)
 
 	// Issue the challenge to get a token.
@@ -301,5 +319,161 @@ func TestIssueChallenge_InvalidHash(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
+// issueChallengeAndGetTokenID drives the POST flow once and returns
+// the issued token_id. Helper for the GRO-932 GET-side tests below.
+func issueChallengeAndGetTokenID(t *testing.T, r *chi.Mux) string {
+	t.Helper()
+	body, _ := json.Marshal(map[string]string{"event_hash": knownEventHash})
+	req := httptest.NewRequest(http.MethodPost, "/v1/protocol/verify",
+		bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusPaymentRequired {
+		t.Fatalf("setup: expected 402 from POST, got %d: %s", w.Code, w.Body.String())
+	}
+	var payResp map[string]any
+	_ = json.NewDecoder(w.Body).Decode(&payResp)
+	tid, _ := payResp["token_id"].(string)
+	if tid == "" {
+		t.Fatal("setup: no token_id in 402 response")
+	}
+	return tid
+}
+
+// TestConsumeToken_GET_NoAuth_Returns401 is the GRO-932 acceptance
+// probe. Without an L402 Authorization header, GET on a freshly-issued
+// token_id MUST refuse to consume it: a token_id alone in the URL
+// path is not a credential, and the financial rail must remain in
+// front of proof retrieval.
+//
+// Multi-assert: 401 + missing_authorization code + WWW-Authenticate
+// header + the token's status remains pending (not consumed) so a
+// subsequent properly-authenticated GET can still redeem it.
+//
+// Fails pre-fix because pre-GRO-932 GET ran consumeAndRespond
+// directly with no auth check, returning 200 + the proof.
+func TestConsumeToken_GET_NoAuth_Returns401(t *testing.T) {
+	store := newStubStore()
+	store.addAnchoredEvent(knownEventHash)
+	h, _ := newHandler(store) // production-default — auth required
+	r := newRouter(h)
+
+	tokenIDStr := issueChallengeAndGetTokenID(t, r)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/protocol/verify/"+tokenIDStr, nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d, want 401 (body=%s)", w.Code, w.Body.String())
+	}
+	if !bytes.Contains(w.Body.Bytes(), []byte("missing_authorization")) {
+		t.Errorf("body: got %q, expected missing_authorization", w.Body.String())
+	}
+	if w.Header().Get("WWW-Authenticate") == "" {
+		t.Errorf("missing WWW-Authenticate on 401")
+	}
+
+	// Token state must NOT have flipped to consumed — otherwise an
+	// attacker can DoS legitimate redeems by repeatedly calling GET
+	// without auth and burning the tokens.
+	tid, _ := uuid.Parse(tokenIDStr)
+	tok, ok := store.tokens[tid]
+	if !ok {
+		t.Fatalf("token vanished from store")
+	}
+	if tok.Status == "consumed" {
+		t.Errorf("token consumed despite missing auth — attacker DoS vector")
+	}
+}
+
+// TestConsumeToken_GET_WithAuth_ReturnsProof confirms the happy path:
+// a returning client that presents the macaroon + token_id from the
+// 402 challenge gets the proof back exactly once.
+func TestConsumeToken_GET_WithAuth_ReturnsProof(t *testing.T) {
+	store := newStubStore()
+	store.addAnchoredEvent(knownEventHash)
+	h, l402 := newHandler(store)
+	r := newRouter(h)
+
+	tokenIDStr := issueChallengeAndGetTokenID(t, r)
+	tokenID, _ := uuid.Parse(tokenIDStr)
+	macaroon, _ := l402.IssueChallenge(tokenID, h.SatoshiPrice)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/protocol/verify/"+tokenIDStr, nil)
+	req.Header.Set("Authorization",
+		`L402 macaroon="`+macaroon+`", token_id="`+tokenIDStr+`"`)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200 (body=%s)", w.Code, w.Body.String())
+	}
+	var resp validate.VerificationResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !resp.Verified {
+		t.Errorf("expected verified:true")
+	}
+}
+
+// TestConsumeToken_GET_TokenIDMismatch_Returns401 verifies the
+// macaroon-bound-to-token-id check: a valid macaroon for token A
+// cannot consume token B even if both are issued by the same
+// validator. Without this check, an attacker who legitimately paid
+// for one proof could harvest other tokens by replay.
+func TestConsumeToken_GET_TokenIDMismatch_Returns401(t *testing.T) {
+	store := newStubStore()
+	store.addAnchoredEvent(knownEventHash)
+	h, l402 := newHandler(store)
+	r := newRouter(h)
+
+	tokenAStr := issueChallengeAndGetTokenID(t, r)
+	tokenBStr := issueChallengeAndGetTokenID(t, r)
+	tokenA, _ := uuid.Parse(tokenAStr)
+	macaroonA, _ := l402.IssueChallenge(tokenA, h.SatoshiPrice)
+
+	// Try to consume B with A's macaroon.
+	req := httptest.NewRequest(http.MethodGet, "/v1/protocol/verify/"+tokenBStr, nil)
+	req.Header.Set("Authorization",
+		`L402 macaroon="`+macaroonA+`", token_id="`+tokenAStr+`"`)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d, want 401 (body=%s)", w.Code, w.Body.String())
+	}
+	if !bytes.Contains(w.Body.Bytes(), []byte("token_id_mismatch")) {
+		t.Errorf("body: got %q, expected token_id_mismatch", w.Body.String())
+	}
+}
+
+// TestConsumeToken_GET_BadMacaroon_Returns401 verifies macaroon
+// signature verification — a forged macaroon for the right token_id
+// is still rejected.
+func TestConsumeToken_GET_BadMacaroon_Returns401(t *testing.T) {
+	store := newStubStore()
+	store.addAnchoredEvent(knownEventHash)
+	h, _ := newHandler(store)
+	r := newRouter(h)
+
+	tokenIDStr := issueChallengeAndGetTokenID(t, r)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/protocol/verify/"+tokenIDStr, nil)
+	req.Header.Set("Authorization",
+		`L402 macaroon="deadbeefdeadbeef", token_id="`+tokenIDStr+`"`)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d, want 401 (body=%s)", w.Code, w.Body.String())
+	}
+	if !bytes.Contains(w.Body.Bytes(), []byte("invalid_macaroon")) {
+		t.Errorf("body: got %q, expected invalid_macaroon", w.Body.String())
 	}
 }

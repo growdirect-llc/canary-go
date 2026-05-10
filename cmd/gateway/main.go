@@ -531,11 +531,26 @@ func buildValidateHandler(pool *pgxpool.Pool, logger *zap.Logger) *validate.Hand
 		}
 	}
 
+	// GRO-932: GET /v1/protocol/verify/{token_id} requires an L402
+	// Authorization header by default. Setting L402_ALLOW_UNAUTH_CONSUME=true
+	// lets dev/CI environments keep using the stub flow (POST → 402 →
+	// GET without an auth header); production is fatal-guarded so the
+	// flag cannot ship live.
+	allowUnauth := os.Getenv("L402_ALLOW_UNAUTH_CONSUME") == "true"
+	if allowUnauth && isProd {
+		logger.Fatal("L402_ALLOW_UNAUTH_CONSUME=true is forbidden in production",
+			zap.String("hint", "leave the env var unset and pass an L402 Authorization header on GET /v1/protocol/verify/{token_id}"))
+	}
+	if allowUnauth {
+		logger.Warn("L402 unauthenticated GET consume enabled (dev/CI only)")
+	}
+
 	return &validate.Handler{
-		Store:        validate.NewPgxStore(pool),
-		L402:         &validate.StubL402{Secret: secret},
-		Logger:       logger,
-		SatoshiPrice: price,
+		Store:                       validate.NewPgxStore(pool),
+		L402:                        &validate.StubL402{Secret: secret},
+		Logger:                      logger,
+		SatoshiPrice:                price,
+		AllowUnauthenticatedConsume: allowUnauth,
 	}
 }
 
