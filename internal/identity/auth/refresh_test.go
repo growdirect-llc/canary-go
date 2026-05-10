@@ -466,3 +466,49 @@ func TestRefresh_PersonLookupFails_500(t *testing.T) {
 		t.Errorf("family revoked on transient lookup failure: should only revoke when we can confirm deactivation")
 	}
 }
+
+// TestRefresh_OversizedBody_Returns413 is the GRO-955 acceptance
+// probe. An attacker-supplied multi-MiB body MUST be rejected before
+// the JSON decoder spends work on it. The handler returns 413 with
+// the body_too_large code and Verify/Mint are never called — the cap
+// is the unauthenticated entry-point gate.
+//
+// Fails pre-fix because pre-GRO-955 the handler called
+// json.NewDecoder(r.Body).Decode directly, which would gladly read a
+// gigabyte of garbage before failing somewhere downstream.
+func TestRefresh_OversizedBody_Returns413(t *testing.T) {
+	// 5 KiB — over the 4 KiB cap and trivially over any legitimate
+	// refresh body (which is `{"refresh_token":"<jwt>"}` ≤ 1 KiB).
+	oversized := strings.Repeat("a", 5*1024)
+	v := &stubVerifier{}
+	m := &stubMinter{}
+	s := &stubFamilyStore{}
+
+	rec := mountAndPost(t, v, m, s, oversized)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status: got %d, want 413 (body=%s)", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "body_too_large") {
+		t.Errorf("body: got %q, expected body_too_large", rec.Body.String())
+	}
+	// Mint must not have been called — stubMinter captures gotFamilyID
+	// only when MintPair runs, so a Nil family id proves the bypass
+	// did not happen.
+	if m.gotFamilyID != uuid.Nil {
+		t.Errorf("MintPair ran on oversized body — cap was bypassed")
+	}
+}
+
+// TestRefresh_MalformedJSONStillReturns400 verifies the cap doesn't
+// regress the existing malformed-JSON path: a small but invalid body
+// still returns 400 invalid_json (not 413).
+func TestRefresh_MalformedJSONStillReturns400(t *testing.T) {
+	rec := mountAndPost(t, &stubVerifier{}, &stubMinter{}, &stubFamilyStore{}, "not json {")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status: got %d, want 400 (body=%s)", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "invalid_json") {
+		t.Errorf("body: got %q, expected invalid_json", rec.Body.String())
+	}
+}

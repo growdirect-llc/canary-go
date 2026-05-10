@@ -26,6 +26,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -37,6 +38,13 @@ import (
 	"github.com/ruptiv/canary/internal/identity/refreshfamily"
 	"github.com/ruptiv/canary/internal/identity/tokenverify"
 )
+
+// refreshRequestBodyLimit caps /auth/refresh request bodies (GRO-955).
+// The valid body is `{"refresh_token": "<jwt>"}`. JWTs are typically
+// well under 1 KiB; 4 KiB leaves headroom while keeping the unauth
+// surface from spending decoder work on attacker-supplied gigabytes.
+// Mirrors loginRequestBodyLimit on the credential side.
+const refreshRequestBodyLimit = 1 << 12 // 4 KiB
 
 // RefreshVerifier is the surface the handler depends on. Held as
 // an interface so tests stub the verifier without a real keystore.
@@ -111,8 +119,23 @@ type refreshResponse struct {
 //     surfaces. The new pair is discarded (never returned).
 //  6. Return the new pair.
 func (h *RefreshHandler) serve(w http.ResponseWriter, r *http.Request) {
+	// Cap the unauthenticated body before decoder work runs (GRO-955).
+	// MaxBytesReader returns *http.MaxBytesError when the cap is hit;
+	// any other read error is body shape, not size.
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, refreshRequestBodyLimit))
+	if err != nil {
+		var mbe *http.MaxBytesError
+		if errors.As(err, &mbe) {
+			writeError(w, http.StatusRequestEntityTooLarge,
+				"body_too_large",
+				"refresh request body exceeds cap")
+			return
+		}
+		writeError(w, http.StatusBadRequest, "body_read_failed", "could not read request body")
+		return
+	}
 	var req refreshRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.Unmarshal(body, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", "request body is not valid JSON")
 		return
 	}
