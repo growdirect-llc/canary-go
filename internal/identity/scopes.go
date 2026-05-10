@@ -153,4 +153,11 @@ const (
 
 	// Inventory — replenishment trigger publish.
 	ScopeInventoryReplenish = "inventory:replenish"
+
+	// Ops — sysadmin / devops surface. ops:read covers read-only
+	// operational pages (pipeline monitor, API explorer, queue depth);
+	// ops:admin covers mutating operations (replay, secret rotation,
+	// kill switch). GRO-929.
+	ScopeOpsRead  = "ops:read"
+	ScopeOpsAdmin = "ops:admin"
 )

@@ -270,18 +270,36 @@ func main() {
 		mcpHandler.Mount(r)
 	})
 
-	// /devops — pipeline monitor + API explorer. Dev-only (DEV_CONSOLE=1).
-	devops.New(pool, rdb, logger, squareSvc).Mount(r)
-
-	// /devops/<service> — sysadmin module shell.
-	// Owns the catalog/manifest/observability/pipeline/qa-agent service
-	// pages. Routes don't collide with the dev console's specific paths
-	// (square / api / releases / static); Phase 3 folds those legacy
-	// pages into the new shell.
-	if sysadmin, err := webdevops.New(logger); err == nil {
-		sysadmin.Mount(r)
-	} else {
-		logger.Warn("sysadmin module disabled", zap.Error(err))
+	// /devops — pipeline monitor + API explorer. /devops/<service> —
+	// sysadmin module shell. GRO-929: gate on environment +
+	// authentication. The decision matrix lives in resolveDevopsMode
+	// so tests can pin it without booting the full gateway.
+	mountDevops := func() {
+		devops.New(pool, rdb, logger, squareSvc).Mount(r)
+		if sysadmin, err := webdevops.New(logger); err == nil {
+			sysadmin.Mount(r)
+		} else {
+			logger.Warn("sysadmin module disabled", zap.Error(err))
+		}
+	}
+	switch resolveDevopsMode(os.Getenv("ENV"), os.Getenv("DEV_CONSOLE")) {
+	case devopsModeProductionGated:
+		r.Group(func(r chi.Router) {
+			r.Use(identity.APIKeyMiddleware(identity.APIKeyMiddlewareOpts{
+				Pool:     pool,
+				Required: true,
+				Limiter:  limiter,
+			}))
+			r.Use(identity.RequireScopeMiddleware(identity.ScopeOpsRead))
+			mountDevops()
+		})
+		logger.Info("devops mounted (production: API-key + ops:read required)")
+	case devopsModeDevOpen:
+		mountDevops()
+		logger.Warn("devops mounted unauthenticated (DEV_CONSOLE=1, dev/CI only)")
+	default:
+		logger.Info("devops not mounted",
+			zap.String("hint", "set DEV_CONSOLE=1 for local exposure or ENV=production for the auth-gated production mount"))
 	}
 
 	// / — Canary application UI.
@@ -685,4 +703,38 @@ func (r *mcpAuditRecorder) Record(ctx context.Context, e mcp.AuditEvent) error {
 		entry.ResourceID = &kid
 	}
 	return r.inserter.Insert(ctx, entry)
+}
+
+// devopsMode is the resolved /devops/* mounting decision (GRO-929).
+type devopsMode int
+
+const (
+	// devopsModeOff: no /devops/* routes registered. Default for
+	// production builds that forget to set the env vars (fail-closed).
+	devopsModeOff devopsMode = iota
+	// devopsModeProductionGated: routes mounted behind APIKeyMiddleware +
+	// ops:read scope. Selected when ENV=production.
+	devopsModeProductionGated
+	// devopsModeDevOpen: routes mounted unauthenticated. Selected when
+	// DEV_CONSOLE=1 AND ENV is not "production". Logged loud at startup.
+	devopsModeDevOpen
+)
+
+// resolveDevopsMode picks the /devops/* mount mode given the
+// (ENV, DEV_CONSOLE) env-var pair. Production wins over DEV_CONSOLE so
+// a misconfigured deploy that sets both still ends up gated.
+//
+// Truth table:
+//
+//	ENV=production, DEV_CONSOLE=*  → ProductionGated
+//	ENV=*,          DEV_CONSOLE=1  → DevOpen
+//	otherwise                      → Off
+func resolveDevopsMode(envValue, devConsole string) devopsMode {
+	if envValue == "production" {
+		return devopsModeProductionGated
+	}
+	if devConsole == "1" {
+		return devopsModeDevOpen
+	}
+	return devopsModeOff
 }
