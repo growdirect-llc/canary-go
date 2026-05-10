@@ -3,6 +3,8 @@ package counterpoint
 import (
 	"encoding/json"
 	"errors"
+	"math"
+	"strconv"
 	"testing"
 	"time"
 
@@ -152,6 +154,23 @@ func TestCounterpointParse_MissingStoreNumber_ReturnsErrInvalidPayload(t *testin
 	_, err := a.Parse(newEnvelope(`{"DocumentNumber":"D1","DocumentType":"TKT"}`))
 	if !errors.Is(err, adapters.ErrInvalidPayload) {
 		t.Errorf("want ErrInvalidPayload; got %v", err)
+	}
+}
+
+func TestCounterpointParse_QuantityAboveInt32_ReturnsErrInvalidQuantity(t *testing.T) {
+	payload := `{
+	  "DocumentNumber": "DOC-INT32",
+	  "DocumentType": "TKT",
+	  "StoreNumber": "01",
+	  "Lines": [
+	    {"LineNumber": 1, "ItemNumber": "SKU-001", "Quantity": ` + strconv.FormatInt(int64(math.MaxInt32)+1, 10) + `}
+	  ]
+	}`
+
+	a := New()
+	_, err := a.Parse(newEnvelope(payload))
+	if !errors.Is(err, ErrInvalidQuantity) {
+		t.Errorf("want ErrInvalidQuantity; got %v", err)
 	}
 }
 

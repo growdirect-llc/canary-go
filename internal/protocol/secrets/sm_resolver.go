@@ -128,13 +128,6 @@ func WithLogger(l *zap.Logger) SmResolverOption {
 	}
 }
 
-// withSMClient is an internal option used by tests to inject a mock
-// Secret Manager client. Production callers use NewSmResolver, which
-// builds a real client.
-func withSMClient(c secretManagerClient) SmResolverOption {
-	return func(r *SmResolver) { r.sm = c }
-}
-
 // NewSmResolver constructs an SmResolver with a real Secret Manager
 // client. projectID is the GCP project that owns the canary-source-*
 // secrets. Returns an error if the SM client cannot be constructed

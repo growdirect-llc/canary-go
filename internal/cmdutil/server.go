@@ -10,6 +10,16 @@ import (
 	"go.uber.org/zap"
 )
 
+const DefaultReadHeaderTimeout = 5 * time.Second
+
+// NewServer returns the standard HTTP server used by cmd binaries.
+func NewServer(handler http.Handler) *http.Server {
+	return &http.Server{
+		Handler:           handler,
+		ReadHeaderTimeout: DefaultReadHeaderTimeout,
+	}
+}
+
 // RunServer serves HTTP on the supplied listener until ctx is cancelled
 // (typically by a SIGINT/SIGTERM trap from signal.NotifyContext), then
 // drains in-flight requests within gracePeriod via srv.Shutdown.
@@ -42,7 +52,7 @@ import (
 //	ln, err := net.Listen("tcp", ":8086")
 //	if err != nil { logger.Fatal("listen", zap.Error(err)) }
 //
-//	srv := &http.Server{Handler: r}
+//	srv := cmdutil.NewServer(r)
 //	logger.Info("listening", zap.String("addr", ln.Addr().String()))
 //	if err := cmdutil.RunServer(ctx, srv, ln, logger, 30*time.Second); err != nil &&
 //	    !errors.Is(err, http.ErrServerClosed) {

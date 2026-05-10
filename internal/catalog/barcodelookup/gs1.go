@@ -5,10 +5,6 @@ import "context"
 // gs1Name is the stable label for the GS1 source.
 const gs1Name = "GS1"
 
-// gs1Confidence is what a wired-up GS1 adapter would return; kept here
-// so the calibration is documented even while the adapter is a stub.
-const gs1Confidence = 0.95
-
 // GS1Source is a placeholder for the GS1 GEPIR / Verified by GS1 API.
 // A real implementation requires a license + member-area credentials,
 // which is out of scope for Wave C.1. Until then Lookup always returns

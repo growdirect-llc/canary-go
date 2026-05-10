@@ -143,6 +143,7 @@ func TestDevDemoLogin_DisabledByDefault(t *testing.T) {
 // to the seeded demo merchant UUID.
 func TestDevDemoLogin_SignsCookieAndRedirectsWhenEnabled(t *testing.T) {
 	t.Setenv("DEV_DEMO_LOGIN", "1")
+	t.Setenv("ENV", "")
 	s := newTestService(t, "test-session-secret")
 
 	r := chi.NewRouter()
@@ -176,6 +177,9 @@ func TestDevDemoLogin_SignsCookieAndRedirectsWhenEnabled(t *testing.T) {
 	if sessionCookie.Path != "/" {
 		t.Errorf("cookie Path = %q, want /", sessionCookie.Path)
 	}
+	if sessionCookie.Secure {
+		t.Error("ENV unset should emit Secure=false even when request transport is plain HTTP")
+	}
 
 	// Verify the cookie carries the seeded merchant UUID.
 	gotID, ok := s.verifyCookieValue(sessionCookie.Value)
@@ -185,6 +189,60 @@ func TestDevDemoLogin_SignsCookieAndRedirectsWhenEnabled(t *testing.T) {
 	wantID := uuid.MustParse(devDemoMerchantID)
 	if gotID != wantID {
 		t.Errorf("demo cookie merchant = %s, want %s (seeded demo)", gotID, wantID)
+	}
+}
+
+func TestDevDemoLogin_CookieSecurityFollowsEnvNotForwardedProto(t *testing.T) {
+	t.Setenv("DEV_DEMO_LOGIN", "1")
+	s := newTestService(t, "test-session-secret")
+
+	cases := []struct {
+		name       string
+		env        string
+		forwarded  string
+		wantSecure bool
+	}{
+		{
+			name:       "env unset ignores forwarded https",
+			env:        "",
+			forwarded:  "https",
+			wantSecure: false,
+		},
+		{
+			name:       "production env sets secure without forwarded proto",
+			env:        "production",
+			forwarded:  "",
+			wantSecure: true,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Setenv("ENV", c.env)
+			r := chi.NewRouter()
+			r.Get("/auth/demo", s.handleDevDemoLogin)
+			req := httptest.NewRequest(http.MethodGet, "/auth/demo", nil)
+			if c.forwarded != "" {
+				req.Header.Set("X-Forwarded-Proto", c.forwarded)
+			}
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+
+			var sessionCookie *http.Cookie
+			for _, cookie := range rr.Result().Cookies() {
+				if cookie.Name == sessionCookieName {
+					sessionCookie = cookie
+					break
+				}
+			}
+			if sessionCookie == nil {
+				t.Fatalf("expected %q cookie to be set; got cookies %v",
+					sessionCookieName, rr.Result().Cookies())
+			}
+			if sessionCookie.Secure != c.wantSecure {
+				t.Fatalf("Secure = %v, want %v", sessionCookie.Secure, c.wantSecure)
+			}
+		})
 	}
 }
 

@@ -6,8 +6,6 @@
 // "sub1-hash-seal" and writes a row into protocol.evidence — the L1
 // Index of the Data Sovereignty Stack (write-once, hash-chained,
 // per-merchant).
-//
-//
 package main
 
 import (

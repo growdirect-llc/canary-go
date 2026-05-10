@@ -21,9 +21,8 @@ import (
 // ─── stub store ──────────────────────────────────────────────────────────────
 
 type stubStore struct {
-	tokens  map[uuid.UUID]*validate.VerificationToken
-	proofs  map[string]*validate.AnchorProof
-	counter int64
+	tokens map[uuid.UUID]*validate.VerificationToken
+	proofs map[string]*validate.AnchorProof
 }
 
 func newStubStore() *stubStore {

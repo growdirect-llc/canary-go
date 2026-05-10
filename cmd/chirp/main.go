@@ -3,8 +3,6 @@
 // Chirp — Module Q rules engine. Loads detection rules from
 // q.detection_rules, evaluates them against transaction events from
 // schema t, writes matched detections to q.detections.
-//
-//
 package main
 
 import (
@@ -88,7 +86,7 @@ func main() {
 		zap.String("addr", ln.Addr().String()),
 		zap.Strings("rule_types", registry.RegisteredTypes()),
 	)
-	srv := &http.Server{Handler: r}
+	srv := cmdutil.NewServer(r)
 	if err := cmdutil.RunServer(ctx, srv, ln, logger, 30*time.Second); err != nil &&
 		!errors.Is(err, http.ErrServerClosed) {
 		logger.Fatal("server", zap.Error(err))

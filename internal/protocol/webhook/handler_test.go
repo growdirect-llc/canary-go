@@ -19,11 +19,6 @@ import (
 	"github.com/ruptiv/canary/internal/protocol/secrets"
 )
 
-// fixedClock returns a stable Now() for deterministic tests.
-type fixedClock struct{ t time.Time }
-
-func (f *fixedClock) Now() time.Time { return f.t }
-
 // memNonceStore mirrors the one in hmac_test.go.
 type memNonceStore struct{ seen map[string]time.Time }
 
@@ -236,9 +231,8 @@ func TestHandler_NonceReplay_Returns401(t *testing.T) {
 func TestHandler_UnknownSource_Returns401(t *testing.T) {
 	f := newFixture(t)
 	payload := []byte(`{}`)
-	req := f.signedRequest(payload, "n", f.now)
 	// Re-route to an unregistered source code
-	req = httptest.NewRequest(http.MethodPost,
+	req := httptest.NewRequest(http.MethodPost,
 		"/v1/protocol/webhook/unknown-source", bytes.NewReader(payload))
 	req.Header.Set(HeaderMerchant, f.merchantID.String())
 	req.Header.Set(canaryhmac.HeaderTimestamp, strconv.FormatInt(f.now.Unix(), 10))

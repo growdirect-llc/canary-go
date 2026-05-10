@@ -28,7 +28,15 @@ func (f *flushRecorder) Flush() {
 	f.mu.Unlock()
 }
 
+func (f *flushRecorder) Write(p []byte) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.ResponseRecorder.Write(p)
+}
+
 func (f *flushRecorder) Body() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.ResponseRecorder.Body.String()
 }
 
@@ -277,7 +285,7 @@ func TestMemorySource_SubscriberCountTracksLifecycle(t *testing.T) {
 // cursorCapturingSource records the cursor passed to Subscribe so the
 // LastEventID test can assert on it.
 type cursorCapturingSource struct {
-	mu      sync.Mutex
+	mu       sync.Mutex
 	captured string
 }
 

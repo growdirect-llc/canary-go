@@ -47,7 +47,9 @@ package counterpoint
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -58,6 +60,10 @@ import (
 
 // SourceCode is the canonical identifier for this adapter.
 const SourceCode = "counterpoint"
+
+// ErrInvalidQuantity is returned when Counterpoint quantity values cannot be
+// safely represented by Canary's bounded numeric contract.
+var ErrInvalidQuantity = errors.New("counterpoint: invalid quantity")
 
 // Adapter is the NCR Counterpoint POS adapter.
 type Adapter struct{}
@@ -128,6 +134,11 @@ func (*Adapter) Parse(env adapters.Envelope) (*sub2.CanonicalEvent, error) {
 		Attributes:         env.Payload,
 	}
 
+	itemCount, err := int32InRange(len(doc.Lines), "Lines count")
+	if err != nil {
+		return nil, err
+	}
+
 	canonical.Transaction = types.Transaction{
 		TransactionNumber: doc.DocumentNumber,
 		TransactionType:   txnType,
@@ -135,7 +146,7 @@ func (*Adapter) Parse(env adapters.Envelope) (*sub2.CanonicalEvent, error) {
 		StartedAt:         eventTime.UTC(),
 		EndedAt:           eventTime.UTC(),
 		Status:            "completed",
-		ItemCount:         int32(len(doc.Lines)),
+		ItemCount:         itemCount,
 		Subtotal:          decimalString(doc.Subtotal),
 		TaxTotal:          decimalString(doc.TaxAmount),
 		DiscountTotal:     decimalString(doc.DiscountAmount),
@@ -148,8 +159,16 @@ func (*Adapter) Parse(env adapters.Envelope) (*sub2.CanonicalEvent, error) {
 	}
 
 	for _, line := range doc.Lines {
+		lineNumber, err := int32InRange(line.LineNumber, "LineNumber")
+		if err != nil {
+			return nil, err
+		}
+		if err := quantityInInt32Range(line.Quantity); err != nil {
+			return nil, err
+		}
+
 		canonical.LineItems = append(canonical.LineItems, types.TransactionLineItem{
-			LineNumber:     int32(line.LineNumber),
+			LineNumber:     lineNumber,
 			BarcodeScanned: strPtrOrNil(line.ItemNumber),
 			Description:    nonEmpty(line.Description, line.ItemNumber),
 			Quantity:       decimalString(line.Quantity),
@@ -162,12 +181,17 @@ func (*Adapter) Parse(env adapters.Envelope) (*sub2.CanonicalEvent, error) {
 	}
 
 	for _, pay := range doc.Payments {
+		tenderSequence, err := int32InRange(pay.PaymentSequence, "PaymentSequence")
+		if err != nil {
+			return nil, err
+		}
+
 		//: leave TenderTypeID = uuid.Nil
 		// — Sub2 store resolves the (tenant, source_code='counterpoint')
 		// default from f.tender_types before insert. Adapters pkg
 		// invariant preserved: parsers never invent FK IDs.
 		canonical.Tenders = append(canonical.Tenders, types.TransactionTender{
-			TenderSequence:    int32(pay.PaymentSequence),
+			TenderSequence:    tenderSequence,
 			Amount:            decimalString(pay.Amount),
 			Currency:          currency,
 			AuthorizationCode: strPtrOrNil(pay.AuthorizationCode),
@@ -222,6 +246,20 @@ type cpPay struct {
 // proper decimal type once shopspring/decimal is approved.
 func decimalString(v float64) string {
 	return strconv.FormatFloat(v, 'f', 4, 64)
+}
+
+func int32InRange(v int, field string) (int32, error) {
+	if v < math.MinInt32 || v > math.MaxInt32 {
+		return 0, fmt.Errorf("%w: %s %d outside int32 range", adapters.ErrInvalidPayload, field, v)
+	}
+	return int32(v), nil
+}
+
+func quantityInInt32Range(v float64) error {
+	if math.IsNaN(v) || math.IsInf(v, 0) || v < math.MinInt32 || v > math.MaxInt32 {
+		return fmt.Errorf("%w: %s outside int32 range", ErrInvalidQuantity, decimalString(v))
+	}
+	return nil
 }
 
 func buildExternalIDs(docNum, docType string) json.RawMessage {

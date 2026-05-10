@@ -80,7 +80,7 @@ func main() {
 		zap.String("service", serviceName),
 		zap.String("addr", ln.Addr().String()),
 	)
-	srv := &http.Server{Handler: r}
+	srv := cmdutil.NewServer(r)
 	if err := cmdutil.RunServer(ctx, srv, ln, logger, 30*time.Second); err != nil &&
 		!errors.Is(err, http.ErrServerClosed) {
 		logger.Fatal("server", zap.Error(err))

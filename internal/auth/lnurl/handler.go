@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"sync"
 
-	// bech32 — https://github.com/btcsuite/btcutil/tree/master/bech32
-	"github.com/btcsuite/btcutil/bech32"
+	// bech32 — https://github.com/btcsuite/btcd/tree/master/btcutil/bech32
+	"github.com/btcsuite/btcd/btcutil/bech32"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"

@@ -36,6 +36,15 @@ Every component file opens with a header contract:
   Slots:
     <name>   description (or "none")
 
+  States:
+    <state>  <when it appears and how it should render/behave>
+
+  Accessibility:
+    Role/landmark: <role or native semantic element>
+    Name/label: <how the accessible name is produced>
+    Keyboard/focus: <keyboard and focus behavior, or "native control">
+    Assistive copy: <screen-reader-only or described-by expectations>
+
   Example:
     {{template "components/<name>" (dict "key" "value" ...)}}
 */}}
@@ -72,6 +81,14 @@ Extract a new component when **all three** are true:
 
 If the third bullet starts to fail (the param list balloons), consider
 splitting into two components rather than growing one.
+
+## Standards checks
+
+Interactive components must treat accessibility as part of the contract:
+keyboard behavior, focus movement, visible labels, ARIA labels or
+descriptions where needed, and non-color-only status communication.
+Connector-facing components must also preserve permission, compatibility,
+support, and data-boundary language from `docs/conventions/connector-metadata.md`.
 
 ## Anti-patterns to avoid
 

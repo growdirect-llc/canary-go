@@ -6,8 +6,6 @@
 // over their chain_hash values, inscribes the Merkle root on Bitcoin
 // via OrdinalsBot (or a stub in dev), and records the proof paths in
 // protocol.anchors + protocol.evidence_anchors.
-//
-//
 package main
 
 import (

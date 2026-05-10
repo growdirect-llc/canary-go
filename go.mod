@@ -5,7 +5,7 @@ go 1.26.3
 require (
 	cloud.google.com/go/secretmanager v1.20.0
 	github.com/btcsuite/btcd/btcec/v2 v2.3.6
-	github.com/btcsuite/btcutil v1.0.2
+	github.com/btcsuite/btcd/btcutil v1.1.6
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
@@ -29,7 +29,6 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.7.0 // indirect
-	github.com/btcsuite/btcd v0.20.1-beta // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect

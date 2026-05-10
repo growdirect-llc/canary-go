@@ -69,7 +69,7 @@ func main() {
 		logger.Fatal("listen", zap.Error(err))
 	}
 	logger.Info("starting", zap.String("service", cfg.ServiceName), zap.String("addr", ln.Addr().String()))
-	srv := &http.Server{Handler: handler}
+	srv := cmdutil.NewServer(handler)
 	if err := cmdutil.RunServer(ctx, srv, ln, logger, 30*time.Second); err != nil &&
 		!errors.Is(err, http.ErrServerClosed) {
 		logger.Fatal("server", zap.Error(err))

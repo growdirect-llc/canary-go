@@ -3,11 +3,19 @@ package devops
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
 
 func TestLangGraphClient_PendingReleases(t *testing.T) {
 	threads := []Thread{
@@ -50,6 +58,31 @@ func TestLangGraphClient_PendingReleases_ServerOffline(t *testing.T) {
 	}
 	if got != nil {
 		t.Errorf("expected nil slice on error, got %v", got)
+	}
+}
+
+func TestLangGraphClient_RejectsNonAllowlistedHostBeforeRequest(t *testing.T) {
+	called := false
+	client := NewLangGraphClient("http://evil.example/")
+	client.http = &http.Client{
+		Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			called = true
+			return nil, errors.New("unexpected outbound request")
+		}),
+	}
+
+	got, err := client.PendingReleases(context.Background())
+	if err == nil {
+		t.Fatal("expected non-allowlisted host error")
+	}
+	if got != nil {
+		t.Fatalf("expected nil threads, got %v", got)
+	}
+	if !strings.Contains(err.Error(), "host_not_allowed") {
+		t.Fatalf("expected host_not_allowed error, got %v", err)
+	}
+	if called {
+		t.Fatal("expected host validation before any outbound request")
 	}
 }
 

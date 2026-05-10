@@ -55,7 +55,7 @@ func main() {
 	defer pool.Close()
 
 	// obs scaffold — first module to fully exercise tracer +
-	// trace-aware logger + chi span middleware. 
+	// trace-aware logger + chi span middleware.
 	obsLogger := obs.NewLogger(serviceName)
 	tracer, err := obs.NewTracer(ctx, serviceName)
 	if err != nil {
@@ -104,7 +104,7 @@ func main() {
 		zap.String("service", serviceName),
 		zap.String("addr", ln.Addr().String()),
 	)
-	srv := &http.Server{Handler: r}
+	srv := cmdutil.NewServer(r)
 	if err := cmdutil.RunServer(ctx, srv, ln, logger, 30*time.Second); err != nil &&
 		!errors.Is(err, http.ErrServerClosed) {
 		logger.Fatal("server", zap.Error(err))

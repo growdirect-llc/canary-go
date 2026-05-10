@@ -184,9 +184,9 @@ func (s *Store) UpdateStatus(ctx context.Context, merchantID, id uuid.UUID, to s
 	idx := 2
 	switch to {
 	case StatusSubmitted:
-		q += fmt.Sprintf(", submitted_at = COALESCE(submitted_at, NOW())")
+		q += ", submitted_at = COALESCE(submitted_at, NOW())"
 	case StatusClosed, StatusCancelled:
-		q += fmt.Sprintf(", closed_at = COALESCE(closed_at, NOW())")
+		q += ", closed_at = COALESCE(closed_at, NOW())"
 	}
 	q += fmt.Sprintf(" WHERE merchant_id = $%d AND id = $%d RETURNING id, merchant_id, supplier_id, po_number, status, expected_at, total_cost::text, attributes, created_at, updated_at, submitted_at, closed_at", idx, idx+1)
 	args = append(args, merchantID, id)

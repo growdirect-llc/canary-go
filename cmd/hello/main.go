@@ -6,8 +6,9 @@
 // delete this binary once the real services are deploying cleanly.
 //
 // Endpoints:
-//   GET /        → 200 "hello from canary-rapidpos drop zone"
-//   GET /health  → 200 "ok"
+//
+//	GET /        → 200 "hello from canary-rapidpos drop zone"
+//	GET /health  → 200 "ok"
 //
 // Note: /healthz is reserved by Google's Cloud Run frontend (Knative
 // activator readiness probe) — using /health instead, matching the
@@ -61,10 +62,11 @@ func main() {
 		log.Fatalf("listen: %v", err)
 	}
 	log.Printf("hello starting on %s", ln.Addr().String())
-	srv := &http.Server{Handler: mux}
+	srv := cmdutil.NewServer(mux)
 	if err := cmdutil.RunServer(ctx, srv, ln, logger, 30*time.Second); err != nil &&
 		!errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server: %v", err)
 	}
 }
+
 // touch
