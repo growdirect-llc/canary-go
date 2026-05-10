@@ -34,7 +34,7 @@ The goal is not to copy React, Square, Clover, MACH, or Composable UI. The goal 
 
 ## Provenance
 
-This vision comes from five local and external inputs.
+This vision comes from six local and external inputs.
 
 ### 1. Canary Go dispatch posture
 
@@ -95,6 +95,16 @@ Sources:
 - <https://docs.clover.com/dev/docs/navigating-the-clover-app-market>
 - <https://docs.clover.com/dev/docs/managing-app-details>
 - <https://composable.com/composable-ui>
+
+### 6. Standards and trust-boundary review
+
+The GRO-978 review compared the Phase 9 standards docs against the research
+memo before Phase 5 UI work. The result keeps the architecture direction, but
+tightens the local contracts around authorization model, connector
+compatibility, source-system identifiers, KPI definitions, payment-data
+boundaries, identity language, and AI/fraud/security governance states.
+
+Source: `docs/reviews/gro-978-ui-standards-commerce-review.md`.
 
 ## Architectural Position
 
@@ -209,6 +219,11 @@ The component-led architecture is now governed by local standards docs:
 - `docs/conventions/ui-pr-review-checklist.md` controls frontend PR review.
 
 These docs translate MACH, NRF/ARTS, Square/Clover, GS1, PCI/EMVCo, W3C, and AtlasView lessons into local implementation rules. They govern how new UI is designed, reviewed, and shipped while staying runtime-neutral: Canary can keep Go SSR for merchant execution screens, and AtlasView can implement compatible component contracts in React where its richer management-plane workflows need them.
+
+GRO-978 confirmed a **go for Phase 5 UI design**, with one guardrail: new
+Phase 5 screens must pass the UI PR checklist before implementation merges.
+That is a design/readiness gate, not permission to start unrelated Phase 5 UI
+work from this document.
 
 ## Component Taxonomy
 

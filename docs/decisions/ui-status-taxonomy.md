@@ -24,6 +24,7 @@ Canary status UI is organized by status family first, tone second. `components/s
 | freshness | Age and usability of published or synced data | fresh, stale-soft, stale-hard, unavailable | success, warning, danger, neutral |
 | sync | Movement of data between systems | not connected, queued, syncing, synced, partial, failed | neutral, info, success, warning, danger |
 | data-boundary | How Canary handles sensitive/payment-adjacent data | reference-only, stores, processes, transmits, tokenized, out-of-scope | neutral, info, warning, danger |
+| governance | Review/accountability posture for AI, fraud, security, or partner controls | reviewed, review-needed, overdue, suspended | success, warning, danger, neutral |
 
 ## Rationale
 
@@ -38,6 +39,10 @@ Color-only status does not scale across reports, cases, connectors, permissions,
 ## AtlasView mapping
 
 AtlasView may implement richer React status components, but shared statuses should preserve these family names and meanings. Manifest/local-view states map to `freshness`. Connector state maps to `health` or `sync` depending on context.
+
+AI, fraud, security, and partner-accountability states map to `governance`.
+Canary should render those only when a feature can affect customers,
+employees, pricing, inventory, fraud, security, or other retail operations.
 
 ## Review triggers
 

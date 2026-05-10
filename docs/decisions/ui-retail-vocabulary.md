@@ -28,7 +28,11 @@ Canary merchant UI uses retail-standard, operator-facing nouns by default. Atlas
 | Broad payment concept | Payment | Authorization, capture, refund | Payment-data boundary metadata | Use Payment in broad merchant copy when POS tender precision is unnecessary. |
 | Sale/return record | Transaction | Order, receipt, retail transaction | Downstream event/audit target | Use Transaction for POS records; use Order only for ecommerce/order-management connectors. |
 | Physical/business place | Location | Store, warehouse, GLN | Downstream location alias | Use Location generally; use Store only when referring to a retail store specifically. |
+| Source-system record | Source record | External id, remote id, system record | Standards anchor metadata | Use Source record when showing the authoritative external record behind a mirrored Canary object. |
+| Retail metric | KPI | Metric, measure, performance indicator | Report definition metadata | Use KPI only when formula, scope, source, and freshness are known or linked. |
 | Permission shown to merchant | Permission | Scope, grant | Capability, entitlement, policy | Canary renders merchant-readable Permission labels; AtlasView may author Capability/Policy. |
+| Authorization provider | Identity provider | OIDC provider, sign-in provider, authorization server | Identity delegation metadata | Use Identity provider in admin copy; keep OIDC/OAuth terms for setup, support, or diagnostics. |
+| Connected app authorization | Connected integration | OAuth client, app grant, relying party | Capability/policy mapping | Use Connected integration for merchant-facing consent and Connected app only when the source system uses that noun. |
 | Published platform config | Published settings | Manifest, local view | Manifest, local-view state | Avoid Manifest in normal merchant copy; use Published settings or Configuration status. |
 
 ## Rationale
@@ -40,6 +44,8 @@ NRF/ARTS retail standards, POS marketplace patterns, and open commerce platforms
 - New merchant screens must use the Canary user-facing noun from the table unless a product decision says otherwise.
 - Connector screens may show aliases only when they help explain a source system.
 - Technical identifiers such as GTIN, GLN, OIDC client id, source-system id, and manifest id should be collapsed behind detail/diagnostic affordances unless the screen is for setup, support, compliance, or troubleshooting.
+- KPI labels must not imply standards-grade comparability unless the definition, source, freshness, and location/date scope are available.
+- Identity and authorization screens should use plain merchant language first, then expose provider/client/scope/token detail only when it helps configuration or support.
 
 ## AtlasView mapping
 
@@ -50,3 +56,4 @@ AtlasView may author capabilities, policies, manifests, people, parties, operati
 - A new UI introduces Product, Vendor, Party, Workstation, Device, Payment, Order, Capability, Entitlement, or Manifest as visible merchant copy.
 - A connector maps external fields into Canary without preserving source-system aliases.
 - A report or proof screen uses a term differently than POS or retail standards would.
+- A screen exposes OAuth/OIDC, GTIN, GLN, EPCIS, PCI, EMV, or manifest terminology as ordinary navigation or marketing copy instead of setup, diagnostics, or compliance detail.
