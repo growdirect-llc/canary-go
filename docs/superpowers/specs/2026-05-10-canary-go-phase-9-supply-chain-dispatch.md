@@ -4,6 +4,7 @@ date: 2026-05-10
 status: active
 authors: Geoff Lyle (with Claude Opus 4.7)
 supersedes-section-of: docs/superpowers/specs/2026-05-08-canary-go-unified-dispatch.md (§Phase 9)
+last-revised: 2026-05-10
 ---
 
 # Canary.GO Phase 9 — Supply-Chain & Infra Hardening Dispatch
@@ -15,6 +16,11 @@ This dispatch is a successor to the 2026-05-08 unified plan, scoped to
 Phases 4, 6, 7, and 8 have closed (and Phase 9's first ticket
 GRO-934 already shipped), so the queue is mostly mechanical
 remediation rather than design.
+
+The status claims in this file reflect the queue state at authoring.
+A fresh execution session MUST verify Linear and `main` before picking
+up the next ticket; if Linear disagrees with this document, Linear
+wins and the runner should add a short note to the handoff.
 
 The 2026-05-08 plan remains the canonical map of the broader
 program. This dispatch lands here so the runner has a single doc to
@@ -53,14 +59,28 @@ registry without a security-team override.
 
 Same as the parent plan: single long-lived runner, source of truth
 is Linear, pickup order is `priority desc, identifier asc, no open
-blockers`. Each cycle creates a worktree at
-`.claude/worktrees/gro-NNN-slug` off `main`, runs the canonical
-loop (mark In Progress → implement per Where + Fix → add named
-acceptance probe that fails pre-fix → `go build` + `go test ./...`
-with the integration env vars → commit with the standard footer →
-push → `gh pr create` → mark In Review → `gh pr merge --squash
---delete-branch` → pull main → mark Done → remove worktree). Then
-report ticket + PR + next pickup in ≤5 lines and continue.
+blockers`.
+
+Each cycle should run in an isolated workspace or branch following
+the active agent environment's conventions. In Codex, use a
+`codex/gro-NNN-slug` branch or an isolated worktree if the session is
+configured for worktrees. Do not hardcode `.claude/worktrees`; that
+path is a Claude-runner convention, not a repo requirement.
+
+Canonical loop:
+
+1. Verify Linear, `main`, and existing PR state.
+2. Mark exactly one ticket In Progress.
+3. Implement the smallest fix that satisfies the ticket.
+4. Add a named acceptance probe that fails before the fix where
+   practical.
+5. Run `go build ./...`, the named test/probe, and the relevant
+   security command.
+6. Commit with the standard footer and open a PR.
+7. Mark the ticket In Review with the PR link.
+8. Merge only when the operator or repo workflow authorizes merge.
+9. After merge, pull `main`, mark Done, remove the isolated
+   workspace, and report ticket + PR + next pickup in <=5 lines.
 
 `go test -tags=integration` env vars unchanged from prior dispatch:
 
@@ -74,9 +94,11 @@ INTERNAL_SERVICE_SECRET=test-internal-secret
 
 ## Phase 9 queue
 
-Nine tickets remain. The runner picks them in **priority desc,
-identifier asc** order. Most are isolated ≤30-line changes; a few
-have non-trivial blast radius and are flagged below.
+Nine remediation tickets remain, plus the CK8 checkpoint. The runner
+picks implementation tickets in **priority desc, identifier asc**
+order unless Linear blockers say otherwise. Most are isolated
+<=30-line changes; a few have non-trivial blast radius and are
+flagged below.
 
 | Ticket | What | Blast | Blockers |
 |---|---|---|---|
@@ -84,18 +106,28 @@ have non-trivial blast radius and are flagged below.
 | [GRO-941](https://linear.app/growdirect/issue/GRO-941) | dbcheck/hello/identity Dockerfiles run as root. Mirror `Dockerfile.gateway`'s `USER nonroot:nonroot` + `chown` for the binary path. Verify the entrypoint still works under the non-root UID | small | none |
 | [GRO-942](https://linear.app/growdirect/issue/GRO-942) | Add `ReadHeaderTimeout` (slowloris) to every `cmd/*` HTTP server via a new `cmdutil` helper. Default 10s; configurable per-binary | small | none |
 | [GRO-943](https://linear.app/growdirect/issue/GRO-943) | Fix the SSE test data race so `go test -race ./internal/web/middleware/streamsse/...` is clean. Likely a closure capture in the broadcast loop | small | none |
-| [GRO-944](https://linear.app/growdirect/issue/GRO-944) | LangGraph SSRF: allowlist URL host/scheme; structured URL building for the `/devops/qa-agent` proxy. Depends on Phase 6's devops auth gate (already closed) | medium | depends on GRO-929 ✓ |
+| [GRO-944](https://linear.app/growdirect/issue/GRO-944) | LangGraph SSRF: allowlist URL host/scheme; structured URL building for LangGraph client/proxy surfaces. Current likely code surfaces are `internal/devops/langgraph.go` and `/devops/qa-agent` rendering in `internal/web/devops/devops.go`; confirm the exact vulnerable path before patching | medium | depends on GRO-929 ✓ |
 | [GRO-945](https://linear.app/growdirect/issue/GRO-945) | Clean / allowlist gitleaks + trufflehog noise. Add `.gitleaks.toml` + `.trufflehog/exclude.txt` covering test fixtures + the dev-key bootstrap path | small | none |
 | [GRO-946](https://linear.app/growdirect/issue/GRO-946) | Bound-check int32 narrowing in the Counterpoint POS parser (`internal/adapters/counterpoint/parser.go` numeric coercions). Add a regression test that feeds an over-int32 quantity and asserts the parser returns a typed `ErrInvalidQuantity` instead of silently truncating | small | none |
 | [GRO-947](https://linear.app/growdirect/issue/GRO-947) | Pin reproducible scanner toolchain in `Makefile` + `scripts/`. Add a `make security-scan` target that runs the standardized versions of `govulncheck`, `gosec`, `trivy`, `gitleaks` and exits non-zero on findings outside the allowlist | small | none |
 | [GRO-948](https://linear.app/growdirect/issue/GRO-948) | Centralize cookie security attributes in `internal/web/cookie` (or similar). `Secure=true` MUST be derived from `ENV=production`, never from the forwarded-proto header. Audit every cookie-setting site (CSRF, session, demo) and route through the helper | medium | none |
+| **CK8** (new ticket needed if it does not already exist) | Phase 9 checkpoint: `govulncheck`, `trivy`, `gosec`, `gitleaks` clean or narrowly allowlisted; `go test -race ./...` green; all runtime images run as non-root | medium | 934, 940, 941, 942, 943, 944, 945, 946, 947, 948 |
 
 ### Sequencing
 
-There is no checkpoint for Phase 9 in the original spec. Per the
-unified-plan §Failure handling, the runner stops on first failed
-build/test/merge, but otherwise proceeds linearly until the queue
-drains.
+The parent unified dispatch already defines **CK8** for Phase 9. This
+dispatch makes that checkpoint explicit because Phase 9 is only done
+when the individual fixes and the cross-cutting security/race/image
+probes are green together.
+
+Per the unified-plan §Failure handling, the runner stops on first
+failed build/test/merge, but otherwise proceeds linearly through the
+implementation tickets, then runs CK8 as the close-out ticket.
+
+If Linear's priority ordering surfaces GRO-945 before GRO-947, GRO-945
+may use direct tool invocations for gitleaks/trufflehog. After GRO-947
+lands, rerun GRO-945's findings through `make security-scan` so the
+allowlists and pinned scanner target agree.
 
 After Phase 9 closes, the runner is unblocked for **either** of:
 
@@ -133,14 +165,20 @@ Worked acceptance probes for the Phase 9 tickets:
   /<binary> --version` works.
 - **GRO-942 (ReadHeaderTimeout):** new
   `internal/cmdutil/server_test.go` test asserts the constructed
-  `*http.Server` carries a non-zero `ReadHeaderTimeout`; a
-  `go vet -vettool=$(which fieldalignment)` (or grep) over `cmd/*`
-  surfaces no `&http.Server{` literal without the field.
+  `*http.Server` carries a non-zero `ReadHeaderTimeout`. Add or use a
+  helper such as `cmdutil.NewHTTPServer(handler)` and migrate the
+  simple `cmd/*` binaries to it. Acceptance grep:
+  `rg -n "&http\\.Server\\{" cmd internal --glob "*.go"` should show
+  only the helper/tests and the explicitly audited sub2/sub3 servers
+  that already set `ReadHeaderTimeout`.
 - **GRO-943 (SSE race):** `go test -race ./internal/web/middleware/streamsse/...`
   green across 100 iterations.
 - **GRO-944 (LangGraph SSRF):** new `TestLangGraphProxy_RejectsNonAllowlistedHost`
   unit test seeds a request whose `target` URL is `http://evil.example/`
-  and asserts 400 `host_not_allowed`.
+  and asserts 400 `host_not_allowed`, or, if the vulnerable surface is
+  the `internal/devops.LangGraphClient` base URL instead of a request
+  proxy, add the equivalent constructor/client test that rejects
+  non-allowlisted scheme/host before issuing a network request.
 - **GRO-945 (gitleaks):** `make security-scan` (post-GRO-947) or the
   current invocation reports zero findings on the working tree.
 - **GRO-946 (int32 narrow):** new test in
@@ -154,6 +192,11 @@ Worked acceptance probes for the Phase 9 tickets:
   test asserts the helper emits `Secure=false` when ENV is unset
   and `Secure=true` when `ENV=production`, regardless of any
   `X-Forwarded-Proto` header value.
+- **CK8 (checkpoint):** run `make security-scan`, `go test -race ./...`,
+  and the runtime image non-root probes for gateway, identity, hello,
+  and dbcheck. CK8 cannot close while any Phase 9 implementation ticket
+  is unmerged or while scanner findings exist outside documented narrow
+  allowlists.
 
 ## Failure handling
 
