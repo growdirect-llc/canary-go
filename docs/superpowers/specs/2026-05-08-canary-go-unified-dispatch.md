@@ -1,7 +1,7 @@
 ---
 title: Canary.GO Unified Dispatch — Post-Triage Spec
 date: 2026-05-08
-last-revised: 2026-05-09
+last-revised: 2026-05-10
 status: active
 authors: Geoff Lyle (with Claude Opus 4.7)
 supersedes: interim draft at docs/decisions/canary-go-unified-dispatch-plan-2026-05-08.md (deleted in same commit)
@@ -146,14 +146,18 @@ CK3 verifies: end-to-end protocol smoke (ingest 5 events for one merchant, verif
 
 ### Phase 4 — Identity Hardening
 
-Hardens canary.go's own IdP runtime. Per D-134, canary remains the IdP — these tickets harden code that stays.
+Hardens canary.go's own IdP runtime. Per D-134, canary remains the IdP — these tickets harden code that stays. **Expanded 2026-05-10** with adjacent identity-boundary findings from the Codex security review.
 
 | Ticket | What | Blockers |
 |---|---|---|
 | [GRO-906](https://linear.app/growdirect/issue/GRO-906) | Scope vocabulary + `RequireScope` enforcement across 10 services | CK1 |
 | [GRO-912](https://linear.app/growdirect/issue/GRO-912) | API-key rate limiter (Valkey-backed) | CK3 |
 | [GRO-913](https://linear.app/growdirect/issue/GRO-913) | `last_used_at` aggregating writer (replace per-request goroutines) | CK3 |
-| **CK4** ([GRO-921](https://linear.app/growdirect/issue/GRO-921)) | Phase 4 checkpoint | 906, 912, 913 |
+| [GRO-931](https://linear.app/growdirect/issue/GRO-931) | **CRITICAL** — scope-gate API-key lifecycle endpoints (`/v1/identity/keys`); revoke must filter by tenant | CK1 (GRO-906 vocab in place) |
+| [GRO-949](https://linear.app/growdirect/issue/GRO-949) | Refresh handler reloads Person/Org state before minting; deactivated users 401 + family revoked | none |
+| [GRO-954](https://linear.app/growdirect/issue/GRO-954) | Login rate limit + lockout (credential-side mirror of GRO-912) | GRO-912 (shares limiter substrate) |
+| [GRO-955](https://linear.app/growdirect/issue/GRO-955) | `MaxBytesReader` cap on `/auth/refresh` (login already capped) | none |
+| **CK4** ([GRO-921](https://linear.app/growdirect/issue/GRO-921)) | Phase 4 checkpoint | 906, 912, 913, 931, 949, 954, 955 |
 
 ### Phase 5 — Frontend Product
 
@@ -178,6 +182,79 @@ Two adjacent identity-contract tickets coexist with this phase but do not gate i
 | [GRO-903](https://linear.app/growdirect/issue/GRO-903) | Item Setup Flow C completion — C2 enrichment + C3 PLU generation (label-print preview, PLU range config) | GRO-922, CK2 |
 
 C4 (variant matrix) deferred — apparel-specific, customer-pulled per the screen-decomp spec.
+
+## REVISION 2026-05-10 — Codex security review additions
+
+A Codex code review of commit `2277e19` (PR #6 IDOR-fix merge) filed 28 new tickets (GRO-927 through GRO-956). They cluster into four orthogonal themes that don't fit Phase 4's identity-only frame, so they ship as Phases 6-9. The most urgent of the batch — [GRO-931](https://linear.app/growdirect/issue/GRO-931) (CRITICAL: API-key lifecycle endpoints allow cross-tenant revoke + arbitrary scope minting) — folds *into* Phase 4 above because it shares substrate with GRO-906 and must close before CK4.
+
+[GRO-953](https://linear.app/growdirect/issue/GRO-953) was filed as a duplicate of [GRO-929](https://linear.app/growdirect/issue/GRO-929) and was closed as Duplicate during triage.
+
+Phase 5 (Item Setup UI) remains independent. Phases 6-9 sequence after CK4 and before Phase 5's UI work, because they expand the *security boundary* the UI sits behind. They do not gate Phase 5 hard — CK2 + GRO-922 still are the substrate gates — but the runner will pick them up in priority order before pulling new UI tickets.
+
+### Phase 6 — Tenant + Ops Boundary (epic [GRO-927](https://linear.app/growdirect/issue/GRO-927))
+
+The tenant boundary inside service binaries and the ops surface exposed by the gateway. Several services authenticate via gateway today; closing the per-binary auth gap means each cmd/* listening port is hardened against direct hits even if the mesh is bypassed.
+
+| Ticket | What | Blockers |
+|---|---|---|
+| [GRO-928](https://linear.app/growdirect/issue/GRO-928) | item / pricing / inventory / bull (task) mount handlers without auth; query-param tenant. Wrap in `APIKeyMiddleware`, derive tenant from `ClaimsFromContext`. **Subsumes the earlier "task service auth gap" follow-up.** | CK4 (Phase 4 substrate ready) |
+| [GRO-929](https://linear.app/growdirect/issue/GRO-929) | `/devops/*` mounted unconditionally; gate behind `DEV_CONSOLE=1` for local + admin scope (`ops:read` / `ops:admin`) for production. **Also closes the owl read-routes-mounted-outside-auth side-effect** noted during GRO-906 wiring. | none |
+| [GRO-933](https://linear.app/growdirect/issue/GRO-933) | Square OAuth: refuse to boot if `ENV=production` and `CANARY_ENCRYPTION_KEY` is missing/malformed; align `.env.example` and parser on one encoding. | none |
+| [GRO-930](https://linear.app/growdirect/issue/GRO-930) | Gateway: refuse to boot in production with `SECRET_BACKEND` unset or `pgx`. | none |
+| **CK5** (new ticket needed) | Phase 6 checkpoint — every cmd/* binary 401s unauth'd; no `tenant_id` query/header/body wins over claims; `/devops/*` 401s without scope; Square + gateway secret fall-throughs gone. | 928, 929, 930, 933 |
+
+### Phase 7 — MCP Hardening
+
+Five findings clustered around the MCP endpoint. Land as one bundled PR (mirrors the IDOR-fix bundle pattern): vocabulary + dispatch refactor done once, all five findings closed together.
+
+| Ticket | What | Blockers |
+|---|---|---|
+| [GRO-935](https://linear.app/growdirect/issue/GRO-935) | Per-tool scope gate. `ToolDef` carries required scope; registry refuses dispatch without it. | GRO-906 vocabulary |
+| [GRO-936](https://linear.app/growdirect/issue/GRO-936) | MCP mutations bypass audit — wrap `/mcp` in audit middleware OR emit MCP-specific audit records (tool name, key id, tenant, args hash, status). | none |
+| [GRO-937](https://linear.app/growdirect/issue/GRO-937) | MCP discovery advertises `X-API-Key`, middleware expects `X-Canary-API-Key` — fix discovery + add a `discovery.header == identity.HeaderAPIKey` test. | none |
+| [GRO-938](https://linear.app/growdirect/issue/GRO-938) | Implement MCP `initialize` / capability handshake OR rename the endpoint and discovery to disclaim full MCP compatibility. | decision needed |
+| [GRO-939](https://linear.app/growdirect/issue/GRO-939) | Tool argument schema enforcement (validate against `InputSchema` before dispatch); stop ignoring UUID/date parse errors. | none |
+| **CK6** (new ticket needed) | Phase 7 checkpoint — read-only key denied on every mutation tool; audit record exists for every mutation tool call; discovery + middleware agree on header; malformed args produce `-32602 Invalid params`. | 935, 936, 937, 939 (938 may run async if it requires a product decision) |
+
+### Phase 8 — Protocol & Data Integrity
+
+Three findings on the protocol pipeline + audit durability.
+
+| Ticket | What | Blockers |
+|---|---|---|
+| [GRO-932](https://linear.app/growdirect/issue/GRO-932) | L402 proof tokens redeemable via unauthenticated `GET` — require L402 auth on GET, or remove the GET-redeem path. | none |
+| [GRO-952](https://linear.app/growdirect/issue/GRO-952) | Raw POS payloads (potentially PII) written to `protocol.evidence.raw_payload` and triggers block delete. Define a redaction/tokenization policy at ingestion; store hashes/proofs separately from raw data. | none (largest design lift in this batch) |
+| [GRO-956](https://linear.app/growdirect/issue/GRO-956) | Audit fails open: insertion happens after response, only logs failures. Classify regulated mutations and add fail-closed / spool / DLQ behavior. | GRO-936 (audit substrate touched there too) |
+| **CK7** (new ticket needed) | Phase 8 checkpoint — unauth GET on a 402'd token returns 401/402; PII/payment-like fields don't persist raw in `protocol.evidence`; regulated mutation paths fail closed when audit is unavailable. | 932, 952, 956 |
+
+### Phase 9 — Supply Chain & Infra Hardening
+
+Mostly mechanical. Likely batched into 2-3 PRs.
+
+| Ticket | What | Blockers |
+|---|---|---|
+| [GRO-934](https://linear.app/growdirect/issue/GRO-934) | Bump Go toolchain to 1.26.3+ (template + HTTP/2 stdlib CVEs); pin Docker builder digests | none |
+| [GRO-940](https://linear.app/growdirect/issue/GRO-940) | Upgrade vulnerable `btcd v0.20.1-beta` chain | none |
+| [GRO-941](https://linear.app/growdirect/issue/GRO-941) | dbcheck/hello/identity Dockerfiles run as root → mirror `Dockerfile.gateway`'s `USER nonroot:nonroot` | none |
+| [GRO-942](https://linear.app/growdirect/issue/GRO-942) | Add `ReadHeaderTimeout` (slowloris) to every `cmd/*` HTTP server via `cmdutil` helper | none |
+| [GRO-943](https://linear.app/growdirect/issue/GRO-943) | Fix SSE test data race so `go test -race ./...` runs clean | none |
+| [GRO-944](https://linear.app/growdirect/issue/GRO-944) | LangGraph SSRF — allowlist URL host/scheme; structured URL building | depends on Phase 6 (devops auth gate) |
+| [GRO-948](https://linear.app/growdirect/issue/GRO-948) | Centralize cookie security attributes; production-`Secure=true` not derived from forwarded-proto | none |
+| [GRO-946](https://linear.app/growdirect/issue/GRO-946) | Bound-check int32 narrowing in Counterpoint POS parser | none |
+| [GRO-945](https://linear.app/growdirect/issue/GRO-945) | Clean / allowlist gitleaks + trufflehog noise | none |
+| [GRO-947](https://linear.app/growdirect/issue/GRO-947) | Pin reproducible scanner toolchain; add CI gates | none |
+| **CK8** (new ticket needed) | Phase 9 checkpoint — `govulncheck`, `trivy`, `gosec`, `gitleaks` all clean (or with documented narrow allowlists); `go test -race ./...` green; all runtime images run as non-root. | 934, 940, 941, 942, 943, 944, 945, 946, 947, 948 |
+
+### Phase 10 — RBAC + PII Scopes (largest lift; brainstorming required)
+
+These two need a design conversation before implementation — they reshape how UI auth and PII access work.
+
+| Ticket | What | Blockers |
+|---|---|---|
+| [GRO-950](https://linear.app/growdirect/issue/GRO-950) | Replace tenant-cookie UI auth with user session + RBAC (customer / employee / case / alert / report / settings pages) | brainstorm session |
+| [GRO-951](https://linear.app/growdirect/issue/GRO-951) | Per-PII scopes on customer + employee endpoints (`customer:read:pii`, `employee:read:pii`); redact fields when scope absent | brainstorm session |
+
+**Sequencing note:** Phase 10 may slip behind Phase 5 (UI flows) depending on the brainstorm output. If RBAC requires AtlasView's identity manifest (per [GRO-848](https://linear.app/growdirect/issue/GRO-848)), it parks until that contract closes. PII scopes don't have that dependency and can land alongside any of Phases 6-9.
 
 ## Per-ticket Definition of Done
 
