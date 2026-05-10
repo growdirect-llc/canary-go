@@ -108,7 +108,83 @@ func (h *handlers) sessionsValidate(w http.ResponseWriter, r *http.Request) {
 // ─────────────────────────────────────────────────────────────────────
 // /v1/identity/* — API key lifecycle + caller introspection
 //
+// Per GRO-931, every lifecycle endpoint requires an explicit
+// `identity:keys:*` scope and confines its writes/reads to the
+// caller's tenant unless the caller holds `identity:keys:admin`. Both
+// the scope vocabulary and the tenant-confinement guards live here so
+// the auth posture for the identity control plane is one block, not
+// scattered across handlers.
+//
+// Scope vocabulary (literal strings until they migrate into the
+// identity.Scope* constants on PR#9 / GRO-906):
+//
+//	identity:keys:read    — list / get / introspect
+//	identity:keys:create  — mint a new key
+//	identity:keys:revoke  — revoke an existing key
+//	identity:keys:admin   — cross-tenant operations (revoke a key
+//	                        outside the caller's tenant; mint scopes
+//	                        the caller does not personally hold)
+//
+// Each handler runs three checks in order:
+//   1. claims present (401 if not)
+//   2. required scope present (403 insufficient_scope if not)
+//   3. requested target visible to the caller's tenant
+//      (404 not_found on cross-tenant — never 403, no existence leak)
 // ─────────────────────────────────────────────────────────────────────
+
+const (
+	scopeKeysRead   = "identity:keys:read"
+	scopeKeysCreate = "identity:keys:create"
+	scopeKeysRevoke = "identity:keys:revoke"
+	scopeKeysAdmin  = "identity:keys:admin"
+)
+
+// requireKeysScope returns claims if the caller has authenticated AND
+// holds at least one of the named scopes. On failure it writes the
+// appropriate error envelope and returns ok=false; callers exit early.
+func requireKeysScope(w http.ResponseWriter, r *http.Request, anyOf ...string) (identity.Claims, bool) {
+	claims, ok := identity.ClaimsFromContext(r.Context())
+	if !ok {
+		writeKeyError(w, http.StatusUnauthorized, "unauthorized", "auth required")
+		return identity.Claims{}, false
+	}
+	for _, s := range anyOf {
+		if identity.RequireScope(r.Context(), s) {
+			return claims, true
+		}
+	}
+	writeKeyError(w, http.StatusForbidden, "insufficient_scope",
+		fmt.Sprintf("one of %v required", anyOf))
+	return identity.Claims{}, false
+}
+
+// hasAdminScope is the predicate used to decide cross-tenant fan-out.
+// Equivalent to RequireScope(ctx, scopeKeysAdmin) — wrapped here so
+// the handler call sites read uniformly.
+func hasAdminScope(claims identity.Claims) bool {
+	for _, s := range claims.Scopes {
+		if s == scopeKeysAdmin {
+			return true
+		}
+	}
+	return false
+}
+
+// containsAllScopes returns true when every scope in want is present
+// in granted. Used by keysCreate to refuse minting a scope the caller
+// does not personally hold (unless they're an admin).
+func containsAllScopes(granted, want []string) bool {
+	g := make(map[string]struct{}, len(granted))
+	for _, s := range granted {
+		g[s] = struct{}{}
+	}
+	for _, s := range want {
+		if _, ok := g[s]; !ok {
+			return false
+		}
+	}
+	return true
+}
 
 type createKeyRequest struct {
 	TenantID     *string  `json:"tenant_id,omitempty"`
@@ -128,12 +204,21 @@ type createKeyResponse struct {
 
 // keysCreate handles POST /v1/identity/keys. Returns the plaintext
 // once at create-time; subsequent reads expose only the hash.
+//
+// Authorization (GRO-931):
+//   - identity:keys:create required (or identity:keys:admin).
+//   - tenant_id in body must match caller's tenant unless caller has
+//     identity:keys:admin (which permits cross-tenant + platform key
+//     creation).
+//   - Requested scopes must be a subset of the caller's own scopes
+//     unless the caller has identity:keys:admin. Prevents privilege
+//     escalation from a low-scope tenant key to a high-scope key.
 func (h *handlers) keysCreate(w http.ResponseWriter, r *http.Request) {
-	claims, ok := identity.ClaimsFromContext(r.Context())
+	claims, ok := requireKeysScope(w, r, scopeKeysCreate, scopeKeysAdmin)
 	if !ok {
-		writeKeyError(w, http.StatusUnauthorized, "unauthorized", "auth required")
 		return
 	}
+	isAdmin := hasAdminScope(claims)
 
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<16))
 	if err != nil {
@@ -158,7 +243,8 @@ func (h *handlers) keysCreate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Cross-tenant defense — body tenant_id must match auth tenant_id.
-		if claims.TenantID != uuid.Nil && claims.TenantID != t {
+		// Admins are exempt: they can mint keys for any tenant.
+		if !isAdmin && claims.TenantID != uuid.Nil && claims.TenantID != t {
 			writeKeyError(w, http.StatusForbidden, "tenant_mismatch",
 				"tenant_id in body does not match authenticated tenant")
 			return
@@ -168,6 +254,14 @@ func (h *handlers) keysCreate(w http.ResponseWriter, r *http.Request) {
 		// no body tenant — default to caller's tenant
 		t := claims.TenantID
 		tenantID = &t
+	}
+
+	// Privilege-escalation defense (GRO-931): non-admin callers cannot
+	// mint scopes they do not personally hold. Admin path is exempt.
+	if !isAdmin && len(req.Scopes) > 0 && !containsAllScopes(claims.Scopes, req.Scopes) {
+		writeKeyError(w, http.StatusForbidden, "scope_escalation",
+			"requested scopes exceed caller's own scopes; identity:keys:admin required")
+		return
 	}
 
 	var expiresAt *time.Time
@@ -223,10 +317,16 @@ type listKeysRow struct {
 
 // keysList handles GET /v1/identity/keys. Returns rows for the
 // caller's tenant only (uuid.Nil claim → platform-scope keys).
+//
+// Authorization (GRO-931):
+//   - identity:keys:read required (or identity:keys:admin).
+//   - The store-level filter ListAPIKeysByTenant already scopes the
+//     read by claims.TenantID; admin scope does not currently
+//     enable cross-tenant listing here (a follow-up could add an
+//     admin-only "list all" surface, but that's out of GRO-931).
 func (h *handlers) keysList(w http.ResponseWriter, r *http.Request) {
-	claims, ok := identity.ClaimsFromContext(r.Context())
+	claims, ok := requireKeysScope(w, r, scopeKeysRead, scopeKeysAdmin)
 	if !ok {
-		writeKeyError(w, http.StatusUnauthorized, "unauthorized", "auth required")
 		return
 	}
 	rows, err := identity.ListAPIKeysByTenant(r.Context(), h.pool, claims.TenantID)
@@ -257,9 +357,17 @@ func (h *handlers) keysList(w http.ResponseWriter, r *http.Request) {
 }
 
 // keysRevoke handles POST /v1/identity/keys/{id}/revoke. Idempotent.
+//
+// Authorization (GRO-931):
+//   - identity:keys:revoke required (or identity:keys:admin).
+//   - Tenant-scoped callers can only revoke rows that belong to their
+//     tenant. Cross-tenant revoke attempts return 404, never 403,
+//     so the existence of a key in another tenant is not leaked.
+//   - Admin-scoped callers bypass the tenant filter and can revoke
+//     any row.
 func (h *handlers) keysRevoke(w http.ResponseWriter, r *http.Request) {
-	if _, ok := identity.ClaimsFromContext(r.Context()); !ok {
-		writeKeyError(w, http.StatusUnauthorized, "unauthorized", "auth required")
+	claims, ok := requireKeysScope(w, r, scopeKeysRevoke, scopeKeysAdmin)
+	if !ok {
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -267,7 +375,31 @@ func (h *handlers) keysRevoke(w http.ResponseWriter, r *http.Request) {
 		writeKeyError(w, http.StatusBadRequest, "malformed_id", "id must be a UUID")
 		return
 	}
-	if err := identity.RevokeAPIKey(r.Context(), h.pool, id); err != nil {
+
+	// Build the tenant filter the data layer will apply.
+	//   - admin scope: nil (no filter)
+	//   - tenant key (claims.TenantID != uuid.Nil): claims.TenantID
+	//   - platform key without admin: refuse — platform keys must hold
+	//     identity:keys:admin to operate on the lifecycle endpoints
+	//     cross-tenant.
+	var tenantFilter *uuid.UUID
+	switch {
+	case hasAdminScope(claims):
+		tenantFilter = nil
+	case claims.TenantID != uuid.Nil:
+		t := claims.TenantID
+		tenantFilter = &t
+	default:
+		writeKeyError(w, http.StatusForbidden, "insufficient_scope",
+			"platform-scope keys must hold identity:keys:admin to revoke")
+		return
+	}
+
+	if err := identity.RevokeAPIKey(r.Context(), h.pool, id, tenantFilter); err != nil {
+		if errors.Is(err, identity.ErrAPIKeyNotFound) {
+			writeKeyError(w, http.StatusNotFound, "not_found", "no such key")
+			return
+		}
 		writeKeyError(w, http.StatusInternalServerError, "revoke_failed", err.Error())
 		return
 	}

@@ -448,9 +448,73 @@ func CreateAPIKeyRow(
 	return plaintext, id, nil
 }
 
+// ErrAPIKeyNotFound is returned by GetAPIKeyByID and the tenant-scoped
+// revoke path when no row matches. Distinct from a no-op idempotent
+// re-revoke (which returns nil) — this signals the row genuinely
+// doesn't exist for the caller's tenant.
+var ErrAPIKeyNotFound = errors.New("identity: api key not found")
+
+// GetAPIKeyByID returns the row metadata for id, optionally narrowed
+// to tenantID. tenantID == nil means no tenant filter (callers with
+// admin scope use that path); a non-nil tenant filter means the lookup
+// returns ErrAPIKeyNotFound if the key exists but belongs to a
+// different tenant — which is what callers want for tenant-scoped
+// revoke (no existence leak across the tenant boundary).
+//
+// Never returns the key_hash.
+func GetAPIKeyByID(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID, tenantID *uuid.UUID) (APIKeyRow, error) {
+	var (
+		q    string
+		args []any
+	)
+	if tenantID == nil {
+		q = `SELECT id, tenant_id, agent_name, scopes, rate_limit_rpm,
+		            status, expires_at, last_used_at, created_at
+		       FROM app.api_keys
+		      WHERE id = $1`
+		args = []any{id}
+	} else {
+		// Match either same-tenant rows or platform-scope rows (NULL
+		// tenant_id) when the caller is platform-scope themselves.
+		// Tenant-scoped callers — claims.TenantID != uuid.Nil — never
+		// see platform rows because *tenantID will be their tenant.
+		q = `SELECT id, tenant_id, agent_name, scopes, rate_limit_rpm,
+		            status, expires_at, last_used_at, created_at
+		       FROM app.api_keys
+		      WHERE id = $1 AND tenant_id IS NOT DISTINCT FROM $2`
+		args = []any{id, *tenantID}
+	}
+	var r APIKeyRow
+	err := pool.QueryRow(ctx, q, args...).Scan(
+		&r.ID, &r.TenantID, &r.AgentName, &r.Scopes,
+		&r.RateLimitRPM, &r.Status, &r.ExpiresAt, &r.LastUsedAt, &r.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return APIKeyRow{}, ErrAPIKeyNotFound
+	}
+	if err != nil {
+		return APIKeyRow{}, fmt.Errorf("identity: get api_key by id: %w", err)
+	}
+	return r, nil
+}
+
 // RevokeAPIKey marks the row revoked. Idempotent — re-revoking a
-// revoked key is a no-op (returns nil error).
-func RevokeAPIKey(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID) error {
+// revoked key is a no-op (returns nil error). When tenantID is non-nil,
+// the row must belong to that tenant or the call returns
+// ErrAPIKeyNotFound (no existence leak across tenant boundary). Pass
+// nil tenantID for admin/platform callers that legitimately operate
+// across tenants.
+func RevokeAPIKey(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID, tenantID *uuid.UUID) error {
+	if tenantID != nil {
+		// Tenant-scoped path: confirm the key exists for the caller's
+		// tenant before issuing the UPDATE. Handles the "key revoked
+		// across tenants" attack from GRO-931. The lookup covers the
+		// "row revoked but still in the table" case too — re-revoke
+		// works without leaking existence.
+		if _, err := GetAPIKeyByID(ctx, pool, id, tenantID); err != nil {
+			return err
+		}
+	}
 	const q = `UPDATE app.api_keys SET status = 'revoked', updated_at = now()
 	            WHERE id = $1 AND status = 'active'`
 	tag, err := pool.Exec(ctx, q, id)

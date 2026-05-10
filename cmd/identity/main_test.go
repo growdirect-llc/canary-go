@@ -169,7 +169,9 @@ func seedAPIKey(t *testing.T, pool *pgxpool.Pool, tenantID *uuid.UUID, agent str
 func TestKeysCreate_PlatformScope(t *testing.T) {
 	srv := testServer(t)
 	pool := testPool(t)
-	adminPlaintext, _ := seedAPIKey(t, pool, nil, "test-admin", []string{"identity:admin"})
+	// identity:keys:admin permits cross-tenant + arbitrary-scope minting
+	// per GRO-931, which is what platform-scope dev/admin keys need.
+	adminPlaintext, _ := seedAPIKey(t, pool, nil, "test-admin", []string{"identity:keys:admin"})
 
 	body, _ := json.Marshal(map[string]any{
 		"agent_name": "test-new-agent",
@@ -236,7 +238,8 @@ func TestKeysList_TenantScoped(t *testing.T) {
 	pool := testPool(t)
 
 	tenant := uuid.MustParse("22222222-0000-0000-0000-000000000001") // dev seed tenant
-	plaintext, _ := seedAPIKey(t, pool, &tenant, "test-list", []string{"evidence:read"})
+	plaintext, _ := seedAPIKey(t, pool, &tenant, "test-list",
+		[]string{"evidence:read", "identity:keys:read"})
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/identity/keys", nil)
 	req.Header.Set(identity.HeaderAPIKey, plaintext)
@@ -267,7 +270,8 @@ func TestKeysRevoke_Idempotent(t *testing.T) {
 	srv := testServer(t)
 	pool := testPool(t)
 	tenant := uuid.MustParse("22222222-0000-0000-0000-000000000001")
-	plaintext, id := seedAPIKey(t, pool, &tenant, "test-revoke", []string{"evidence:read"})
+	plaintext, id := seedAPIKey(t, pool, &tenant, "test-revoke",
+		[]string{"evidence:read", "identity:keys:revoke"})
 
 	url := fmt.Sprintf("/v1/identity/keys/%s/revoke", id)
 	for i := 0; i < 2; i++ {
@@ -287,7 +291,8 @@ func TestKeysRevoke_Idempotent(t *testing.T) {
 	}
 
 	// Re-revoke with a fresh admin key — verify still 204 (idempotent).
-	freshPlaintext, _ := seedAPIKey(t, pool, &tenant, "test-revoke-admin", []string{"identity:admin"})
+	freshPlaintext, _ := seedAPIKey(t, pool, &tenant, "test-revoke-admin",
+		[]string{"identity:keys:admin"})
 	req := httptest.NewRequest(http.MethodPost, url, nil)
 	req.Header.Set(identity.HeaderAPIKey, freshPlaintext)
 	w := httptest.NewRecorder()
@@ -344,7 +349,10 @@ func TestKeysCreate_TenantMismatchRejected(t *testing.T) {
 	srv := testServer(t)
 	pool := testPool(t)
 	tenant := uuid.MustParse("22222222-0000-0000-0000-000000000001")
-	plaintext, _ := seedAPIKey(t, pool, &tenant, "test-mismatch", []string{"identity:admin"})
+	// Tenant-scoped key with create scope but NOT admin — must be 403'd
+	// when it tries to mint into another tenant.
+	plaintext, _ := seedAPIKey(t, pool, &tenant, "test-mismatch",
+		[]string{"webhook:write", "identity:keys:create"})
 
 	otherTenant := uuid.New().String()
 	body, _ := json.Marshal(map[string]any{
@@ -360,6 +368,189 @@ func TestKeysCreate_TenantMismatchRejected(t *testing.T) {
 
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("tenant-mismatch: got %d want 403; body=%s", w.Code, w.Body.String())
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// GRO-931 acceptance probes — API-key lifecycle scope + tenant gates
+// ─────────────────────────────────────────────────────────────────────
+
+// TestKeysCreate_ReadOnlyKey_403 proves that a key holding only the
+// read scope cannot mint a new key. Pre-fix: 201; post-fix: 403
+// insufficient_scope.
+func TestKeysCreate_ReadOnlyKey_403(t *testing.T) {
+	srv := testServer(t)
+	pool := testPool(t)
+	tenant := uuid.MustParse("22222222-0000-0000-0000-000000000001")
+	plaintext, _ := seedAPIKey(t, pool, &tenant, "test-readonly-create",
+		[]string{"identity:keys:read"})
+
+	body, _ := json.Marshal(map[string]any{
+		"agent_name": "should-not-mint",
+		"scopes":     []string{"identity:keys:read"},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/v1/identity/keys", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(identity.HeaderAPIKey, plaintext)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("read-only create: got %d want 403; body=%s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	_ = json.NewDecoder(w.Body).Decode(&resp)
+	if resp["code"] != "insufficient_scope" {
+		t.Errorf("code: got %v want insufficient_scope", resp["code"])
+	}
+}
+
+// TestKeysCreate_ScopeEscalation_403 proves a tenant key with only
+// identity:keys:create cannot mint a key carrying scopes the caller
+// does not personally hold.
+func TestKeysCreate_ScopeEscalation_403(t *testing.T) {
+	srv := testServer(t)
+	pool := testPool(t)
+	tenant := uuid.MustParse("22222222-0000-0000-0000-000000000001")
+	// Caller holds: read evidence + create keys.
+	plaintext, _ := seedAPIKey(t, pool, &tenant, "test-escalate",
+		[]string{"evidence:read", "identity:keys:create"})
+
+	// Asks for: webhook:write — a scope the caller does not hold.
+	body, _ := json.Marshal(map[string]any{
+		"agent_name": "escalation-attempt",
+		"scopes":     []string{"webhook:write"},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/v1/identity/keys", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(identity.HeaderAPIKey, plaintext)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("scope-escalation: got %d want 403; body=%s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	_ = json.NewDecoder(w.Body).Decode(&resp)
+	if resp["code"] != "scope_escalation" {
+		t.Errorf("code: got %v want scope_escalation", resp["code"])
+	}
+}
+
+// seedTenantForTest inserts an organization + tenant pair and returns
+// the tenant id. Used by GRO-931 cross-tenant tests that need a tenant
+// distinct from the dev seed.
+func seedTenantForTest(t *testing.T, pool *pgxpool.Pool, namePrefix string) uuid.UUID {
+	t.Helper()
+	orgID := uuid.New()
+	tenantID := uuid.New()
+	short := tenantID.String()[:8]
+	if _, err := pool.Exec(context.Background(),
+		`INSERT INTO app.organizations (id, org_name) VALUES ($1, $2)`,
+		orgID, namePrefix+"-org-"+short,
+	); err != nil {
+		t.Fatalf("seed org: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(),
+		`INSERT INTO app.tenants (id, organization_id, tenant_code, name, schema_name)
+		 VALUES ($1, $2, $3, $4, $5)`,
+		tenantID, orgID,
+		namePrefix+"-"+short,
+		namePrefix+" tenant "+short,
+		"tenant_"+namePrefix+"_"+short,
+	); err != nil {
+		t.Fatalf("seed tenant: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM app.tenants WHERE id = $1`, tenantID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM app.organizations WHERE id = $1`, orgID)
+	})
+	return tenantID
+}
+
+// TestKeysRevoke_CrossTenant_404 proves tenant A cannot revoke a key
+// belonging to tenant B; the response is 404 not_found (NOT 403) so
+// the existence of the key in another tenant is not leaked.
+func TestKeysRevoke_CrossTenant_404(t *testing.T) {
+	srv := testServer(t)
+	pool := testPool(t)
+
+	tenantA := uuid.MustParse("22222222-0000-0000-0000-000000000001") // dev-seed tenant
+	tenantB := seedTenantForTest(t, pool, "gro931-victim")
+
+	// Victim key in tenantB — not used to authenticate; just sits
+	// there as the target of the cross-tenant revoke attempt.
+	_, victimID := seedAPIKey(t, pool, &tenantB, "test-victim",
+		[]string{"evidence:read"})
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(),
+			`DELETE FROM app.api_keys WHERE id = $1`, victimID)
+	})
+
+	// Attacker key in tenantA, holding revoke scope (but NOT admin).
+	attackerPlaintext, _ := seedAPIKey(t, pool, &tenantA, "test-attacker",
+		[]string{"identity:keys:revoke"})
+
+	url := fmt.Sprintf("/v1/identity/keys/%s/revoke", victimID)
+	req := httptest.NewRequest(http.MethodPost, url, nil)
+	req.Header.Set(identity.HeaderAPIKey, attackerPlaintext)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("cross-tenant revoke: got %d want 404 (no existence leak); body=%s",
+			w.Code, w.Body.String())
+	}
+
+	// Verify victim row is still active.
+	var status string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT status FROM app.api_keys WHERE id = $1`, victimID).Scan(&status); err != nil {
+		t.Fatalf("status check: %v", err)
+	}
+	if status != "active" {
+		t.Errorf("victim key status: got %q want active (cross-tenant revoke must not succeed)", status)
+	}
+}
+
+// TestKeysRevoke_AdminCrossTenant_204 proves a key with
+// identity:keys:admin CAN legitimately revoke across tenants — the
+// admin scope is the explicit knob that grants that capability.
+func TestKeysRevoke_AdminCrossTenant_204(t *testing.T) {
+	srv := testServer(t)
+	pool := testPool(t)
+
+	tenantA := uuid.MustParse("22222222-0000-0000-0000-000000000001")
+	tenantB := seedTenantForTest(t, pool, "gro931-admin-victim")
+
+	_, victimID := seedAPIKey(t, pool, &tenantB, "test-admin-victim",
+		[]string{"evidence:read"})
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(),
+			`DELETE FROM app.api_keys WHERE id = $1`, victimID)
+	})
+
+	adminPlaintext, _ := seedAPIKey(t, pool, &tenantA, "test-admin-revoke",
+		[]string{"identity:keys:admin"})
+
+	url := fmt.Sprintf("/v1/identity/keys/%s/revoke", victimID)
+	req := httptest.NewRequest(http.MethodPost, url, nil)
+	req.Header.Set(identity.HeaderAPIKey, adminPlaintext)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("admin cross-tenant revoke: got %d want 204; body=%s",
+			w.Code, w.Body.String())
+	}
+
+	var status string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT status FROM app.api_keys WHERE id = $1`, victimID).Scan(&status); err != nil {
+		t.Fatalf("status check: %v", err)
+	}
+	if status != "revoked" {
+		t.Errorf("victim status after admin revoke: got %q want revoked", status)
 	}
 }
 

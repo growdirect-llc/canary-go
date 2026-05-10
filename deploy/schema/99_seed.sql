@@ -127,6 +127,11 @@ WHERE NOT EXISTS (
 -- diverges (hash format change, new argon2id params), regenerate
 -- via the test and replace these literals. GRO-763 Phase C.2.
 -- ─────────────────────────────────────────────────────────────────────
+-- Per GRO-931, the platform-scope dev key holds identity:keys:admin so
+-- the dev workflow can mint, list, and revoke keys across tenants.
+-- Production keys must NEVER carry identity:keys:admin without an
+-- explicit ops review — it permits cross-tenant write on the identity
+-- control plane.
 INSERT INTO app.api_keys (id, tenant_id, agent_name, key_hash, scopes, rate_limit_rpm, status, attributes)
 VALUES
     -- platform-scope key
@@ -134,7 +139,10 @@ VALUES
      NULL,
      'gateway',
      'argon2id$DEV_PLATFORM_PLACEHOLDER',
-     ARRAY['webhook:write', 'evidence:read', 'evidence:write']::text[],
+     ARRAY[
+       'webhook:write', 'evidence:read', 'evidence:write',
+       'identity:keys:admin'
+     ]::text[],
      1200,
      'active',
      '{"seeded": true, "purpose": "dev-platform-scope", "do_not_ship": true}'::jsonb),
@@ -143,7 +151,10 @@ VALUES
      '22222222-0000-0000-0000-000000000001',
      'alx-dev',
      'argon2id$DEV_TENANT_PLACEHOLDER',
-     ARRAY['evidence:read', 'transaction:read']::text[],
+     ARRAY[
+       'evidence:read', 'transaction:read',
+       'identity:keys:read', 'identity:keys:create', 'identity:keys:revoke'
+     ]::text[],
      600,
      'active',
      '{"seeded": true, "purpose": "dev-tenant-scope", "do_not_ship": true}'::jsonb)
