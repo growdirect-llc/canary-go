@@ -134,11 +134,31 @@ func RegisterReturnsTools(reg *Registry, s *returns.Store) {
 			FlaggedBy       string `json:"flagged_by"`
 		}
 		if err := json.Unmarshal(args, &p); err != nil {
-			return nil, err
+			return nil, InvalidParamsf("body: %v", err)
 		}
-		txID, _ := uuid.Parse(p.TransactionID)
-		ruleID, _ := uuid.Parse(p.DetectionRuleID)
-		flaggedBy, _ := uuid.Parse(p.FlaggedBy)
+		txID, err := uuid.Parse(p.TransactionID)
+		if err != nil {
+			return nil, InvalidParamsf("transaction_id: %v", err)
+		}
+		ruleID, err := uuid.Parse(p.DetectionRuleID)
+		if err != nil {
+			return nil, InvalidParamsf("detection_rule_id: %v", err)
+		}
+		flaggedBy, err := uuid.Parse(p.FlaggedBy)
+		if err != nil {
+			return nil, InvalidParamsf("flagged_by: %v", err)
+		}
+		switch p.Severity {
+		case "low", "medium", "high", "critical":
+			// ok
+		case "":
+			return nil, InvalidParamsf("severity: required")
+		default:
+			return nil, InvalidParamsf("severity: must be one of low|medium|high|critical, got %q", p.Severity)
+		}
+		if p.Reason == "" {
+			return nil, InvalidParamsf("reason: required")
+		}
 		return s.FraudFlag(ctx, claims.TenantID, txID, returns.FraudFlagRequest{
 			DetectionRuleID: ruleID, Reason: p.Reason, Severity: p.Severity, FlaggedBy: flaggedBy,
 		})

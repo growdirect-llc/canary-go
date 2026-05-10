@@ -34,6 +34,30 @@ type ToolDef struct {
 // client.
 var ErrInsufficientScope = errors.New("mcp: insufficient scope")
 
+// ErrInvalidParams is returned by tool handlers when the supplied
+// arguments don't match the tool's contract: missing required field,
+// malformed UUID, malformed date, bad enum value, etc. Mapped to
+// JSON-RPC -32602 by the handler. GRO-939.
+var ErrInvalidParams = errors.New("mcp: invalid params")
+
+// InvalidParamsf wraps ErrInvalidParams with a contextual message so
+// the JSON-RPC error tells clients exactly which field failed:
+//
+//	id, err := uuid.Parse(p.ID)
+//	if err != nil {
+//	    return nil, mcp.InvalidParamsf("id: %v", err)
+//	}
+func InvalidParamsf(format string, args ...any) error {
+	return fmt.Errorf("%w: "+format, append([]any{ErrInvalidParams}, args...)...)
+}
+
+// IsInvalidParams reports whether err was produced by InvalidParamsf
+// or any caller wrapping ErrInvalidParams. Mirrors IsUnknownTool's
+// role in the handler's error-code mapping.
+func IsInvalidParams(err error) bool {
+	return errors.Is(err, ErrInvalidParams)
+}
+
 // Registry maps tool names to definitions. Register all tools before
 // serving requests — not safe for concurrent mutation.
 type Registry struct {

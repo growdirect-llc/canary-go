@@ -114,21 +114,31 @@ func RegisterAssetTools(reg *Registry, s *asset.Store) {
 			PerformedByUserID *string `json:"performed_by_user_id"`
 		}
 		if err := json.Unmarshal(args, &p); err != nil {
-			return nil, err
+			return nil, InvalidParamsf("body: %v", err)
 		}
 		itemID, err := uuid.Parse(p.ItemID)
 		if err != nil {
-			return nil, err
+			return nil, InvalidParamsf("item_id: %v", err)
 		}
 		locID, err := uuid.Parse(p.LocationID)
 		if err != nil {
-			return nil, err
+			return nil, InvalidParamsf("location_id: %v", err)
+		}
+		switch p.ReasonCode {
+		case "theft", "damaged", "spoilage", "recount_corrected":
+			// ok
+		case "":
+			return nil, InvalidParamsf("reason_code: required")
+		default:
+			return nil, InvalidParamsf("reason_code: must be one of theft|damaged|spoilage|recount_corrected, got %q", p.ReasonCode)
 		}
 		req := asset.FlagRequest{LocationID: locID, QuantityDelta: p.QuantityDelta, ReasonCode: p.ReasonCode, Reference: p.Reference}
-		if p.PerformedByUserID != nil {
-			if id, err2 := uuid.Parse(*p.PerformedByUserID); err2 == nil {
-				req.PerformedByUser = &id
+		if p.PerformedByUserID != nil && *p.PerformedByUserID != "" {
+			id, err := uuid.Parse(*p.PerformedByUserID)
+			if err != nil {
+				return nil, InvalidParamsf("performed_by_user_id: %v", err)
 			}
+			req.PerformedByUser = &id
 		}
 		return s.Flag(ctx, claims.TenantID, itemID, req)
 	})

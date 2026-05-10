@@ -37,6 +37,7 @@ const (
 	errParse             = -32700
 	errInvalidReq        = -32600
 	errNotFound          = -32601
+	errInvalidParams     = -32602
 	errInternal          = -32603
 	// errInsufficientScope is in JSON-RPC's implementation-defined range
 	// (-32000 to -32099 reserved per the spec for server errors).
@@ -124,6 +125,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				code = errNotFound
 			case IsInsufficientScope(callErr):
 				code = errInsufficientScope
+			case IsInvalidParams(callErr):
+				code = errInvalidParams
 			}
 			status = strconv.Itoa(code)
 			h.recordAudit(r, p.Name, p.Arguments, status, latency)

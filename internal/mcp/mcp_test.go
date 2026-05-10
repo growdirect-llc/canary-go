@@ -556,3 +556,137 @@ func TestToolsCall_Audit_NilRecorderIsOK(t *testing.T) {
 		t.Errorf("nil recorder should not affect dispatch; rpc code = %d", got)
 	}
 }
+
+// ─── GRO-939 invalid-params enforcement ──────────────────────────────
+
+// TestToolsCall_InvalidParams_MapsTo_32602 is the GRO-939 acceptance
+// probe. A tool that returns InvalidParamsf MUST surface as JSON-RPC
+// -32602 with the field name in the message — clients can self-correct
+// without a debug session, and dashboards can pivot on the error
+// class. Belt-and-suspenders: the tool function never reaches the
+// store on a parse failure (verified via a flag that flips only after
+// the parse).
+//
+// Fails pre-fix because pre-GRO-939 tool handlers swallowed
+// uuid.Parse errors silently and dispatched with uuid.Nil — producing
+// a 200 + a wrong write or returning a generic -32603 internal error.
+func TestToolsCall_InvalidParams_MapsTo_32602(t *testing.T) {
+	reg := mcp.NewRegistry()
+	reachedStore := false
+	reg.Register(mcp.ToolDef{
+		Name:        "canary.test.write_with_uuid",
+		Description: "test",
+		InputSchema: json.RawMessage(`{"type":"object","required":["id"]}`),
+	}, func(ctx context.Context, args json.RawMessage) (any, error) {
+		var p struct{ ID string `json:"id"` }
+		if err := json.Unmarshal(args, &p); err != nil {
+			return nil, mcp.InvalidParamsf("body: %v", err)
+		}
+		if _, err := uuid.Parse(p.ID); err != nil {
+			return nil, mcp.InvalidParamsf("id: %v", err)
+		}
+		reachedStore = true
+		return map[string]any{"ok": true}, nil
+	})
+	h := mcp.New(reg)
+
+	w := postMCP(t, h, map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+		"params": map[string]any{
+			"name":      "canary.test.write_with_uuid",
+			"arguments": map[string]any{"id": "not-a-uuid"},
+		},
+	})
+	if got := rpcErrorCode(t, w.Body.Bytes()); got != -32602 {
+		t.Errorf("rpc code: got %d, want -32602 (Invalid params)", got)
+	}
+	if !bytes.Contains(w.Body.Bytes(), []byte("id:")) {
+		t.Errorf("error message should name the failing field; got %s", w.Body.String())
+	}
+	if reachedStore {
+		t.Errorf("store reached despite invalid params — handler did not short-circuit")
+	}
+}
+
+// TestToolsCall_InvalidParams_MissingRequiredField verifies a missing
+// required field surfaces as -32602 (not silently zero/default).
+func TestToolsCall_InvalidParams_MissingRequiredField(t *testing.T) {
+	reg := mcp.NewRegistry()
+	reg.Register(mcp.ToolDef{
+		Name:        "canary.test.requires_field",
+		Description: "test",
+		InputSchema: json.RawMessage(`{"type":"object","required":["disposition"]}`),
+	}, func(ctx context.Context, args json.RawMessage) (any, error) {
+		var p struct{ Disposition string `json:"disposition"` }
+		_ = json.Unmarshal(args, &p)
+		if p.Disposition == "" {
+			return nil, mcp.InvalidParamsf("disposition: required")
+		}
+		return map[string]any{"ok": true}, nil
+	})
+	h := mcp.New(reg)
+
+	w := postMCP(t, h, map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+		"params": map[string]any{
+			"name":      "canary.test.requires_field",
+			"arguments": map[string]any{}, // missing disposition
+		},
+	})
+	if got := rpcErrorCode(t, w.Body.Bytes()); got != -32602 {
+		t.Errorf("rpc code: got %d, want -32602", got)
+	}
+	if !bytes.Contains(w.Body.Bytes(), []byte("disposition")) {
+		t.Errorf("error should name disposition; got %s", w.Body.String())
+	}
+}
+
+// TestToolsCall_InvalidParams_BadEnumValue verifies enum violations
+// land on -32602.
+func TestToolsCall_InvalidParams_BadEnumValue(t *testing.T) {
+	reg := mcp.NewRegistry()
+	reg.Register(mcp.ToolDef{
+		Name:        "canary.test.enum_field",
+		Description: "test",
+		InputSchema: json.RawMessage(`{"type":"object"}`),
+	}, func(ctx context.Context, args json.RawMessage) (any, error) {
+		var p struct{ Severity string `json:"severity"` }
+		_ = json.Unmarshal(args, &p)
+		switch p.Severity {
+		case "low", "medium", "high", "critical":
+			return map[string]any{"ok": true}, nil
+		default:
+			return nil, mcp.InvalidParamsf("severity: must be one of low|medium|high|critical, got %q", p.Severity)
+		}
+	})
+	h := mcp.New(reg)
+
+	w := postMCP(t, h, map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+		"params": map[string]any{
+			"name":      "canary.test.enum_field",
+			"arguments": map[string]any{"severity": "purple"},
+		},
+	})
+	if got := rpcErrorCode(t, w.Body.Bytes()); got != -32602 {
+		t.Errorf("rpc code: got %d, want -32602", got)
+	}
+	if !bytes.Contains(w.Body.Bytes(), []byte("severity")) {
+		t.Errorf("error should name the bad enum field; got %s", w.Body.String())
+	}
+}
+
+// TestIsInvalidParams_HelperWorks pins the helper used by the handler
+// for code-mapping. errors.Is should report true for both directly
+// wrapped and InvalidParamsf-built errors.
+func TestIsInvalidParams_HelperWorks(t *testing.T) {
+	if !mcp.IsInvalidParams(mcp.InvalidParamsf("x")) {
+		t.Error("IsInvalidParams should report true for InvalidParamsf result")
+	}
+	if mcp.IsInvalidParams(nil) {
+		t.Error("IsInvalidParams should report false for nil")
+	}
+	if mcp.IsInvalidParams(context.Canceled) {
+		t.Error("IsInvalidParams should report false for unrelated errors")
+	}
+}

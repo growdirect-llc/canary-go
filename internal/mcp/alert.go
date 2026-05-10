@@ -107,10 +107,16 @@ func RegisterAlertTools(reg *Registry, s *alert.Store) {
 			AcknowledgedBy string `json:"acknowledged_by"`
 		}
 		if err := json.Unmarshal(args, &p); err != nil {
-			return nil, err
+			return nil, InvalidParamsf("body: %v", err)
 		}
-		id, _ := uuid.Parse(p.ID)
-		by, _ := uuid.Parse(p.AcknowledgedBy)
+		id, err := uuid.Parse(p.ID)
+		if err != nil {
+			return nil, InvalidParamsf("id: %v", err)
+		}
+		by, err := uuid.Parse(p.AcknowledgedBy)
+		if err != nil {
+			return nil, InvalidParamsf("acknowledged_by: %v", err)
+		}
 		return s.Acknowledge(ctx, claims.TenantID, id, by)
 	})
 
@@ -130,11 +136,21 @@ func RegisterAlertTools(reg *Registry, s *alert.Store) {
 			Note        string `json:"note"`
 		}
 		if err := json.Unmarshal(args, &p); err != nil {
-			return nil, err
+			return nil, InvalidParamsf("body: %v", err)
 		}
-		id, _ := uuid.Parse(p.ID)
-		if p.Disposition == "" {
-			p.Disposition = "dismissed"
+		id, err := uuid.Parse(p.ID)
+		if err != nil {
+			return nil, InvalidParamsf("id: %v", err)
+		}
+		// disposition was previously defaulted to "dismissed" silently;
+		// the schema marks it required and enums it. Enforce both.
+		switch p.Disposition {
+		case "dismissed", "false_positive", "escalated":
+			// ok
+		case "":
+			return nil, InvalidParamsf("disposition: required")
+		default:
+			return nil, InvalidParamsf("disposition: must be one of dismissed|false_positive|escalated, got %q", p.Disposition)
 		}
 		return s.Resolve(ctx, claims.TenantID, id, alert.ResolveRequest{Disposition: p.Disposition, Note: p.Note})
 	})
@@ -155,9 +171,15 @@ func RegisterAlertTools(reg *Registry, s *alert.Store) {
 			Reason          string `json:"reason"`
 		}
 		if err := json.Unmarshal(args, &p); err != nil {
-			return nil, err
+			return nil, InvalidParamsf("body: %v", err)
 		}
-		id, _ := uuid.Parse(p.ID)
+		id, err := uuid.Parse(p.ID)
+		if err != nil {
+			return nil, InvalidParamsf("id: %v", err)
+		}
+		if p.DurationMinutes < 0 {
+			return nil, InvalidParamsf("duration_minutes: must be >= 0")
+		}
 		return s.Suppress(ctx, claims.TenantID, id, alert.SuppressRequest{DurationMinutes: p.DurationMinutes, Reason: p.Reason})
 	})
 }
