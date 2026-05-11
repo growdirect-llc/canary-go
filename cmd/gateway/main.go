@@ -34,12 +34,14 @@ import (
 	assetPkg "github.com/ruptiv/canary/internal/asset"
 	billingPkg "github.com/ruptiv/canary/internal/billing"
 	casemgmtPkg "github.com/ruptiv/canary/internal/casemgmt"
+	"github.com/ruptiv/canary/internal/catalog/barcodelookup"
 	chirpPkg "github.com/ruptiv/canary/internal/chirp"
 	"github.com/ruptiv/canary/internal/cmdutil"
 	customerPkg "github.com/ruptiv/canary/internal/customer"
 	"github.com/ruptiv/canary/internal/devops"
 	employeePkg "github.com/ruptiv/canary/internal/employee"
 	hierarchyPkg "github.com/ruptiv/canary/internal/hierarchy"
+	itemPkg "github.com/ruptiv/canary/internal/item"
 	lpPkg "github.com/ruptiv/canary/internal/lp"
 	owlPkg "github.com/ruptiv/canary/internal/owl"
 	poPkg "github.com/ruptiv/canary/internal/po"
@@ -303,6 +305,14 @@ func main() {
 	}
 
 	// / — Canary application UI.
+	barcodeLookup := barcodelookup.NewResolver(
+		[]barcodelookup.Source{
+			barcodelookup.NewOpenFoodFacts(http.DefaultClient),
+			barcodelookup.NewUPCItemDB(http.DefaultClient),
+		},
+		barcodelookup.WithLogger(logger),
+	)
+	scanFlowSecret := buildScanFlowSecret(logger)
 	webDeps := web.Deps{
 		AlertStore:       alertPkg.NewStore(pool),
 		CaseStore:        casemgmtPkg.NewStore(pool),
@@ -319,6 +329,9 @@ func main() {
 		HierarchyStore:   hierarchyPkg.NewStore(pool),
 		SupplierStore:    supplierPkg.NewStore(pool),
 		POStore:          poPkg.NewStore(pool),
+		ItemStore:        itemPkg.NewPgxStore(pool),
+		BarcodeLookup:    barcodeLookup,
+		ScanFlowSecret:   scanFlowSecret,
 		MerchantResolver: squareSvc.MerchantFromRequest,
 	}
 	// T-E: wrap the merchant UI in CSRF + body-size caps.
@@ -595,6 +608,31 @@ func buildCSRFKey(logger *zap.Logger) []byte {
 	}
 	_, _ = cryptoRand.Read(key)
 	logger.Warn("CSRF_SECRET not set; using ephemeral random key (dev only)")
+	return key
+}
+
+func buildScanFlowSecret(logger *zap.Logger) []byte {
+	isProd := os.Getenv("ENV") == "production"
+	key := make([]byte, 32)
+	keyHex := os.Getenv("SCAN_FLOW_SECRET")
+	if keyHex != "" {
+		decoded, err := hex.DecodeString(keyHex)
+		if err != nil || len(decoded) != 32 {
+			if isProd {
+				logger.Fatal("SCAN_FLOW_SECRET invalid in production; must be 64-char hex (32 bytes)",
+					zap.Error(err))
+			}
+			logger.Warn("SCAN_FLOW_SECRET invalid; generating random key (dev fallback)")
+		} else {
+			copy(key, decoded)
+			return key
+		}
+	}
+	if isProd {
+		logger.Fatal("SCAN_FLOW_SECRET required in production (ENV=production); set to a 64-char hex string")
+	}
+	_, _ = cryptoRand.Read(key)
+	logger.Warn("SCAN_FLOW_SECRET not set; using ephemeral random key (dev only)")
 	return key
 }
 

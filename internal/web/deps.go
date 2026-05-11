@@ -48,6 +48,8 @@ type Deps struct {
 	ValidateStore    validate.ValidationStore // interface
 	InventoryStore   *inventory.Store
 	ItemStore        item.Store    // interface
+	BarcodeLookup    BarcodeLookup // interface
+	ScanFlowSecret   []byte
 	PricingStore     pricing.Store // interface
 	EmployeeStore    *employee.Store
 	WorkflowStore    *workflow.Store
