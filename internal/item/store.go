@@ -1,6 +1,6 @@
 // internal/item/store.go
 //
-// pgx-backed store for the item domain. Direct SQL — 
+// pgx-backed store for the item domain. Direct SQL —
 // overrides the codebase-wide sqlc rule (CanaryGo/CLAUDE.md). The
 // generated sqlc retrofit is a Loop 3 deliverable.
 //
@@ -54,7 +54,7 @@ type Store interface {
 // ((default_price - default_cost) / default_price) * 100 across items
 // where default_price > 0; HasMargin is false when no priced items
 // exist (callers render "—"). Categories with zero items still appear,
-// with SKUCount=0 and HasMargin=false. 
+// with SKUCount=0 and HasMargin=false.
 type CategoryAggregate struct {
 	CategoryID   uuid.UUID
 	Name         string
@@ -228,7 +228,7 @@ func prefixCols(prefix, cols string) string {
 // Writes
 // ─────────────────────────────────────────────────────────────────────
 
-// Create inserts an item plus optional barcodes in a single transaction.
+// Create inserts an item plus optional barcodes and vendor links in a single transaction.
 // SDD-vague: dispatch said "Create(item, barcodes []string)" but the
 // schema has barcode_type / uom_quantity / is_primary on each barcode
 // row — a flat string slice would lose that. Took the richer
@@ -295,6 +295,33 @@ func (s *PgxStore) Create(ctx context.Context, req CreateRequest) (*Item, error)
 			return nil, mapWriteErr(err, "create barcode")
 		}
 		created = append(created, bc)
+	}
+
+	// Insert vendor links if supplied. This preserves Counterpoint-style
+	// primary vendor, unit cost, and case-pack data captured by item setup.
+	for _, v := range req.VendorLinks {
+		unitCost := v.UnitCost
+		if unitCost == nil {
+			unitCost = req.DefaultCost
+		}
+		casePackQty := int32(1)
+		if v.CasePackQty != nil {
+			casePackQty = *v.CasePackQty
+		}
+		isPrimary := derefBoolOr(v.IsPrimary, false)
+
+		vq := `INSERT INTO catalog.item_vendors
+			(tenant_id, item_id, vendor_id, vendor_sku, unit_cost, case_pack_qty, is_primary)
+			SELECT $1, $2, v.id, $4, $5::numeric, $6, $7
+			FROM catalog.vendors v
+			WHERE v.tenant_id = $1 AND v.id = $3 AND v.status = 'active'`
+		tag, err := tx.Exec(ctx, vq, req.TenantID, it.ID, v.VendorID, v.VendorSKU, unitCost, casePackQty, isPrimary)
+		if err != nil {
+			return nil, mapWriteErr(err, "create item vendor")
+		}
+		if tag.RowsAffected() == 0 {
+			return nil, ErrValidation
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -517,7 +544,7 @@ func (s *PgxStore) ListCategories(ctx context.Context, tenantID uuid.UUID) ([]Ca
 //
 // Replaces the in-memory bucket-and-average that ran on the first 500
 // items only — the SQL aggregate is a single round-trip and accurate
-// across the full catalog. 
+// across the full catalog.
 func (s *PgxStore) AggregateByCategory(ctx context.Context, tenantID uuid.UUID) ([]CategoryAggregate, error) {
 	q := `
 		SELECT

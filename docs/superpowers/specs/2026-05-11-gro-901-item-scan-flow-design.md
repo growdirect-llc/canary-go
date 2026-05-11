@@ -255,9 +255,14 @@ Create request mapping:
 - `DefaultCost`: unit cost.
 - `DefaultPrice`: selling price.
 - `Status`: active by default for scan-created items.
-- `Barcodes`: one scanned barcode entry.
+- `Barcodes`: one scanned barcode entry with barcode type inferred from
+  scan shape when possible (`UPC_A`, `EAN_13`, `PLU`, `GTIN`, or
+  `INTERNAL`).
+- `VendorLinks`: when Supplier is selected, create one primary vendor
+  link carrying unit cost and case pack into `catalog.item_vendors`.
 - `Attributes`: lookup metadata, including source, confidence, partial
-  fields, latency, and original source field keys.
+  fields, latency, original source field keys, and scan-operational
+  provenance for barcode type / supplier / case pack.
 
 Before final create, run `GetByBarcode` again to handle races. Map
 `item.ErrConflict` to a duplicate state rather than a generic error.
@@ -354,6 +359,11 @@ GRO-901.
 - Persistent variant relationships stay deferred with C4. GRO-901 can
   offer a "Create related item" escape hatch but must not invent a
   hidden variant schema.
+- Full Counterpoint/RapidPOS MDM parity, including tax/tare/weighable,
+  labels, matrix/grid variants, serial/lot, ecommerce catalog,
+  location-specific pricing, and evented PIM/MCP pub-sub boundaries,
+  is specified separately in the Counterpoint/RapidPOS MDM compatibility
+  design.
 - If product decides lookup provenance needs an operator-facing audit
   action name immediately, add a small audit-tag helper before wiring
   `item.create.scan`.

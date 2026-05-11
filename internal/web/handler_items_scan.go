@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -369,14 +370,25 @@ func createRequestFromScanState(tenantID uuid.UUID, state scanFlowState) (item.C
 	if firstMissingScanOperational(state) != "" {
 		return item.CreateRequest{}, item.ErrValidation
 	}
+	casePackQty, err := parseScanCasePack(state.Operational.CasePack)
+	if err != nil {
+		return item.CreateRequest{}, err
+	}
+	barcodeType := inferScanBarcodeType(state.Barcode)
 	attrs, err := json.Marshal(map[string]any{
 		"scan_lookup": map[string]any{
-			"source":         state.Source,
-			"confidence":     state.Confidence,
-			"partial_fields": state.PartialFields,
-			"brand":          state.Product.Brand,
-			"size":           state.Product.Size,
-			"image_url":      state.Product.ImageURL,
+			"source":              state.Source,
+			"confidence":          state.Confidence,
+			"partial_fields":      state.PartialFields,
+			"brand":               state.Product.Brand,
+			"size":                state.Product.Size,
+			"image_url":           state.Product.ImageURL,
+			"category_suggestion": state.Product.CategorySuggestion,
+		},
+		"scan_operational": map[string]any{
+			"barcode_type": barcodeType,
+			"vendor_id":    state.Operational.VendorID,
+			"case_pack":    state.Operational.CasePack,
 		},
 	})
 	if err != nil {
@@ -389,7 +401,7 @@ func createRequestFromScanState(tenantID uuid.UUID, state scanFlowState) (item.C
 		Description: state.Product.Name,
 		Attributes:  attrs,
 		Barcodes: []item.BarcodeRequest{
-			{Value: state.Barcode, IsPrimary: boolPtr(true)},
+			{Value: state.Barcode, Type: &barcodeType, IsPrimary: boolPtr(true)},
 		},
 	}
 	if state.Operational.CategoryID != "" {
@@ -409,7 +421,54 @@ func createRequestFromScanState(tenantID uuid.UUID, state scanFlowState) (item.C
 	if state.Operational.Status != "" {
 		req.Status = &state.Operational.Status
 	}
+	if state.Operational.VendorID != "" {
+		vendorID, err := uuid.Parse(state.Operational.VendorID)
+		if err != nil {
+			return item.CreateRequest{}, item.ErrValidation
+		}
+		req.VendorLinks = []item.VendorLinkRequest{{
+			VendorID:    vendorID,
+			UnitCost:    req.DefaultCost,
+			CasePackQty: casePackQty,
+			IsPrimary:   boolPtr(true),
+		}}
+	}
 	return req, nil
+}
+
+func parseScanCasePack(v string) (*int32, error) {
+	if v == "" {
+		return nil, nil
+	}
+	n, err := strconv.ParseInt(v, 10, 32)
+	if err != nil || n < 1 {
+		return nil, item.ErrValidation
+	}
+	out := int32(n)
+	return &out, nil
+}
+
+func inferScanBarcodeType(barcode string) string {
+	if barcode == "" {
+		return "GTIN"
+	}
+	for _, r := range barcode {
+		if r < '0' || r > '9' {
+			return "INTERNAL"
+		}
+	}
+	switch len(barcode) {
+	case 4, 5:
+		return "PLU"
+	case 12:
+		return "UPC_A"
+	case 13:
+		return "EAN_13"
+	case 14:
+		return "GTIN"
+	default:
+		return "GTIN"
+	}
 }
 
 func boolPtr(v bool) *bool {

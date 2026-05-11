@@ -391,13 +391,17 @@ func TestItemScanOperational_ValidRendersConfirm(t *testing.T) {
 	}
 }
 
-func TestItemScanConfirmCreate_CreatesItemAndBarcode(t *testing.T) {
+func TestItemScanConfirmCreate_CreatesItemBarcodeAndVendorLink(t *testing.T) {
 	state := fixedScanState()
+	vendorID := uuid.New()
+	state.Product.CategorySuggestion = "Dairy"
 	state.Operational = scanOperationalFields{
 		SKU:           "MILK-001",
+		VendorID:      vendorID.String(),
 		UnitOfMeasure: "EA",
 		UnitCost:      "2.49",
 		SellingPrice:  "4.99",
+		CasePack:      "12",
 		Status:        "active",
 	}
 	token := fixedScanToken(t, state)
@@ -431,8 +435,62 @@ func TestItemScanConfirmCreate_CreatesItemAndBarcode(t *testing.T) {
 	if len(captured.Barcodes) != 1 || captured.Barcodes[0].Value != "012345678905" {
 		t.Fatalf("Barcodes = %#v, want scanned barcode", captured.Barcodes)
 	}
-	if len(captured.Attributes) == 0 || !strings.Contains(string(captured.Attributes), "Open Food Facts") {
-		t.Fatalf("Attributes = %s, want lookup metadata", string(captured.Attributes))
+	if captured.Barcodes[0].Type == nil || *captured.Barcodes[0].Type != "UPC_A" {
+		t.Fatalf("Barcode type = %#v, want UPC_A", captured.Barcodes[0].Type)
+	}
+	if len(captured.VendorLinks) != 1 {
+		t.Fatalf("VendorLinks = %#v, want one primary vendor link", captured.VendorLinks)
+	}
+	vendorLink := captured.VendorLinks[0]
+	if vendorLink.VendorID != vendorID {
+		t.Errorf("VendorID = %s, want %s", vendorLink.VendorID, vendorID)
+	}
+	if vendorLink.UnitCost == nil || *vendorLink.UnitCost != "2.49" {
+		t.Errorf("Vendor unit cost = %#v, want 2.49", vendorLink.UnitCost)
+	}
+	if vendorLink.CasePackQty == nil || *vendorLink.CasePackQty != 12 {
+		t.Errorf("CasePackQty = %#v, want 12", vendorLink.CasePackQty)
+	}
+	if vendorLink.IsPrimary == nil || !*vendorLink.IsPrimary {
+		t.Errorf("IsPrimary = %#v, want true", vendorLink.IsPrimary)
+	}
+	attrs := string(captured.Attributes)
+	for _, want := range []string{"Open Food Facts", `"barcode_type":"UPC_A"`, vendorID.String(), `"case_pack":"12"`, "Dairy"} {
+		if !strings.Contains(attrs, want) {
+			t.Fatalf("Attributes = %s, want %q", attrs, want)
+		}
+	}
+}
+
+func TestItemScanConfirmCreate_InvalidCasePackDoesNotCreate(t *testing.T) {
+	state := fixedScanState()
+	state.Operational.SKU = "MILK-001"
+	state.Operational.UnitCost = "2.49"
+	state.Operational.SellingPrice = "4.99"
+	state.Operational.CasePack = "0"
+	token := fixedScanToken(t, state)
+	storeCalled := false
+	store := &scanItemStoreStub{
+		createFn: func(_ context.Context, req item.CreateRequest) (*item.Item, error) {
+			storeCalled = true
+			return nil, nil
+		},
+	}
+	r := newItemScanRouter(t, Deps{ItemStore: store})
+
+	rec := postScanForm(r, "/items/scan/confirm", url.Values{
+		"flow":   {token},
+		"intent": {"create"},
+	})
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if storeCalled {
+		t.Fatal("Create must not be called for invalid case pack")
+	}
+	if !strings.Contains(rec.Body.String(), "Check the fields and try again") {
+		t.Fatalf("body missing validation message: %s", rec.Body.String())
 	}
 }
 
