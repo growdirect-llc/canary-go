@@ -27,15 +27,15 @@ import (
 // stubStore is a hand-written test double — keeps the handler tests
 // dependency-free.
 type stubStore struct {
-	getByIDFn         func(ctx context.Context, tenantID, id uuid.UUID) (*Item, error)
-	getBySKUFn        func(ctx context.Context, tenantID uuid.UUID, sku string) (*Item, error)
-	getByBarcodeFn    func(ctx context.Context, tenantID uuid.UUID, barcode string) (*Item, error)
-	createFn          func(ctx context.Context, req CreateRequest) (*Item, error)
-	updateFn          func(ctx context.Context, tenantID, id uuid.UUID, patch PatchRequest) (*Item, error)
-	deleteFn          func(ctx context.Context, tenantID, id uuid.UUID) error
-	listFn            func(ctx context.Context, f ListFilters) ([]Item, error)
-	listCategoriesFn  func(ctx context.Context, tenantID uuid.UUID) ([]Category, error)
-	listVendorsFn     func(ctx context.Context, tenantID uuid.UUID) ([]Vendor, error)
+	getByIDFn        func(ctx context.Context, tenantID, id uuid.UUID) (*Item, error)
+	getBySKUFn       func(ctx context.Context, tenantID uuid.UUID, sku string) (*Item, error)
+	getByBarcodeFn   func(ctx context.Context, tenantID uuid.UUID, barcode string) (*Item, error)
+	createFn         func(ctx context.Context, req CreateRequest) (*Item, error)
+	updateFn         func(ctx context.Context, tenantID, id uuid.UUID, patch PatchRequest) (*Item, error)
+	deleteFn         func(ctx context.Context, tenantID, id uuid.UUID) error
+	listFn           func(ctx context.Context, f ListFilters) ([]Item, error)
+	listCategoriesFn func(ctx context.Context, tenantID uuid.UUID) ([]Category, error)
+	listVendorsFn    func(ctx context.Context, tenantID uuid.UUID) ([]Vendor, error)
 }
 
 func (s *stubStore) GetByID(ctx context.Context, t, i uuid.UUID) (*Item, error) {
@@ -549,6 +549,14 @@ func TestValidate_RejectsEmptyFields(t *testing.T) {
 		{"empty barcode value", CreateRequest{
 			TenantID: uuid.New(), SKU: "X", Description: "Y",
 			Barcodes: []BarcodeRequest{{Value: ""}},
+		}},
+		{"empty vendor link vendor id", CreateRequest{
+			TenantID: uuid.New(), SKU: "X", Description: "Y",
+			VendorLinks: []VendorLinkRequest{{}},
+		}},
+		{"invalid vendor link case pack", CreateRequest{
+			TenantID: uuid.New(), SKU: "X", Description: "Y",
+			VendorLinks: []VendorLinkRequest{{VendorID: uuid.New(), CasePackQty: ptr[int32](0)}},
 		}},
 	}
 	for _, c := range cases {

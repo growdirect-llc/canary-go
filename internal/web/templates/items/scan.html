@@ -1,0 +1,69 @@
+{{template "base.html" .}}
+
+{{define "title"}}Scan item - Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+{{$csrf := $.CSRFField}}
+{{$form := .Form}}
+<div class="page-header">
+  <h1>Scan item</h1>
+  <p class="page-subtitle">Scan a barcode or enter it manually.</p>
+</div>
+
+{{if .Flash}}
+<div class="ops-card" style="margin-bottom:16px;border-left:3px solid var(--signal-yellow);">
+  <div style="font-size:13px;color:var(--text-primary);">
+    {{if eq .Flash "missing_barcode"}}Barcode is required.
+    {{else if eq .Flash "barcode_not_found"}}Barcode was not found. Continue with manual item entry.
+    {{else if eq .Flash "lookup_failed"}}Lookup is unavailable. You can retry or use manual entry.
+    {{else if eq .Flash "duplicate_barcode"}}Barcode already exists.
+    {{else if eq .Flash "scan_expired"}}Scan session expired. Scan the item again.
+    {{else if eq .Flash "no_store"}}Item store not wired in this environment.
+    {{else if eq .Flash "invalid_form"}}Form data could not be parsed.
+    {{else}}Something went wrong: {{.Flash}}
+    {{end}}
+  </div>
+</div>
+{{end}}
+
+{{with .Duplicate}}
+<div class="ops-card" style="margin-bottom:16px;border-left:3px solid var(--signal-yellow);">
+  <h2 style="margin:0 0 8px;font-size:18px;">Barcode already exists</h2>
+  {{if .Description}}
+  <p style="margin:0 0 12px;color:var(--text-secondary);font-size:13px;">{{.Description}} - SKU {{.SKU}}</p>
+  {{else}}
+  <p style="margin:0 0 12px;color:var(--text-secondary);font-size:13px;">This barcode is already attached to an item.</p>
+  {{end}}
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    {{if .ID}}<a href="/items/{{.ID}}" style="padding:8px 14px;background:var(--signal-yellow);color:#000;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;">Open existing item</a>{{end}}
+    <a href="/items/new" style="padding:8px 14px;color:var(--text-muted);text-decoration:none;font-size:13px;">Create related item</a>
+  </div>
+</div>
+{{end}}
+
+<form method="POST" action="/items/scan/lookup" class="ops-card" style="max-width:640px;">
+  {{$csrf}}
+  <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-primary);">
+    Barcode
+    <input
+      type="text"
+      name="barcode"
+      value="{{index $form "barcode"}}"
+      inputmode="numeric"
+      autocomplete="off"
+      autofocus
+      maxlength="64"
+      placeholder="Scan or type barcode"
+      style="padding:10px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:16px;outline:none;font-family:'Space Grotesk',monospace;"
+    />
+  </label>
+  <div style="display:flex;gap:12px;align-items:center;margin-top:20px;padding-top:18px;border-top:1px solid var(--border-subtle);flex-wrap:wrap;">
+    <button type="submit" style="padding:10px 20px;background:var(--signal-yellow);color:#000;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
+      Look up barcode
+    </button>
+    <a href="/items/new" style="padding:10px 16px;color:var(--text-muted);text-decoration:none;font-size:13px;">Manual entry</a>
+  </div>
+</form>
+{{end}}
+{{end}}

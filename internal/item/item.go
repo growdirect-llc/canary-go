@@ -4,8 +4,6 @@
 // POS-scan path — every scan invokes GetByBarcode, so the read path
 // is shaped for sub-100ms latency.
 //
-//
-//
 // Note on the schema/dispatch terminology mismatch: the dispatch brief
 // uses "merchant_id" everywhere, but the canonical schema (deploy/schema/
 // 02_m_items.sql) uses tenant_id throughout the m.* domain. We honor the
@@ -127,24 +125,25 @@ type Vendor struct {
 // tenant_id are strictly required; everything else has a sensible
 // default in the schema.
 type CreateRequest struct {
-	TenantID          uuid.UUID         `json:"tenant_id"`
-	SKU               string            `json:"sku"`
-	Description       string            `json:"description"`
-	ShortDescription  *string           `json:"short_description,omitempty"`
-	ItemType          *string           `json:"item_type,omitempty"`
-	CategoryID        *uuid.UUID        `json:"category_id,omitempty"`
-	UnitOfMeasure     *string           `json:"unit_of_measure,omitempty"`
-	UOMQuantity       *string           `json:"uom_quantity,omitempty"`
-	DefaultPrice      *string           `json:"default_price,omitempty"`
-	DefaultCost       *string           `json:"default_cost,omitempty"`
-	DefaultCurrency   *string           `json:"default_currency,omitempty"`
-	TaxClass          *string           `json:"tax_class,omitempty"`
-	FoodStampEligible *bool             `json:"food_stamp_eligible,omitempty"`
-	AgeRestriction    *int32            `json:"age_restriction,omitempty"`
-	Weighable         *bool             `json:"weighable,omitempty"`
-	Attributes        json.RawMessage   `json:"attributes,omitempty"`
-	Status            *string           `json:"status,omitempty"`
-	Barcodes          []BarcodeRequest  `json:"barcodes,omitempty"`
+	TenantID          uuid.UUID           `json:"tenant_id"`
+	SKU               string              `json:"sku"`
+	Description       string              `json:"description"`
+	ShortDescription  *string             `json:"short_description,omitempty"`
+	ItemType          *string             `json:"item_type,omitempty"`
+	CategoryID        *uuid.UUID          `json:"category_id,omitempty"`
+	UnitOfMeasure     *string             `json:"unit_of_measure,omitempty"`
+	UOMQuantity       *string             `json:"uom_quantity,omitempty"`
+	DefaultPrice      *string             `json:"default_price,omitempty"`
+	DefaultCost       *string             `json:"default_cost,omitempty"`
+	DefaultCurrency   *string             `json:"default_currency,omitempty"`
+	TaxClass          *string             `json:"tax_class,omitempty"`
+	FoodStampEligible *bool               `json:"food_stamp_eligible,omitempty"`
+	AgeRestriction    *int32              `json:"age_restriction,omitempty"`
+	Weighable         *bool               `json:"weighable,omitempty"`
+	Attributes        json.RawMessage     `json:"attributes,omitempty"`
+	Status            *string             `json:"status,omitempty"`
+	Barcodes          []BarcodeRequest    `json:"barcodes,omitempty"`
+	VendorLinks       []VendorLinkRequest `json:"vendor_links,omitempty"`
 }
 
 // BarcodeRequest is one item-barcode in a CreateRequest.
@@ -153,6 +152,15 @@ type BarcodeRequest struct {
 	Type        *string `json:"type,omitempty"`         // GTIN | UPC_A | EAN_13 | ITF_14 | DATABAR | INTERNAL | PLU
 	UOMQuantity *string `json:"uom_quantity,omitempty"` // numeric as string
 	IsPrimary   *bool   `json:"is_primary,omitempty"`
+}
+
+// VendorLinkRequest is one item-to-vendor association in a CreateRequest.
+type VendorLinkRequest struct {
+	VendorID    uuid.UUID `json:"vendor_id"`
+	VendorSKU   *string   `json:"vendor_sku,omitempty"`
+	UnitCost    *string   `json:"unit_cost,omitempty"` // numeric as string
+	CasePackQty *int32    `json:"case_pack_qty,omitempty"`
+	IsPrimary   *bool     `json:"is_primary,omitempty"`
 }
 
 // PatchRequest is the PATCH /v1/items/{id} body. Every field is a
@@ -217,6 +225,14 @@ func (r CreateRequest) Validate() error {
 	for i, b := range r.Barcodes {
 		if b.Value == "" {
 			return wrap("barcodes[" + itoa(i) + "].value is required")
+		}
+	}
+	for i, v := range r.VendorLinks {
+		if v.VendorID == uuid.Nil {
+			return wrap("vendor_links[" + itoa(i) + "].vendor_id is required")
+		}
+		if v.CasePackQty != nil && *v.CasePackQty < 1 {
+			return wrap("vendor_links[" + itoa(i) + "].case_pack_qty must be positive")
 		}
 	}
 	return nil

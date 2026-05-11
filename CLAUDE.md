@@ -5,7 +5,13 @@
 
 ## This build
 Greenfield Go service tree for the Canary Go platform. 19 services (20 binaries with edge).
-Active milestone: M1 Foundation. See spec: `docs/superpowers/specs/2026-04-28-canary-go-m1-foundation-design.md`.
+Active milestone: M1 hardening and Phase 5 readiness.
+
+Read these first:
+- `docs/superpowers/specs/2026-05-08-canary-go-unified-dispatch.md` — active program map.
+- `docs/superpowers/specs/2026-05-10-canary-go-phase-9-supply-chain-dispatch.md` — active Phase 9 hardening dispatch.
+- `docs/architecture/canary-go-vision-fit-matrix.md` — fit between the Go work, Ruptiv vision, AtlasView, retail capabilities, and agent execution.
+- `docs/architecture/component-led-ui-vision.md` — Canary/AtlasView UI alignment.
 
 ## Stack
 Go 1.22+ · Chi v5 · pgx/v5 · sqlc v2 · golang-migrate v4 · PostgreSQL 17 · Valkey 8
@@ -27,8 +33,15 @@ identity :8086 · tsp :8080 · chirp :8081 · hawk :8082 · fox :8083 · owl :80
 bull :8085 · alert :8087 · analytics :8088 · asset :8089 · item :8090
 customer :8091 · employee :8092 · returns :8093 · report :8094
 
-## SDDs (read before touching a service)
-`docs/sdds/go-handoff/` — data-model.md, go-module-layout.md, microservice-architecture.md, identity.md
+## Architecture docs (read before touching a service)
+- `docs/architecture/`
+- `docs/decisions/`
+- `docs/conventions.md`
+- `docs/conventions/`
+- `docs/superpowers/specs/`
+- `docs/superpowers/plans/`
+
+Historical comments may still mention `docs/sdds/go-handoff/`; that directory is not present in this checkout. Treat those references as provenance unless the active docs above supersede them.
 
 ## sqlc rule (amended 2026-05-03 — Loop 4 Wave A Phase A.1)
 - Read paths: direct pgx + inline SQL is acceptable

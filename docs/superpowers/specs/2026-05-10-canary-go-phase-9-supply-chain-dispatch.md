@@ -230,6 +230,7 @@ This dispatch does NOT cover:
 ## Cross-references
 
 - Parent plan: `docs/superpowers/specs/2026-05-08-canary-go-unified-dispatch.md`
+- Vision fit matrix: `docs/architecture/canary-go-vision-fit-matrix.md`
 - ADR fed by Phase 8 GRO-952: `docs/decisions/gro-952-pii-redaction-policy.md`
 - Component-led UI vision: `docs/architecture/component-led-ui-vision.md`
 - Research dispatch (parallel): `docs/superpowers/specs/2026-05-10-open-commerce-component-research-dispatch.md`

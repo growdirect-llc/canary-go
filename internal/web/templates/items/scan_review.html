@@ -1,0 +1,54 @@
+{{template "base.html" .}}
+
+{{define "title"}}Review item - Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+{{$csrf := $.CSRFField}}
+{{$state := .State}}
+{{$product := $state.Product}}
+<div class="page-header">
+  <h1>Review item</h1>
+  <p class="page-subtitle">Confirm lookup details before adding store fields.</p>
+</div>
+
+<form method="POST" action="/items/scan/operational" class="ops-card" style="max-width:760px;">
+  {{$csrf}}
+  <input type="hidden" name="flow" value="{{.Flow}}" />
+  <input type="hidden" name="intent" value="edit_operational" />
+  <input type="hidden" name="sku" value="{{$state.Operational.SKU}}" />
+  <input type="hidden" name="unit_of_measure" value="{{$state.Operational.UnitOfMeasure}}" />
+  <input type="hidden" name="status" value="{{$state.Operational.Status}}" />
+
+  <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:18px;flex-wrap:wrap;">
+    <div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">Barcode/GTIN</div>
+      <div style="font-family:'Space Grotesk',monospace;font-size:14px;color:var(--text-primary);">{{$state.Barcode}}</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      {{if $state.Source}}{{template "components/status-pill" (dict "label" $state.Source "tone" "info")}}{{end}}
+      {{template "components/status-pill" (dict "label" .ConfidenceLabel "tone" "success")}}
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr;gap:16px;">
+    {{template "components/form-field" (dict "name" "name" "label" "Item name" "value" $product.Name "required" true)}}
+    {{template "components/form-field" (dict "name" "brand" "label" "Brand" "value" $product.Brand)}}
+    {{template "components/form-field" (dict "name" "size" "label" "Size" "value" $product.Size)}}
+    {{template "components/form-field" (dict "name" "image_url" "label" "Image URL" "type" "url" "value" $product.ImageURL)}}
+    {{template "components/form-field" (dict "name" "category_suggestion" "label" "Category suggestion" "value" $product.CategorySuggestion)}}
+  </div>
+
+  {{if $state.PartialFields}}
+  <div style="margin-top:16px;font-size:12px;color:var(--text-muted);">
+    Missing from source: {{range $i, $field := $state.PartialFields}}{{if $i}}, {{end}}{{$field}}{{end}}
+  </div>
+  {{end}}
+
+  <div style="display:flex;gap:12px;align-items:center;margin-top:24px;padding-top:20px;border-top:1px solid var(--border-subtle);flex-wrap:wrap;">
+    <button type="submit" style="padding:10px 20px;background:var(--signal-yellow);color:#000;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Continue</button>
+    <a href="/items/scan" style="padding:10px 16px;color:var(--text-muted);text-decoration:none;font-size:13px;">Start over</a>
+  </div>
+</form>
+{{end}}
+{{end}}

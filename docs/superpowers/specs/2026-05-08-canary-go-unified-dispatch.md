@@ -47,6 +47,7 @@ This spec is the **human-readable narrative**. Linear is the **machine-readable 
 - Code review findings: 2026-05-08 review pass (Grok validation + deep audit). 14 issues filed: [GRO-904 fox IDOR](https://linear.app/growdirect/issue/GRO-904) through [GRO-917 cmdutil cleanup](https://linear.app/growdirect/issue/GRO-917).
 - Platform Architecture Charter: `spec/platform-architecture-charter.md` (Ruptiv repo, ratified 2026-05-08). Commitments 1-2 + sequencing step 4 govern the identity decisions in this dispatch.
 - AtlasView identity contract reference: `docs/decisions/gro-848-atlasview-identity-integration.md`.
+- Vision fit matrix: `docs/architecture/canary-go-vision-fit-matrix.md`, mapping the current Go execution queue to the Ruptiv, AtlasView, shared-platform, retail capability, and agent-memory operating model.
 - Frontend specs: `Brain/wiki/cards/canary-item-setup-screen-decomp.md` (Flow A / B / C decomposition) and `Brain/wiki/cards/canary-item-master-and-catalog.md` (5-dimension lifecycle).
 - UI substrate directive: 2026-05-08 conversational directive ("design in reusable components"). Saved as durable preference in `~/.claude/projects/-Users-gclyle-CanaryGo/memory/feedback_ui_reusable_components.md`.
 
@@ -350,6 +351,8 @@ Call-outs for future planners working in this codebase. These persist beyond thi
 
 5. **Phase checkpoints must be real Linear tickets, not just doc sections.** Without a ticket the runner can pick up, "checkpoint" becomes "thing humans were supposed to remember to do." CK1-CK4 are mandatory dispatch units in this spec; future dispatches should follow suit.
 
+6. **Vision fit must be explicit.** The active execution queue is narrower than the full Ruptiv vision by design. Use `docs/architecture/canary-go-vision-fit-matrix.md` before reshaping priorities so agents can distinguish local hardening, merchant product work, AtlasView subscriber contracts, retail capability expansion, and company-memory updates.
+
 ## Out of scope
 
 This dispatch does **not** cover:
@@ -369,7 +372,7 @@ This dispatch does **not** cover:
 - UI components directive: `~/.claude/projects/-Users-gclyle-CanaryGo/memory/feedback_ui_reusable_components.md`.
 - CLAUDE.md — repository operating rules (sqlc discipline, two-tier migration rule, Never-list).
 - `docs/conventions.md` — HTTP handler conventions, error envelope, sqlc rule (amended 2026-05-03).
-- `docs/sdds/go-handoff/` — service design documents.
+- `docs/architecture/`, `docs/decisions/`, and `docs/conventions/` — active architecture, decision, and implementation standards.
 - Item Setup screen decomp: `Brain/wiki/cards/canary-item-setup-screen-decomp.md`.
 - Item Master + Catalog model: `Brain/wiki/cards/canary-item-master-and-catalog.md`.
 
