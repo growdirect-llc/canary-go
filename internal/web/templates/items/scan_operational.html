@@ -1,0 +1,91 @@
+{{template "base.html" .}}
+
+{{define "title"}}Store fields - Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+{{$csrf := $.CSRFField}}
+{{$state := .State}}
+{{$product := $state.Product}}
+{{$op := $state.Operational}}
+<div class="page-header">
+  <h1>Store fields</h1>
+  <p class="page-subtitle">Add the fields Canary needs to sell and report this item.</p>
+</div>
+
+{{if .Flash}}
+<div class="ops-card" style="margin-bottom:16px;border-left:3px solid var(--signal-yellow);">
+  <div style="font-size:13px;color:var(--text-primary);">
+    {{if eq .Flash "missing_name"}}Item name is required.
+    {{else if eq .Flash "missing_sku"}}SKU is required.
+    {{else if eq .Flash "missing_unit_cost"}}Unit cost is required.
+    {{else if eq .Flash "missing_selling_price"}}Selling price is required.
+    {{else}}Check the fields and try again.
+    {{end}}
+  </div>
+</div>
+{{end}}
+
+<form method="POST" action="/items/scan/operational" class="ops-card" style="max-width:760px;">
+  {{$csrf}}
+  <input type="hidden" name="flow" value="{{.Flow}}" />
+  <input type="hidden" name="intent" value="preview" />
+  <input type="hidden" name="name" value="{{$product.Name}}" />
+  <input type="hidden" name="brand" value="{{$product.Brand}}" />
+  <input type="hidden" name="size" value="{{$product.Size}}" />
+  <input type="hidden" name="image_url" value="{{$product.ImageURL}}" />
+  <input type="hidden" name="category_suggestion" value="{{$product.CategorySuggestion}}" />
+
+  <div style="display:grid;grid-template-columns:1fr;gap:16px;">
+    {{template "components/form-field" (dict "name" "sku" "label" "SKU" "value" $op.SKU "required" true)}}
+    <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-primary);">
+      Category
+      <select name="category_id" style="padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;">
+        <option value="">No category</option>
+        {{range .Categories}}
+        <option value="{{.ID}}" {{if eq $op.CategoryID .ID}}selected{{end}}>{{.Name}}</option>
+        {{end}}
+      </select>
+    </label>
+    <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-primary);">
+      Supplier
+      <select name="vendor_id" style="padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;">
+        <option value="">No supplier yet</option>
+        {{range .Vendors}}
+        <option value="{{.ID}}" {{if eq $op.VendorID .ID}}selected{{end}}>{{.Name}}</option>
+        {{end}}
+      </select>
+    </label>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
+      {{template "components/form-field" (dict "name" "unit_cost" "label" "Unit cost" "type" "number" "value" $op.UnitCost "required" true)}}
+      {{template "components/form-field" (dict "name" "selling_price" "label" "Selling price" "type" "number" "value" $op.SellingPrice "required" true)}}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-primary);">
+        Unit of measure
+        <select name="unit_of_measure" style="padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;">
+          <option value="EA" {{if or (eq $op.UnitOfMeasure "EA") (eq $op.UnitOfMeasure "")}}selected{{end}}>EA - Each</option>
+          <option value="LB" {{if eq $op.UnitOfMeasure "LB"}}selected{{end}}>LB - Pound</option>
+          <option value="OZ" {{if eq $op.UnitOfMeasure "OZ"}}selected{{end}}>OZ - Ounce</option>
+          <option value="KG" {{if eq $op.UnitOfMeasure "KG"}}selected{{end}}>KG - Kilogram</option>
+          <option value="L" {{if eq $op.UnitOfMeasure "L"}}selected{{end}}>L - Liter</option>
+        </select>
+      </label>
+      {{template "components/form-field" (dict "name" "case_pack" "label" "Case pack" "type" "number" "value" $op.CasePack)}}
+    </div>
+    <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-primary);">
+      Status
+      <select name="status" style="padding:8px 12px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;">
+        <option value="active" {{if or (eq $op.Status "active") (eq $op.Status "")}}selected{{end}}>Active - start selling</option>
+        <option value="hidden" {{if eq $op.Status "hidden"}}selected{{end}}>Hidden - set up but not yet at POS</option>
+      </select>
+    </label>
+  </div>
+
+  <div style="display:flex;gap:12px;align-items:center;margin-top:24px;padding-top:20px;border-top:1px solid var(--border-subtle);flex-wrap:wrap;">
+    <button type="submit" style="padding:10px 20px;background:var(--signal-yellow);color:#000;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Review final item</button>
+    <a href="/items/scan" style="padding:10px 16px;color:var(--text-muted);text-decoration:none;font-size:13px;">Start over</a>
+  </div>
+</form>
+{{end}}
+{{end}}

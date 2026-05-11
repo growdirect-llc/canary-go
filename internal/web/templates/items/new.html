@@ -26,6 +26,7 @@
     {{else if eq .Flash "missing_unit_cost"}}Unit cost is required.
     {{else if eq .Flash "missing_selling_price"}}Selling price is required.
     {{else if eq .Flash "duplicate_sku"}}SKU "{{(index .Form "sku")}}" already exists in this tenant. <a href="/items?q={{(index .Form "sku")}}" style="color:var(--accent-blue);text-decoration:underline;">Open existing item</a>
+    {{else if eq .Flash "barcode_not_found"}}Barcode was not found. Complete the item manually.
     {{else if eq .Flash "validation_failed"}}Validation failed. Check the values and try again.
     {{else if eq .Flash "create_failed"}}Could not create the item. Logged for review; try again or contact support if it persists.
     {{else if eq .Flash "no_store"}}Item store not wired in this environment.

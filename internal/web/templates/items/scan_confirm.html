@@ -1,0 +1,47 @@
+{{template "base.html" .}}
+
+{{define "title"}}Confirm item - Canary{{end}}
+
+{{define "content"}}
+{{with .Data}}
+{{$csrf := $.CSRFField}}
+{{$state := .State}}
+{{$product := $state.Product}}
+{{$op := $state.Operational}}
+<div class="page-header">
+  <h1>Confirm item</h1>
+  <p class="page-subtitle">Create this item and barcode in Canary.</p>
+</div>
+
+{{if .Flash}}
+<div class="ops-card" style="margin-bottom:16px;border-left:3px solid var(--signal-yellow);">
+  <div style="font-size:13px;color:var(--text-primary);">
+    {{if eq .Flash "create_failed"}}Could not create the item. Try again or use manual entry.
+    {{else}}Check the fields and try again.
+    {{end}}
+  </div>
+</div>
+{{end}}
+
+<form method="POST" action="/items/scan/confirm" class="ops-card" style="max-width:760px;">
+  {{$csrf}}
+  <input type="hidden" name="flow" value="{{.Flow}}" />
+  <input type="hidden" name="intent" value="create" />
+
+  <div style="display:grid;grid-template-columns:minmax(110px,140px) 1fr;gap:10px;font-size:13px;">
+    <div style="color:var(--text-muted);">Item name</div><div>{{$product.Name}}</div>
+    <div style="color:var(--text-muted);">SKU</div><div>{{$op.SKU}}</div>
+    <div style="color:var(--text-muted);">Barcode/GTIN</div><div>{{$state.Barcode}}</div>
+    <div style="color:var(--text-muted);">Unit cost</div><div>{{$op.UnitCost}}</div>
+    <div style="color:var(--text-muted);">Selling price</div><div>{{$op.SellingPrice}}</div>
+    <div style="color:var(--text-muted);">Status</div><div>{{$op.Status}}</div>
+    <div style="color:var(--text-muted);">Source</div><div>{{if $state.Source}}{{$state.Source}} {{end}}{{template "components/status-pill" (dict "label" .ConfidenceLabel "tone" "info")}}</div>
+  </div>
+
+  <div style="display:flex;gap:12px;align-items:center;margin-top:24px;padding-top:20px;border-top:1px solid var(--border-subtle);flex-wrap:wrap;">
+    <button type="submit" style="padding:10px 20px;background:var(--signal-yellow);color:#000;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Create item</button>
+    <a href="/items/scan" style="padding:10px 16px;color:var(--text-muted);text-decoration:none;font-size:13px;">Start over</a>
+  </div>
+</form>
+{{end}}
+{{end}}
