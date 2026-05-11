@@ -4,6 +4,7 @@ date: 2026-05-10
 status: draft
 owners: product, design, engineering
 related:
+  - docs/architecture/canary-go-vision-fit-matrix.md
   - docs/conventions/ui-components.md
   - docs/superpowers/specs/2026-05-08-canary-go-unified-dispatch.md
   - docs/decisions/gro-848-atlasview-identity-integration.md
@@ -212,6 +213,7 @@ Do not build a massive design system ahead of product demand. Build a narrow sub
 
 The component-led architecture is now governed by local standards docs:
 
+- `docs/architecture/canary-go-vision-fit-matrix.md` controls how UI work maps to the broader Ruptiv, AtlasView, retail-capability, shared-platform, and agent-memory model.
 - `docs/decisions/ui-retail-vocabulary.md` controls visible merchant nouns.
 - `docs/decisions/ui-status-taxonomy.md` controls status families and tones.
 - `docs/conventions/ui-components.md` controls component public APIs, states, and accessibility obligations.

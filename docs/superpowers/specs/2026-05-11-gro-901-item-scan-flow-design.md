@@ -5,6 +5,7 @@ status: draft
 owners: product, design, engineering
 related:
   - docs/superpowers/specs/2026-05-08-canary-go-unified-dispatch.md
+  - docs/architecture/canary-go-vision-fit-matrix.md
   - docs/architecture/component-led-ui-vision.md
   - docs/decisions/ui-retail-vocabulary.md
   - docs/decisions/ui-status-taxonomy.md
